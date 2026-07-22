@@ -1,5 +1,10 @@
 ﻿#pragma once
 
+/**
+ * @file lib_registry.hpp
+ * @brief Lua 标准库函数与模块注册辅助接口
+ */
+
 #include "lib/lib_module.hpp"
 #include "common/types.hpp"
 
@@ -10,6 +15,7 @@ namespace Lua {
 class Table;
 class Function;
 
+/** @brief 库函数注册失败的分类。 */
 enum class LibRegistrationErrorCode : u8 {
     NullState,
     NullTable,
@@ -17,6 +23,7 @@ enum class LibRegistrationErrorCode : u8 {
     NullFunction,
 };
 
+/** @brief 库函数注册失败的错误信息。 */
 struct LibRegistrationError {
     LibRegistrationErrorCode code;
     StrView operation;
@@ -172,8 +179,10 @@ private:
     // 成员变量
     // =====================================================================
 
-    LuaState* state_;                       ///< Lua状态指针
-    Vec<LibFunctionEntry> entries_;         ///< 函数入口列表
+    /** @brief Lua状态指针 */
+    LuaState* state_;
+    /** @brief 函数入口列表 */
+    Vec<LibFunctionEntry> entries_;
 };
 
 } // namespace Lua

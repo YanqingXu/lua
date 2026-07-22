@@ -1,6 +1,6 @@
 /**
  * @file vm_handlers_arith.cpp
- * @brief Arithmetic opcode handlers.
+ * @brief 算术操作码处理器
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"

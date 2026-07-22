@@ -1,6 +1,6 @@
 ﻿/**
  * @file json_trace_sink.hpp
- * @brief JSONL 格式的 Trace 输出实现
+ * @brief JSONL 格式的追踪输出实现
  *
  * 将 VM 执行事件逐行写入 .jsonl 文件。
  * 每行一个完整 JSON 对象，便于流式解析和离线可视化。
@@ -15,7 +15,7 @@
 namespace Lua {
 
 /**
- * @brief JSON Lines Trace Sink
+ * @brief JSON 行格式追踪输出端
  *
  * 构造时打开输出文件，析构时自动关闭。
  * 线程不安全——仅供单线程 VM 使用。

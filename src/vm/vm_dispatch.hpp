@@ -2,7 +2,7 @@
 
 /**
  * @file vm_dispatch.hpp
- * @brief Opcode grouping helpers for VM dispatch refactoring.
+ * @brief VM 调度重构所使用的操作码分组辅助函数
  */
 
 #include "compiler/opcode.hpp"

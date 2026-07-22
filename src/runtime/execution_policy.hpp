@@ -2,7 +2,7 @@
 
 /**
  * @file execution_policy.hpp
- * @brief Runtime-wide Lua instruction, deadline, cancellation, and finalizer governance.
+ * @brief 运行时级 Lua 指令、截止时间、取消与终结器治理策略
  */
 
 #include "common/types.hpp"
@@ -15,7 +15,7 @@
 namespace Lua {
 
 /**
- * @brief Stable reason returned by the VM execution-policy checkpoint.
+ * @brief VM 执行策略检查点返回的稳定停止原因
  */
 enum class ExecutionStopReason : u8 {
     None,
@@ -26,16 +26,16 @@ enum class ExecutionStopReason : u8 {
 };
 
 /**
- * @brief The only thread-safe execution control exposed to non-owner threads.
+ * @brief 向非所有者线程公开的唯一线程安全执行控制接口
  *
- * A handle exposes only a one-way atomic request: configuring or clearing policy
- * remains an owner-thread operation. The shared state below makes a late request
- * after EngineContext teardown a safe no-op instead of a dangling-pointer access.
+ * 句柄仅公开单向原子请求；配置或清除策略仍属于所有者线程操作。下方共享状态使
+ * EngineContext 析构后的迟到请求安全地成为无操作，而不会访问悬空指针。
  */
 struct ExecutionCancellationState {
     std::atomic<bool> requested{false};
 };
 
+/** @brief 可从宿主侧请求取消执行的共享句柄。 */
 class ExecutionCancellationHandle {
 public:
     ExecutionCancellationHandle() noexcept = default;
@@ -60,16 +60,13 @@ private:
 };
 
 /**
- * @brief Shared execution limits for every LuaState in one runtime context.
+ * @brief 单个运行时上下文内所有 LuaState 共享的执行限制
  *
- * A finite instruction budget is consumed across Lua calls, C-to-Lua re-entry,
- * yields, and coroutine resumes. Deadlines use std::chrono::steady_clock so wall
- * clock adjustments cannot extend or shorten an armed run. A per-drain finalizer
- * budget bounds entry into user __gc callbacks without changing the unlimited
- * default. Policy configuration is owner-thread-only; cancellation is the sole
- * cross-thread operation. Cancellation handles retain only a weak reference to
- * an independently allocated state, so a request arriving after context
- * teardown is a safe no-op.
+ * 有限指令预算会在 Lua 调用、C 到 Lua 重入、让出与协程恢复之间持续消耗。截止时间使用
+ * std::chrono::steady_clock，因此系统时钟调整不会延长或缩短已启动的执行窗口。每轮清理的
+ * 终结器预算限制进入用户 __gc 回调的次数，同时保持默认不受限。仅所有者线程可配置策略，
+ * 取消是唯一允许的跨线程操作。取消句柄只保留对独立分配状态的弱引用，因此上下文析构后的
+ * 请求会安全地成为无操作。
  */
 class ExecutionPolicy {
 public:
@@ -96,8 +93,8 @@ public:
     ExecutionPolicy& operator=(ExecutionPolicy&&) = delete;
 
     /**
-     * @brief Arm a fresh execution window and clear any earlier cancellation.
-     * @note Owner-thread-only; do not call concurrently with Lua execution.
+     * @brief 启动新的执行窗口并清除先前的取消请求
+     * @note 仅限所有者线程；不得与 Lua 执行并发调用。
      */
     void configure(const Limits& limits) noexcept {
         initialInstructions_ = limits.instructionBudget;
@@ -110,16 +107,16 @@ public:
     }
 
     /**
-     * @brief Disable all limits and clear any earlier cancellation request.
-     * @note Owner-thread-only; do not call concurrently with Lua execution.
+     * @brief 禁用全部限制并清除先前的取消请求
+     * @note 仅限所有者线程；不得与 Lua 执行并发调用。
      */
     void reset() noexcept {
         configure(Limits{});
     }
 
     /**
-     * @brief Clear cancellation without resetting budget or deadline.
-     * @note Owner-thread-only; do not call concurrently with Lua execution.
+     * @brief 清除取消请求但不重置预算或截止时间
+     * @note 仅限所有者线程；不得与 Lua 执行并发调用。
      */
     void clearCancellation() noexcept {
         cancellationState_->requested.store(false, std::memory_order_relaxed);
@@ -168,12 +165,11 @@ public:
     }
 
     /**
-     * @brief Maximum __gc callbacks entered by one collector/finalize drain.
+     * @brief 单轮收集器或终结清理允许进入的 __gc 回调数上限
      *
-     * This limit is replenished for each drain rather than consumed across the
-     * execution window. A finite value slices ordinary GC finalization and
-     * bounds close-time entry into user finalizers; zero suppresses callbacks
-     * for that drain while shutdown still destroys all owned storage.
+     * 此限制会在每轮清理时补充，而不会跨执行窗口持续消耗。有限值会对常规垃圾回收终结过程
+     * 分片，并限制关闭期间进入用户终结器的次数；零会抑制本轮回调，但关闭流程仍会销毁所有
+     * 拥有的存储。
      */
     [[nodiscard]] FinalizerCount finalizerBudgetPerDrain() const noexcept {
         return finalizerBudgetPerDrain_;
@@ -188,11 +184,10 @@ public:
     }
 
     /**
-     * @brief Poll stop conditions that also apply inside native callbacks.
+     * @brief 轮询同样适用于原生回调内部的停止条件
      *
-     * This checkpoint deliberately does not consume the Lua instruction
-     * budget. Native callbacks use it cooperatively between bounded work
-     * slices; only VM opcode dispatch accounts Lua instructions.
+     * 此检查点特意不消耗 Lua 指令预算。原生回调在有界工作分片之间协作调用它；只有 VM
+     * 操作码调度会计量 Lua 指令。
      */
     [[nodiscard]] ExecutionStopReason pollStop() const noexcept {
         if (cancellationState_->requested.load(std::memory_order_relaxed)) [[unlikely]] {
@@ -207,10 +202,9 @@ public:
     }
 
     /**
-     * @brief Consume permission for the next Lua VM instruction.
+     * @brief 消耗执行下一条 Lua VM 指令的许可
      *
-     * Cancellation has priority over deadline, which has priority over budget.
-     * Exactly N instructions may execute for a configured budget of N.
+     * 取消的优先级高于截止时间，截止时间又高于预算。配置为 N 的预算恰好允许执行 N 条指令。
      */
     [[nodiscard]] ExecutionStopReason consumeInstruction() noexcept {
         const ExecutionStopReason stop = pollStop();
@@ -229,11 +223,10 @@ public:
     }
 
     /**
-     * @brief Charge bounded work performed inside native library code.
+     * @brief 计量原生库代码内部执行的有界工作
      *
-     * This budget is deliberately independent from VM instructions. A native
-     * operation either receives all requested units or exhausts the remaining
-     * allowance and reports a stable stop reason.
+     * 此预算特意独立于 VM 指令。原生操作要么获得全部请求单位，要么耗尽剩余配额并报告稳定的
+     * 停止原因。
      */
     [[nodiscard]] ExecutionStopReason consumeNativeWork(NativeWorkCount units = 1) noexcept {
         const ExecutionStopReason stop = pollStop();

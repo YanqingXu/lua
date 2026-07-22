@@ -93,9 +93,13 @@ inline constexpr i32 MULTRET = -1;
  * @brief 执行状态码（与 Lua 5.1 兼容）
  * 对应 Lua C: lua.h 中的状态码定义
  */
-inline constexpr i32 LUA_OK     = 0;   ///< 成功
-inline constexpr i32 LUA_ERRRUN = 2;   ///< 运行时错误
-inline constexpr i32 LUA_ERRMEM = 4;   ///< 内存错误
-inline constexpr i32 LUA_ERRERR = 5;   ///< 错误处理函数错误
+/** @brief 成功 */
+inline constexpr i32 LUA_OK     = 0;
+/** @brief 运行时错误 */
+inline constexpr i32 LUA_ERRRUN = 2;
+/** @brief 内存错误 */
+inline constexpr i32 LUA_ERRMEM = 4;
+/** @brief 错误处理函数错误 */
+inline constexpr i32 LUA_ERRERR = 5;
 
 } // namespace Lua

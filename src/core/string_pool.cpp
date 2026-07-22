@@ -45,10 +45,12 @@ GCString* StringPool::intern(StrView str) {
     GCString* newString = gc.create<GCString>(str);
 
     try {
-        // Use the GCString-owned contents as the key so find() and remove()
-        // share the same canonical value. The object is already registered
-        // with the collector at this point, so insertion failure must roll it
-        // back instead of leaving an uninterned GCString in the object list.
+    /**
+     * @brief 使用 GCString 拥有的内容作为键，使 find() 与 remove() 共享同一规范值。
+     *
+     * 此时对象已注册到垃圾回收器，因此插入失败必须回滚，不能在对象链表中留下未驻留的
+     * GCString。
+     */
         auto [entry, inserted] = pool_.emplace(newString->view(), newString);
         if (!inserted) {
             gc.destroyManagedObject(newString);
@@ -82,9 +84,11 @@ void StringPool::remove(GCString* str) {
         return;
     }
 
-    // A collector can transiently own another GCString with equal contents
-    // (for example while rolling back a failed insertion). Only erase the
-    // entry when it still names the exact object being destroyed.
+    /**
+     * @brief 仅当条目仍指向正在销毁的确切对象时才将其移除。
+     *
+     * 垃圾回收器可能短暂拥有内容相同的另一 GCString，例如回滚失败的插入期间。
+     */
     auto it = pool_.find(str->view());
     if (it != pool_.end() && it->second == str) {
         pool_.erase(it);
@@ -92,14 +96,14 @@ void StringPool::remove(GCString* str) {
 }
 
 /**
- * @brief 清空字符串池
+ * @brief 清空字符串驻留池
  */
 void StringPool::clear() {
     pool_.clear();
 }
 
 /**
- * @brief 调整字符串池大小（预分配）
+ * @brief 调整字符串驻留池大小（预分配）
  *
  * 预分配哈希表空间，减少后续插入时的重哈希开销。
  *

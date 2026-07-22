@@ -19,7 +19,7 @@
 namespace Lua {
 
 // =====================================================================
-// coroutine.create(f) → thread
+// coroutine.create(f) → 线程
 // =====================================================================
 
 static i32 coroutine_create(LuaState* L) {
@@ -35,7 +35,7 @@ static i32 coroutine_create(LuaState* L) {
 }
 
 // =====================================================================
-// coroutine.resume(co, ...) → true, ... | false, err
+/** @brief 恢复协程，返回成功标志及结果，或失败标志及错误。 */
 // =====================================================================
 
 static i32 coroutine_resume(LuaState* L) {
@@ -47,17 +47,16 @@ static i32 coroutine_resume(LuaState* L) {
     Thread* thread = L->at(1).asThread();
     i32 resumeArgs = totalArgs - 1;
 
-    // Thread::resume transfers resumeArgs from L's stack top,
-    // then pushes true/false + results back to L
+    // Thread::resume 从 L 的栈顶传递恢复参数，再将 true/false 与结果压回 L
     thread->resume(L, resumeArgs);
 
-    // Return count = everything pushed by resume (true/false + results)
-    // L->getTop() includes the thread arg at position 1
+    // 返回值数量等于 resume 压入的全部值（true/false 与结果）
+    // L->getTop() 包含位置 1 的线程参数
     return L->getTop() - 1;
 }
 
 // =====================================================================
-// coroutine.yield(...) → (returns values in resuming coroutine)
+// coroutine.yield(...) → 在恢复方协程中返回值
 // =====================================================================
 
 static i32 coroutine_yield(LuaState* L) {
@@ -72,7 +71,7 @@ static i32 coroutine_yield(LuaState* L) {
 }
 
 // =====================================================================
-// coroutine.status(co) → string
+// coroutine.status(co) → 字符串
 // =====================================================================
 
 static i32 coroutine_status(LuaState* L) {
@@ -104,7 +103,7 @@ static i32 coroutine_status(LuaState* L) {
 }
 
 // =====================================================================
-// coroutine.running() → thread | nil
+// coroutine.running() → 线程或 nil
 // =====================================================================
 
 static i32 coroutine_running(LuaState* L) {
@@ -118,13 +117,15 @@ static i32 coroutine_running(LuaState* L) {
 }
 
 // =====================================================================
-// coroutine.wrap(f) → function
+// coroutine.wrap(f) → 函数
 //
 // 创建协程并返回一个迭代器函数；每次调用该函数相当于 resume，
 // 但直接返回 yield 值（不含前导 true），出错时直接抛出错误。
 // =====================================================================
 
-/// wrap 返回的迭代器函数；upvalue[0] 存储 Thread*
+/**
+ * @brief wrap 返回的迭代器函数；upvalue[0] 存储 Thread*
+ */
 static i32 wrap_iterator(LuaState* L) {
     // 取出 upvalue 中的 Thread
     const CallInfo& ci = L->getCurrentCallInfo();
@@ -151,7 +152,7 @@ static i32 wrap_iterator(LuaState* L) {
     thread->resume(L, nargs);
 
     // resume 替换了参数区，现在 L 栈顶布局：
-    //   [... | bool_ok | result1 | result2 | ...]
+    //   [... | 成功标志 | 结果1 | 结果2 | ...]
     // getTop() 包含了原始 thread arg（这里没有），直接算
     usize afterTop = L->getAbsoluteTop();
     usize pushed = afterTop - beforeTop + static_cast<usize>(nargs);
@@ -198,7 +199,7 @@ static i32 coroutine_wrap(LuaState* L) {
     Function* func = L->at(1).asFunction();
     Thread* thread = Thread::create(L, func);
 
-    // 创建 C 闭包，将 thread 作为 closed upvalue
+/** @brief 创建 C 闭包，将协程对象作为关闭上值。 */
     Function* closure = L->getGlobalState().getGC().create<Function>(wrap_iterator);
 
     Upvalue* uv = L->getGlobalState().getGC().create<Upvalue>(Value(thread));

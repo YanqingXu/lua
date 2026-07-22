@@ -11,7 +11,7 @@
  * - 性能优化：提供性能相关的配置选项
  * - 平台适配：支持不同平台的特定配置
  * - 调试支持：提供调试模式的配置
- * @author Lua C++ Implementation Team
+ * @author Lua C++ 实现团队
  * @version 0.1.0
  * @date 2025-11-11
  * @since C++17
@@ -33,16 +33,24 @@ namespace Lua {
  * @{
  */
 
-/// Lua版本号（兼容Lua 5.1.5）
+/**
+ * @brief Lua版本号（兼容Lua 5.1.5）
+ */
 constexpr const char* LUA_VERSION = "Lua 5.1 (C++ Implementation)";
 
-/// Lua发布版本
+/**
+ * @brief Lua发布版本
+ */
 constexpr const char* LUA_RELEASE = "Lua 5.1.5 (C++ Implementation)";
 
-/// Lua版本号（数值形式）
+/**
+ * @brief Lua版本号（数值形式）
+ */
 constexpr i32 LUA_VERSION_NUM = 501;
 
-/// 版权信息
+/**
+ * @brief 版权信息
+ */
 constexpr const char* LUA_COPYRIGHT = "Copyright (C) 2025 Lua C++ Implementation Team";
 
 /** @} */
@@ -57,16 +65,24 @@ constexpr const char* LUA_COPYRIGHT = "Copyright (C) 2025 Lua C++ Implementation
  * @{
  */
 
-/// Lua数字类型的最小值
+/**
+ * @brief Lua数字类型的最小值
+ */
 constexpr LuaNumber LUA_NUMBER_MIN = -1.7976931348623157e+308;
 
-/// Lua数字类型的最大值
+/**
+ * @brief Lua数字类型的最大值
+ */
 constexpr LuaNumber LUA_NUMBER_MAX = 1.7976931348623157e+308;
 
-/// Lua整数类型的最小值
+/**
+ * @brief Lua整数类型的最小值
+ */
 constexpr LuaInteger LUA_INTEGER_MIN = -9223372036854775807LL - 1LL;
 
-/// Lua整数类型的最大值
+/**
+ * @brief Lua整数类型的最大值
+ */
 constexpr LuaInteger LUA_INTEGER_MAX = 9223372036854775807LL;
 
 /** @} */
@@ -81,22 +97,34 @@ constexpr LuaInteger LUA_INTEGER_MAX = 9223372036854775807LL;
  * @{
  */
 
-/// 最小栈大小（保证C函数可用的栈空间）
+/**
+ * @brief 最小栈大小（保证C函数可用的栈空间）
+ */
 constexpr i32 LUA_MINSTACK = 20;
 
-/// 初始栈大小
+/**
+ * @brief 初始栈大小
+ */
 constexpr i32 LUA_INITIAL_STACK_SIZE = 40;
 
-/// 最大栈大小
+/**
+ * @brief 最大栈大小
+ */
 constexpr i32 LUA_MAX_STACK_SIZE = 1000000;
 
-/// 最大C调用深度（防止栈溢出）
+/**
+ * @brief 最大C调用深度（防止栈溢出）
+ */
 constexpr i32 LUA_MAX_CCALLS = 200;
 
-/// 最大参数数量
+/**
+ * @brief 最大参数数量
+ */
 constexpr i32 LUA_MAX_PARAMS = 250;
 
-/// 最大上值数量
+/**
+ * @brief 最大上值数量
+ */
 constexpr i32 LUA_MAX_UPVALUES = 60;
 
 /** @} */
@@ -111,16 +139,24 @@ constexpr i32 LUA_MAX_UPVALUES = 60;
  * @{
  */
 
-/// 表的初始数组大小
+/**
+ * @brief 表的初始数组大小
+ */
 constexpr usize TABLE_INITIAL_ARRAY_SIZE = 0;
 
-/// 表的初始哈希大小
+/**
+ * @brief 表的初始哈希大小
+ */
 constexpr usize TABLE_INITIAL_HASH_SIZE = 0;
 
-/// 表的最大数组部分大小
+/**
+ * @brief 表的最大数组部分大小
+ */
 constexpr usize TABLE_MAX_ARRAY_SIZE = (1u << 26); // 64M
 
-/// 表的负载因子（用于哈希表扩容）
+/**
+ * @brief 表的负载因子（用于哈希表扩容）
+ */
 constexpr f64 TABLE_LOAD_FACTOR = 0.75;
 
 /** @} */
@@ -135,16 +171,24 @@ constexpr f64 TABLE_LOAD_FACTOR = 0.75;
  * @{
  */
 
-/// 字符串池初始大小
+/**
+ * @brief 字符串驻留池初始大小
+ */
 constexpr usize STRING_POOL_INITIAL_SIZE = 128;
 
-/// 短字符串最大长度（使用驻留机制）
+/**
+ * @brief 短字符串最大长度（使用驻留机制）
+ */
 constexpr usize STRING_SHORT_MAX_LENGTH = 40;
 
-/// 字符串哈希种子（用于哈希计算）
+/**
+ * @brief 字符串哈希种子（用于哈希计算）
+ */
 constexpr u32 STRING_HASH_SEED = 0x9e3779b9u;
 
-/// Lua 字符串最大字节长度（当前运行时防护上限）
+/**
+ * @brief Lua 字符串最大字节长度（当前运行时防护上限）
+ */
 constexpr usize LUA_MAX_STRING_LENGTH = static_cast<usize>(64) * 1024 * 1024;
 
 /** @} */
@@ -159,21 +203,31 @@ constexpr usize LUA_MAX_STRING_LENGTH = static_cast<usize>(64) * 1024 * 1024;
  * @{
  */
 
-/// GC暂停比例（百分比）
-/// 当内存使用量达到上次GC后的(100 + GC_PAUSE)%时触发GC
+/**
+ * @brief GC暂停比例（百分比）
+ * 当内存使用量达到上次GC后的(100 + GC_PAUSE)%时触发GC
+ */
 constexpr i32 GC_PAUSE = 200;
 
-/// GC步进倍率（百分比）
-/// 控制增量GC每次执行的工作量
+/**
+ * @brief GC步进倍率（百分比）
+ * 控制增量GC每次执行的工作量
+ */
 constexpr i32 GC_STEP_MUL = 200;
 
-/// GC最小步长（字节）
+/**
+ * @brief GC最小步长（字节）
+ */
 constexpr usize GC_MIN_STEP = 1024;
 
-/// GC最大步长（字节）
+/**
+ * @brief GC最大步长（字节）
+ */
 constexpr usize GC_MAX_STEP = usize{1024} * 1024; // 1MB
 
-/// 初始内存阈值（字节）
+/**
+ * @brief 初始内存阈值（字节）
+ */
 constexpr usize GC_INITIAL_THRESHOLD = usize{1024} * 1024; // 1MB
 
 /** @} */
@@ -188,28 +242,36 @@ constexpr usize GC_INITIAL_THRESHOLD = usize{1024} * 1024; // 1MB
  * @{
  */
 
-/// 是否启用调试模式
+/**
+ * @brief 是否启用调试模式
+ */
 #ifdef NDEBUG
 constexpr bool DEBUG_MODE = false;
 #else
 constexpr bool DEBUG_MODE = true;
 #endif
 
-/// 是否启用详细日志
+/**
+ * @brief 是否启用详细日志
+ */
 #ifdef LUA_VERBOSE_LOG
 constexpr bool VERBOSE_LOG = true;
 #else
 constexpr bool VERBOSE_LOG = false;
 #endif
 
-/// 是否启用GC日志
+/**
+ * @brief 是否启用GC日志
+ */
 #ifdef LUA_GC_LOG
 constexpr bool GC_LOG = true;
 #else
 constexpr bool GC_LOG = false;
 #endif
 
-/// 是否启用性能统计
+/**
+ * @brief 是否启用性能统计
+ */
 #ifdef LUA_PERF_STATS
 constexpr bool PERF_STATS = true;
 #else
@@ -228,13 +290,17 @@ constexpr bool PERF_STATS = false;
  * @{
  */
 
-/// Default GC managed-size fault-injection budget (unlimited sentinel).
+/** @brief 垃圾回收托管大小故障注入的默认预算（不受限哨兵值）。 */
 constexpr usize DEFAULT_MANAGED_MEMORY_BUDGET = static_cast<usize>(-1);
 
-/// 内存对齐大小
+/**
+ * @brief 内存对齐大小
+ */
 constexpr usize MEMORY_ALIGNMENT = 8;
 
-/// 是否启用内存池
+/**
+ * @brief 是否启用内存池
+ */
 #ifdef LUA_USE_MEMORY_POOL
 constexpr bool USE_MEMORY_POOL = true;
 #else
@@ -253,16 +319,24 @@ constexpr bool USE_MEMORY_POOL = false;
  * @{
  */
 
-/// 最大局部变量数量
+/**
+ * @brief 最大局部变量数量
+ */
 constexpr i32 MAX_LOCAL_VARS = 200;
 
-/// 最大寄存器数量
+/**
+ * @brief 最大寄存器数量
+ */
 constexpr i32 MAX_REGISTERS = 250;
 
-/// 最大常量数量
+/**
+ * @brief 最大常量数量
+ */
 constexpr i32 MAX_CONSTANTS = 262144; // 2^18
 
-/// 最大代码长度
+/**
+ * @brief 最大代码长度
+ */
 constexpr i32 MAX_CODE_SIZE = 524288; // 2^19
 
 /** @} */
@@ -277,21 +351,27 @@ constexpr i32 MAX_CODE_SIZE = 524288; // 2^19
  * @{
  */
 
-/// 是否启用尾调用优化
+/**
+ * @brief 是否启用尾调用优化
+ */
 #ifdef LUA_DISABLE_TAIL_CALL
 constexpr bool ENABLE_TAIL_CALL = false;
 #else
 constexpr bool ENABLE_TAIL_CALL = true;
 #endif
 
-/// 是否启用常量折叠
+/**
+ * @brief 是否启用常量折叠
+ */
 #ifdef LUA_DISABLE_CONST_FOLDING
 constexpr bool ENABLE_CONST_FOLDING = false;
 #else
 constexpr bool ENABLE_CONST_FOLDING = true;
 #endif
 
-/// 是否启用内联缓存
+/**
+ * @brief 是否启用内联缓存
+ */
 #ifdef LUA_ENABLE_INLINE_CACHE
 constexpr bool ENABLE_INLINE_CACHE = true;
 #else
@@ -310,28 +390,36 @@ constexpr bool ENABLE_INLINE_CACHE = false;
  * @{
  */
 
-/// 是否为Windows平台
+/**
+ * @brief 是否为Windows平台
+ */
 #ifdef _WIN32
 constexpr bool IS_WINDOWS = true;
 #else
 constexpr bool IS_WINDOWS = false;
 #endif
 
-/// 是否为Linux平台
+/**
+ * @brief 是否为Linux平台
+ */
 #ifdef __linux__
 constexpr bool IS_LINUX = true;
 #else
 constexpr bool IS_LINUX = false;
 #endif
 
-/// 是否为macOS平台
+/**
+ * @brief 是否为macOS平台
+ */
 #ifdef __APPLE__
 constexpr bool IS_MACOS = true;
 #else
 constexpr bool IS_MACOS = false;
 #endif
 
-/// 是否为64位平台
+/**
+ * @brief 是否为64位平台
+ */
 #if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
 constexpr bool IS_64BIT = true;
 #else
@@ -350,21 +438,27 @@ constexpr bool IS_64BIT = false;
  * @{
  */
 
-/// 是否启用协程支持
+/**
+ * @brief 是否启用协程支持
+ */
 #ifdef LUA_DISABLE_COROUTINE
 constexpr bool ENABLE_COROUTINE = false;
 #else
 constexpr bool ENABLE_COROUTINE = true;
 #endif
 
-/// 是否启用调试钩子
+/**
+ * @brief 是否启用调试钩子
+ */
 #ifdef LUA_DISABLE_DEBUG_HOOK
 constexpr bool ENABLE_DEBUG_HOOK = false;
 #else
 constexpr bool ENABLE_DEBUG_HOOK = true;
 #endif
 
-/// 是否启用弱引用表
+/**
+ * @brief 是否启用弱引用表
+ */
 #ifdef LUA_DISABLE_WEAK_TABLE
 constexpr bool ENABLE_WEAK_TABLE = false;
 #else

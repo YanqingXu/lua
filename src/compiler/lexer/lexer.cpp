@@ -448,7 +448,7 @@ Token Lexer::decimalNumber() {
     // 读取尾随的字母/下划线以捕获 Lua 5.1 定义的非法数字形式（如 123abc）
     consumeMalformedNumberSuffix();
 
-    // 转换为数字并校验是否完全消费，若未完全消费则视为 malformed number
+    /** @brief 转换为数字并校验是否完全消费，若未完全消费则视为非法数字。 */
     Token token = makeToken(TokenType::Number);
 
     char* end = nullptr;
@@ -795,7 +795,7 @@ Token Lexer::scanToken() {
         return error.value();
     }
 
-    // 清空 lexeme 缓冲区，准备扫描新 token
+    /** @brief 清空词素缓冲区，准备扫描新的词法单元。 */
     lexemeBuffer_.clear();
     beginToken();
 

@@ -5,7 +5,7 @@
  * 使用现代C++流式API进行函数注册
  * 遵循Lua 5.1.5标准数学库规范
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-12-19
  */
 

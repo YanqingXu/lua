@@ -2,7 +2,7 @@
  * @file global_state.cpp
  * @brief Lua全局状态管理实现
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-12
  */
 
@@ -11,7 +11,7 @@
 #include "vm/state/lua_state.hpp"
 #include <array>
 #include <exception>
-#include <iostream> // for debug output
+#include <iostream> // 调试输出
 
 namespace Lua {
 
@@ -40,7 +40,7 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     stringPool_.setResourcePolicy(&resourcePolicy_);
     stringPool_.setGarbageCollector(&gc_);
 
-    // 子任务1.1：调整字符串池大小到初始值
+    /** @brief 子任务 1.1：将字符串驻留池调整到初始大小。 */
     stringPool_.resize(32);
 
     // 子任务1.2：初始化元方法名称
@@ -109,9 +109,12 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     // 创建注册表
     registry_ = gc_.createFixedRoot<Table>(); // 注册表永远不被回收
 
-    // Publish the back-reference only after construction succeeds. This keeps
-    // allocator-failure unwinding from calling into a partially constructed
-    // GlobalState while GarbageCollector members are being destroyed.
+    /**
+     * @brief 仅在构造成功后发布反向引用。
+     *
+     * 这样可以避免分配器失败引发栈展开时，在垃圾回收器成员析构期间调用尚未构造完整的
+     * GlobalState。
+     */
     gc_.setGlobalState(this);
 }
 

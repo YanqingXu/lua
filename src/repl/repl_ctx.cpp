@@ -1,3 +1,8 @@
+/**
+ * @file repl_ctx.cpp
+ * @brief REPL 会话上下文与彩色错误输出的实现
+ */
+
 #include "repl/repl_ctx.hpp"
 
 #include "repl/repl_sig.hpp"

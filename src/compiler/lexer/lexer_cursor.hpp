@@ -2,7 +2,7 @@
 
 /**
  * @file lexer_cursor.hpp
- * @brief Input cursor used by the Lua lexer
+ * @brief Lua 词法分析器使用的输入游标
  */
 
 #include "common/types.hpp"
@@ -12,10 +12,9 @@
 namespace Lua {
 
 /**
- * @brief Buffered character cursor for lexer input
+ * @brief 词法分析器输入使用的缓冲字符游标
  *
- * Owns lexer-level character buffering, lookahead, replay state, and line/column
- * accounting under Lua newline rules.
+ * 负责词法分析层的字符缓冲、前瞻、重放状态，以及按 Lua 换行规则进行的行列计数。
  */
 class InputCursor {
 public:

@@ -43,8 +43,10 @@ using StmtPtr = LuaOwnedPtr<Stmt>;
  * 用于错误报告、调试和代码生成时的位置追踪。
  */
 struct SourceLocation {
-    i32 line;   ///< 行号（从1开始）
-    i32 column; ///< 列号（从1开始）
+    /** @brief 行号（从1开始） */
+    i32 line;
+    /** @brief 列号（从1开始） */
+    i32 column;
 
     /**
      * @brief 默认构造函数
@@ -154,6 +156,7 @@ struct TableField {
     ExprPtr value;
 };
 
+/** @brief 表构造表达式。 */
 struct TableExpr : SourceLocation {
     Vec<TableField> fields;
 };

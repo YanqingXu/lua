@@ -100,7 +100,7 @@ struct GetStmtColumn {
     i32 operator()(const DoStmt& s) const { return s.column; }
 };
 
-} // anonymous namespace
+} // 匿名命名空间
 
 // =====================================================================
 // Expr实现

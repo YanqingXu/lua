@@ -1,3 +1,8 @@
+/**
+ * @file file_loader.cpp
+ * @brief 文件完整读取与错误报告的实现
+ */
+
 #include "file_loader.hpp"
 
 #include <fstream>

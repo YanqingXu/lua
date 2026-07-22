@@ -57,6 +57,7 @@ class StringPool;
 #define LUA_CODEGEN_COMPAT_DEPRECATED(message)
 #endif
 
+/** @brief 将 Lua 抽象语法树降级为字节码的代码生成器。 */
 class CodeGenerator {
     friend class FunctionCompiler;
     friend class ScopeManager;
@@ -66,7 +67,7 @@ class CodeGenerator {
 public:
     /**
      * @brief 构造函数
-     * @param pool 字符串池（用于创建字符串常量）
+     * @param pool 字符串驻留池（用于创建字符串常量）
      */
     LUA_CODEGEN_COMPAT_DEPRECATED("pass RuntimeServices explicitly") explicit CodeGenerator(StringPool* pool);
 
@@ -83,26 +84,26 @@ public:
     
     /**
      * @brief 生成字节码
-     * @param chunk AST根节点
-     * @return GC 托管的 non-owning 函数原型指针
+     * @param chunk 抽象语法树根节点
+     * @return 由垃圾回收器托管的非拥有型函数原型指针
      */
     [[nodiscard]] Proto* generate(const Chunk& chunk, StrView sourceName = {});
 
     /**
-     * @brief 生成字节码，以 expected 形式返回入口错误
-     * @param chunk AST根节点
-     * @return GC 托管的 non-owning 函数原型指针，或 CodegenError
+     * @brief 生成字节码，以预期值形式返回入口错误
+     * @param chunk 抽象语法树根节点
+     * @return 由垃圾回收器托管的非拥有型函数原型指针，或代码生成错误
      */
     [[nodiscard]] std::expected<Proto*, CodegenError> tryGenerate(const Chunk& chunk, StrView sourceName = {});
 
     // =====================================================================
-    // 符号绑定（PR-8 Symbol Binding）
+/** @brief 符号绑定（第 8 次拉取请求）。 */
     // =====================================================================
 
     /**
-     * @brief 解析名字到 SymbolRef（Local → Upvalue → Global 三阶段查找）
+     * @brief 将名称解析为符号引用（局部变量 → 上值 → 全局变量三阶段查找）
      *
-     * 统一所有 NameExpr 的查找逻辑：先查局部变量，再查 upvalue，最后 fallback 为全局。
+     * 统一所有名称表达式的查找逻辑：先查局部变量，再查上值，最后回退为全局变量。
      */
     SymbolRef resolve(const Str& name);
 

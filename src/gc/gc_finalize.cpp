@@ -38,8 +38,11 @@ void GarbageCollector::prepareFinalizers() {
             Value finalizer = getFinalizer(userdata);
             if (!finalizer.isNil()) {
                 pendingFinalizers_.push_back(userdata);
-                // Queue publication can allocate. Mark FINALIZED only after
-                // it succeeds so OOM cannot silently discard __gc forever.
+                /**
+                 * @brief 队列发布成功后才标记 FINALIZED。
+                 *
+                 * 发布过程可能分配内存，如此可避免内存不足时永久且无提示地丢弃 __gc。
+                 */
                 obj->setMarked(obj->getMarked() | GCBits::FINALIZED);
                 markObject(obj);
             }
@@ -69,17 +72,21 @@ void GarbageCollector::runFinalizers(LuaState* state) {
         return;
     }
 
-    // Keep the scheduled userdata in pendingFinalizers_ while callbacks run.
-    // A __gc callback may invoke collectgarbage recursively; the mark phase
-    // treats this member queue as roots. Moving the queue into a local vector
-    // made the remaining callbacks invisible to a nested collection and left
-    // dangling pointers in the outer finalizer loop.
+    /**
+     * @brief 回调运行期间将已安排的用户数据保留在 pendingFinalizers_ 中。
+     *
+     * __gc 回调可能递归调用 collectgarbage；标记阶段会将此成员队列视为根。若将队列移动到局部
+     * 向量，剩余回调会对嵌套收集不可见，并在外层终结器循环中留下悬空指针。
+     */
     using Difference = LuaVector<Userdata*>::difference_type;
     LuaVector<Userdata*> finalizers(pendingFinalizers_.begin(),
                                     pendingFinalizers_.begin() + static_cast<Difference>(scheduledCount),
                                     pendingFinalizers_.get_allocator());
-    // Copying can allocate. Do not publish the reentrancy guard until that
-    // succeeds, otherwise an OOM would permanently suppress finalizers.
+    /**
+     * @brief 复制成功后才发布重入守卫。
+     *
+     * 复制可能分配内存，否则内存不足会永久抑制终结器。
+     */
     finalizersRunning_ = true;
 
     for (usize i = 0; i < finalizers.size(); i++) {
@@ -133,9 +140,12 @@ void GarbageCollector::callFinalizer(LuaState* state, Userdata* userdata) {
     while (state->getCurrentCI() > savedCI) {
         state->popCallInfo();
     }
-    // The physical stack can reserve a wider helper window than the state's
-    // logical top.  Clear the callback window before restoring it so a later
-    // wide root scan cannot retain the finalizer or its userdata argument.
+    /**
+     * @brief 恢复前清除回调窗口。
+     *
+     * 物理栈可预留比状态逻辑栈顶更宽的辅助窗口；清除后，后续宽根扫描不会继续持有终结器
+     * 或其用户数据参数。
+     */
     const usize clearTop = std::max(savedStackTop, stack.size());
     for (usize slot = savedTop; slot < clearTop; ++slot) {
         stack[slot] = Value();
@@ -155,14 +165,16 @@ void GarbageCollector::finalizeAll(LuaState* state) noexcept {
 
     resetIncrementalCycle();
 
-    // lua_close does not preserve an executing frame.  Closing open upvalues
-    // before clearing the stack matches Lua 5.1 and leaves the already-owned
-    // base-frame storage available even under persistent allocator failure.
+    /**
+     * @brief 清空栈前关闭开放上值，以匹配 Lua 5.1。
+     *
+     * lua_close 不保留执行中的调用帧；即使分配器持续失败，此顺序也使已拥有的基础调用帧存储
+     * 保持可用。
+     */
     try {
         state->closeUpvalues(0);
     } catch (...) {
-        // Shutdown must continue and release the runtime even if a damaged
-        // state cannot close one of its upvalues cleanly.
+        /** @brief 即使受损状态无法正确关闭某个上值，关闭流程仍须继续并释放运行时。 */
     }
     while (state->getCurrentCI() > 0) {
         try {
@@ -191,8 +203,9 @@ void GarbageCollector::finalizeAll(LuaState* state) noexcept {
                 userdata = pendingFinalizers_.back();
                 pendingFinalizers_.pop_back();
             } else {
-                // Select only one object per pass.  A finalizer may run a
-                // nested collection and mutate the intrusive object list.
+                /**
+                 * @brief 每轮只选择一个对象，因为终结器可能运行嵌套收集并修改侵入式对象链表。
+                 */
                 for (GCObject* object = allObjects_; object != nullptr; object = object->getNext()) {
                     if (object->getType() != GCObjectType::Userdata || (object->getMarked() & GCBits::FINALIZED) != 0) {
                         continue;
@@ -217,13 +230,13 @@ void GarbageCollector::finalizeAll(LuaState* state) noexcept {
             try {
                 callFinalizer(state, userdata);
             } catch (...) {
-                // Lua 5.1 protects close-time finalizers.  Keep draining so a
-                // broken __gc cannot leak resources owned by later userdata.
+                /**
+                 * @brief Lua 5.1 会保护关闭期终结器；继续清理以免损坏的 __gc 泄漏后续用户数据资源。
+                 */
             }
         }
     } catch (...) {
-        // No exception may escape shutdown, including unexpected corruption
-        // in finalizer lookup or queue bookkeeping.
+        /** @brief 任何异常均不得逸出关闭流程，包括终结器查找或队列记账意外损坏。 */
     }
     finalizersRunning_ = false;
 }

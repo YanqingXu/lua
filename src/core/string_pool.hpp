@@ -2,17 +2,17 @@
 
 /**
  * @file string_pool.hpp
- * @brief 字符串池 - 字符串驻留管理
+ * @brief 字符串驻留池——字符串驻留管理
  *
  * 设计说明：
- * StringPool实现了字符串驻留（string interning）机制，确保相同内容的
+ * 字符串驻留池实现了字符串驻留机制，确保相同内容的
  * 字符串在内存中只存储一份。这是Lua字符串系统的核心组件。
  *
  * 核心特性：
  * - 字符串驻留：相同内容的字符串返回相同指针
  * - 哈希表管理：使用哈希表快速查找字符串
  * - GC集成：与垃圾回收器协作管理字符串生命周期
- * - 单例模式：全局唯一的字符串池实例
+ * - 单例模式：全局唯一的字符串驻留池实例
  *
  * 相关文档：lua/docs/architecture/overview.md
  */
@@ -29,7 +29,7 @@ namespace Lua {
 class GarbageCollector;
 
 /**
- * @brief StringPool类 - 字符串池管理器
+ * @brief 字符串驻留池管理器
  *
  * 详细说明：
  * StringPool管理所有GCString对象的创建和查找，实现字符串驻留机制。
@@ -77,10 +77,10 @@ public:
     StringPool& operator=(StringPool&&) = delete;
 
     /**
-     * @brief 构造独立字符串池
+     * @brief 构造独立字符串驻留池
      *
      * `getInstance()` 仍提供 legacy singleton；EngineContext 使用公开构造
-     * 函数创建可隔离的运行时字符串池。
+     * 函数创建可隔离的运行时字符串驻留池。
      */
     explicit StringPool(LuaAllocator* allocator = nullptr);
 
@@ -185,7 +185,7 @@ public:
     void remove(GCString* str);
 
     /**
-     * @brief 清空字符串池
+     * @brief 清空字符串驻留池
      *
      * 移除所有字符串（不释放内存，由GC负责）。
      * 主要用于测试和调试。
@@ -209,7 +209,7 @@ public:
     }
 
     /**
-     * @brief 调整字符串池大小（预分配）
+     * @brief 调整字符串驻留池大小（预分配）
      *
      * 预分配哈希表空间，减少后续插入时的重哈希开销。
      * 这是Lua 5.1.5初始化过程的一部分。
@@ -223,9 +223,11 @@ private:
     // 内部数据结构
     // =====================================================================
 
-    // String-pool keys are views into immutable GCString storage. remove() erases
-    // each entry before GC frees its owner, preventing dangling keys and duplicate
-    // content storage.
+    /**
+     * @brief 字符串驻留池的键是指向不可变垃圾回收字符串存储的视图。
+     *
+     * remove() 会在垃圾回收器释放所有者之前移除条目，从而避免悬空键和重复内容存储。
+     */
     using PoolValue = std::pair<const StrView, GCString*>;
     using PoolAllocator = LuaStdAllocator<PoolValue>;
     using PoolMap = std::unordered_map<StrView, GCString*, std::hash<StrView>, std::equal_to<StrView>, PoolAllocator>;

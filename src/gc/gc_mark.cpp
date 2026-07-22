@@ -131,9 +131,11 @@ void markPreciseStackRoots(GarbageCollector& gc, LuaState* state) {
         Function* function = frameFunction(stack, ci);
         Proto* proto = function != nullptr ? function->getProto() : nullptr;
         if (proto != nullptr) {
-            // Hooks can run between VM instructions while unnamed temporaries
-            // are still live in registers. Normal GC uses LocVar ranges so
-            // expired loop locals do not keep weak-table entries alive.
+            /**
+             * @brief 钩子可在 VM 指令之间运行，此时未命名临时值仍可能存活于寄存器中。
+             *
+             * 常规垃圾回收使用 LocVar 区间，使已过期的循环局部变量不会延长弱表条目的生命周期。
+             */
             if (state->isDebugHookActive()) {
                 markLuaFrameStackWindow(gc, state, ci);
             }
@@ -174,8 +176,9 @@ void GarbageCollector::mark() {
 }
 
 void GarbageCollector::mark(LuaState* currentState) {
-    // Establish queue capacity before recolouring objects.  If allocation
-    // fails, the previously completed collector state remains intact.
+    /**
+     * @brief 重新着色对象前建立队列容量；若分配失败，先前完整的收集器状态保持不变。
+     */
     grayList_.reserve(objectCount_);
     weakTables_.reserve(objectCount_);
 
@@ -228,15 +231,19 @@ usize GarbageCollector::propagateMarks(usize budget) {
 
     // 处理所有灰色对象
     while (!grayList_.empty() && processed < budget) {
-        // Keep the object published in the queue until its complete child
-        // graph has been scanned. A child push may exhaust spare capacity and
-        // throw; retaining this slot makes rollback allocation-free.
+        /**
+         * @brief 扫描完整子图之前一直将对象发布在队列中。
+         *
+         * 压入子对象可能耗尽备用容量并抛出异常；保留此槽可使回滚无需分配。
+         */
         const usize objectIndex = grayList_.size() - 1;
         GCObject* obj = grayList_[objectIndex];
 
-        // 标记为黑色并扫描其子图。If a child queue allocation fails, the
-        // original queue slot remains present; changing the object back to
-        // gray is enough to make a later retry safe and idempotent.
+        /**
+         * @brief 标记为黑色并扫描其子图。
+         *
+         * 若子队列分配失败，原队列槽仍然存在；将对象改回灰色即可使后续重试安全且幂等。
+         */
         obj->setColor(GCColor::Black);
         try {
             obj->mark(*this);
@@ -245,8 +252,9 @@ usize GarbageCollector::propagateMarks(usize budget) {
             throw;
         }
 
-        // Children may have been appended (and the vector may have moved),
-        // so remove the original slot by index rather than by reference.
+        /**
+         * @brief 子对象可能已追加且向量可能已移动，因此按索引而非引用移除原槽。
+         */
         grayList_[objectIndex] = grayList_.back();
         grayList_.pop_back();
         ++processed;
@@ -270,9 +278,11 @@ void GarbageCollector::markObject(GCObject* obj) {
         try {
             obj->mark(*this);
         } catch (...) {
-            // A later gray/external queue growth may fail while scanning this
-            // graph. Remove only this incomplete publication so a retry scans
-            // it again; successfully completed nested entries remain valid.
+            /**
+             * @brief 扫描对象图时，后续灰色或外部队列扩容可能失败。
+             *
+             * 仅移除此条不完整发布，使重试再次扫描它；已成功完成的嵌套条目仍然有效。
+             */
             using Difference = LuaVector<GCObject*>::difference_type;
             externalMarked_.erase(externalMarked_.begin() + static_cast<Difference>(publishedIndex));
             throw;
@@ -285,8 +295,9 @@ void GarbageCollector::markObject(GCObject* obj) {
         return;
     }
 
-    // Publish the queue entry before changing color. If allocation fails,
-    // the object remains white and a later collection can retry it.
+    /**
+     * @brief 改变颜色前发布队列条目；若分配失败，对象保持白色，后续收集可再次尝试。
+     */
     grayList_.push_back(obj);
     obj->setColor(GCColor::Gray);
 }
@@ -334,23 +345,28 @@ void GarbageCollector::writeBarrierDeferredNoexcept(GCObject* owner, const Value
     }
 
     if (incrementalPhase_ == IncrementalPhase::Sweep) {
-        // Sweep never returns to propagation.  Abandon the remaining cursor
-        // so the newly closed upvalue and its complete child graph are marked
-        // together by the next cycle.
+        /**
+         * @brief 清扫不会返回传播阶段，因此放弃剩余游标。
+         *
+         * 新关闭的上值及其完整子图将在下一周期一同标记。
+         */
         resetIncrementalCycle();
         return;
     }
 
     if (grayList_.size() >= grayList_.capacity()) {
-        // Continuing toward sweep would violate the tri-colour invariant.
-        // Dropping the unfinished cycle is safe: no white object has been
-        // reclaimed yet, and the next step starts a fresh mark phase.
+        /**
+         * @brief 继续进入清扫会违反三色不变量，因此放弃未完成周期。
+         *
+         * 此操作是安全的：尚未回收任何白色对象，下一步会启动新的标记阶段。
+         */
         resetIncrementalCycle();
         return;
     }
 
-    // Capacity was reserved at the start of the mark phase.  Pointer moves
-    // and size growth are non-throwing when no reallocation is required.
+    /**
+     * @brief 容量已在标记阶段开始时预留；无需重新分配时，移动指针和增长大小均不抛出异常。
+     */
     grayList_.push_back(child);
     child->setColor(GCColor::Gray);
 }

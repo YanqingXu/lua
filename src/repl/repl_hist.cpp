@@ -1,3 +1,8 @@
+/**
+ * @file repl_hist.cpp
+ * @brief REPL 历史记录的维护与持久化实现
+ */
+
 #include "repl/repl_hist.hpp"
 
 #include <fstream>

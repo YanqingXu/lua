@@ -1,6 +1,6 @@
 /**
  * @file vm_handlers_table.cpp
- * @brief Table opcode handlers.
+ * @brief 表操作码处理器
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"

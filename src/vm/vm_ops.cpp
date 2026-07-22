@@ -1,6 +1,6 @@
 /**
  * @file vm_ops.cpp
- * @brief VM table, arithmetic, comparison, unary, and concat helpers.
+ * @brief VM 表、算术、比较、一元运算与拼接辅助函数
  */
 
 #include "vm/vm_internal.hpp"

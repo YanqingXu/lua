@@ -2,15 +2,15 @@
  * @file dynamic_buffer.hpp
  * @brief 动态缓冲区 - 替代 lzio 的 Mbuffer
  * 
- * 使用 std::vector 实现，提供 RAII 和自动扩展。
- * 主要用于词法分析器累积 Token 内容。
+ * 使用标准动态数组实现，提供资源自动管理和自动扩展。
+ * 主要用于词法分析器累积词法单元内容。
  * 
  * 设计原则：
- * - RAII 自动资源管理
+ * - 资源获取即初始化的自动资源管理
  * - 零拷贝视图（StrView）
  * - 移动语义优化
  * - 预留容量避免频繁重分配
- * @author Lua C++ Implementation Team
+ * @author Lua C++ 实现团队
  * @version 0.1.0
  * @date 2025-12-08
  * @since C++17
@@ -28,10 +28,10 @@ namespace IO {
 /**
  * @brief 动态缓冲区类
  * 
- * 提供高效的字符累积功能，用于词法分析器构建 Token 内容。
+ * 提供高效的字符累积功能，用于词法分析器构建词法单元内容。
  * 
  * 特性：
- * - RAII 自动资源管理
+ * - 资源获取即初始化的自动资源管理
  * - 零拷贝视图（StrView）
  * - 移动语义优化
  * - 预留容量避免频繁重分配
@@ -151,7 +151,8 @@ public:
     const char* data() const noexcept;
 
 private:
-    Vec<char> buffer_;  ///< 内部缓冲区
+    /** @brief 内部缓冲区 */
+    Vec<char> buffer_;
 };
 
 } // namespace IO

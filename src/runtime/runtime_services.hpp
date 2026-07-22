@@ -2,7 +2,7 @@
 
 /**
  * @file runtime_services.hpp
- * @brief Explicit bundle of runtime-wide services used by compiler and VM entry points.
+ * @brief 编译器与 VM 入口使用的显式运行时级服务集合
  */
 
 #include "runtime/lua_allocator.hpp"
@@ -19,11 +19,10 @@ class DispatchStrategy;
 class EngineContext;
 
 /**
- * @brief Runtime services passed across compiler/VM boundaries.
+ * @brief 在编译器与 VM 边界之间传递的运行时服务
  *
- * This is intentionally a thin compatibility layer over the current GlobalState-backed
- * runtime. It makes service dependencies explicit at call sites while preserving the
- * existing GlobalState/StringPool/GarbageCollector ownership model.
+ * 此类型有意作为当前 GlobalState 支撑运行时之上的轻量兼容层。它在调用处明确服务依赖，
+ * 同时保留既有的 GlobalState、StringPool 与垃圾回收器所有权模型。
  */
 struct RuntimeServices {
     GlobalState& globalState;
@@ -46,12 +45,11 @@ struct RuntimeServices {
 };
 
 /**
- * @brief Owning runtime context for isolated Lua states.
+ * @brief 隔离 Lua 状态的拥有型运行时上下文
  *
- * This is the next step beyond RuntimeServices' non-owning compatibility
- * bundle: each EngineContext owns its string pool and GlobalState, which in
- * turn owns the collector, registry, primitive metatables, reserved strings,
- * and current-thread bookkeeping.
+ * 此类型进一步扩展了 RuntimeServices 的非拥有型兼容集合：每个 EngineContext 拥有自己的
+ * 字符串驻留池和全局状态，后者再拥有垃圾回收器、注册表、基础类型元表、保留字符串与当前
+ * 线程记录。
  */
 class EngineContext {
 public:
@@ -110,7 +108,7 @@ public:
     }
 
     /**
-     * @brief Owner-thread access to runtime-wide execution limits.
+     * @brief 由所有者线程访问运行时级执行限制
      */
     [[nodiscard]] ExecutionPolicy& executionPolicy() {
         globalState_.requireOwnerThread();
@@ -123,7 +121,7 @@ public:
     }
 
     /**
-     * @brief Owner-thread configuration for library and host-resource access.
+     * @brief 由所有者线程配置标准库与宿主资源访问权限
      */
     [[nodiscard]] SandboxPolicy& sandboxPolicy() {
         globalState_.requireOwnerThread();
@@ -176,7 +174,7 @@ public:
     }
 
     /**
-     * @brief Create a teardown-safe handle whose only cross-thread action is cancel.
+     * @brief 创建析构安全且仅允许跨线程取消的句柄
      */
     [[nodiscard]] ExecutionCancellationHandle cancellationHandle() {
         return executionPolicy().cancellationHandle();

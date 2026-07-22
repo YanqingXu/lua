@@ -2,7 +2,7 @@
 
 /**
  * @file ring_trace_sink.hpp
- * @brief Capacity-bounded, allocator-aware in-memory trace sink.
+ * @brief 容量有界且感知分配器的内存跟踪输出端
  */
 
 #include "debug/trace_sink.hpp"
@@ -12,6 +12,7 @@
 
 namespace Lua {
 
+/** @brief 将最近的追踪事件保存在固定容量环形缓冲区中的输出端。 */
 class RingTraceSink final : public ITraceSink {
 public:
     explicit RingTraceSink(usize capacity, const LuaAllocator* allocator = nullptr)

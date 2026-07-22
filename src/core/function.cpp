@@ -129,7 +129,7 @@ Value Proto::getConstant(usize index) const {
         throw std::out_of_range("Constant index out of range");
     }
     Value result = constants_[index];
-    // Debug output disabled for clean bytecode printing
+    /** @brief 禁用调试输出，以保持字节码打印结果整洁。 */
     // #ifdef DEBUG
     // std::cerr << "[Proto::getConstant] Proto=" << (void*)this
     //           << " index=" << index

@@ -193,9 +193,10 @@ public:
     void setArray(i32 index, const Value& value);
 
     /**
-     * Atomically grow and write a contiguous SETLIST-style range.
-     * Allocation/barrier failure leaves the
-     * table's logical array unchanged.
+     * @brief 以原子方式扩展并写入连续的 SETLIST 风格区间
+     * @param firstIndex 起始数组索引
+     * @param values 要写入的连续值
+     * @note 分配或写屏障失败时，表的逻辑数组保持不变。
      */
     void setArrayRange(i32 firstIndex, std::span<const Value> values);
 
@@ -303,7 +304,7 @@ public:
     /**
      * @brief 清理弱表中指向死亡对象的条目
      *
-     * 该方法必须在 sweep 删除白色对象之前调用，确保仍可安全检查键和值的颜色。
+     * 该方法必须在清扫阶段删除白色对象之前调用，确保仍可安全检查键和值的颜色。
      */
     void removeWeakEntries(const GarbageCollector& gc, bool weakKeys, bool weakValues);
 
@@ -346,7 +347,9 @@ private:
     // 内部数据成员
     // =====================================================================
 
-    /// 数组部分：存储连续的正整数键（索引从1开始）
+    /**
+     * @brief 数组部分：存储连续的正整数键（索引从1开始）
+     */
     LuaReallocVector<Value> array_;
 
     enum class HashNodeState : u8 {
@@ -362,18 +365,24 @@ private:
         HashNodeState state = HashNodeState::Empty;
     };
 
-    /// Lua-style node array: open addressing plus retained dead-key slots.
+    /**
+     * @brief Lua 风格的节点数组，采用开放寻址并保留失效键槽位。
+     */
     LuaReallocVector<HashNode> hashNodes_;
     usize hashLiveCount_ = 0;
     usize hashUsedCount_ = 0;
     LuaAllocator* allocator_ = nullptr;
 
-    /// 元表指针：用于元编程
+    /**
+     * @brief 元表指针：用于元编程
+     */
     Table* metatable_;
 
-    /// 元方法缓存标志位：用于快速判断元方法是否存在
-    /// 每个位对应一个元方法类型（TM_INDEX到TM_EQ）
-    /// 位为1表示该元方法不存在，避免重复查找
+    /**
+     * @brief 元方法缓存标志位：用于快速判断元方法是否存在
+     * 每个位对应一个元方法类型（TM_INDEX到TM_EQ）
+     * 位为1表示该元方法不存在，避免重复查找
+     */
     u8 flags_;
 
     // =====================================================================

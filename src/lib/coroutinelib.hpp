@@ -11,6 +11,7 @@
 
 namespace Lua {
 
+/** @brief Lua 协程库模块。 */
 class CoroutineLibModule : public LibModule {
 public:
     const char* getName() const override { return "coroutine"; }

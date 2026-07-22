@@ -1,6 +1,6 @@
 /**
  * @file vm_trace.cpp
- * @brief VM trace sink state and debug hook dispatch helpers.
+ * @brief 虚拟机追踪输出端状态与调试钩子调度辅助函数
  */
 
 #include "vm/vm_internal.hpp"

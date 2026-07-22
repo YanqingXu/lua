@@ -4,7 +4,7 @@
  * 
  * 提供统一的函数注册实现，支持静态方法和流式接口两种使用方式。
  * 
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-12-19
  */
 

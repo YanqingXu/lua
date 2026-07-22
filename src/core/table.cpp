@@ -226,9 +226,11 @@ void Table::setArrayRange(i32 firstIndex, std::span<const Value> values) {
     }
 
     if (GarbageCollector* gc = getOwnerCollector()) {
-        // Complete all potentially allocating barriers before changing the
-        // array. The subsequent realloc has a strong failure guarantee and
-        // Value assignment is non-throwing.
+    /**
+     * @brief 修改数组前完成所有可能触发分配的写屏障。
+     *
+     * 随后的重新分配具有强失败保证，且 Value 赋值不会抛出异常。
+     */
         for (const Value& value : values) {
             gc->writeBarrier(this, value);
         }
@@ -516,9 +518,11 @@ bool Table::shouldStoreInArray(i32 index) const {
     if (candidate > resourcePolicy().maxTableArraySlots) {
         return false;
     }
-    // Only contiguous growth is dense by construction. Sparse positive
-    // integers remain in the node array instead of amplifying one value into
-    // a large nil-filled allocation.
+    /**
+     * @brief 仅将天然连续的增长存入密集数组。
+     *
+     * 稀疏正整数仍保留在节点数组中，避免单个值触发大规模 nil 填充分配。
+     */
     return candidate <= array_.size() || candidate == array_.size() + 1;
 }
 

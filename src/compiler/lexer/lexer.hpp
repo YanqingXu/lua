@@ -4,7 +4,7 @@
  * @file lexer.hpp
  * @brief Lua词法分析器
  *
- * 实现Lua 5.1的词法分析器，将源代码文本转换为Token流。
+ * 实现 Lua 5.1 的词法分析器，将源代码文本转换为词法单元流。
  *
  * 核心功能：
  * - 识别Lua 5.1的所有关键字、运算符和字面量
@@ -12,7 +12,7 @@
  * - 支持长字符串（[[ ]]和[=[ ]=]）
  * - 精确的行号和列号跟踪
  * - 详细的错误报告
- * - Token预读机制，支持LL(1)语法分析
+ * - 词法单元预读机制，支持 LL(1) 语法分析
  * - 哈希表优化的关键字识别
  */
 
@@ -27,11 +27,11 @@ namespace Lua {
 /**
  * @brief Lua词法分析器类
  *
- * 使用单遍扫描算法，从源代码字符串中提取Token。
+ * 使用单遍扫描算法，从源代码字符串中提取词法单元。
  *
  * 特性：
  * - 流式处理，支持大文件
- * - Token预读机制（peekToken），支持LL(1)语法分析
+ * - 词法单元预读机制，支持 LL(1) 语法分析
  * - 前瞻一个字符的词法分析
  * - 自动跳过空白和注释
  * - 支持所有Lua 5.1词法规则
@@ -40,19 +40,19 @@ namespace Lua {
 class Lexer {
 public:
     /**
-     * @brief 从字符串构造 Lexer（向后兼容）
+     * @brief 从字符串构造词法分析器（向后兼容）
      * @param source 源代码字符串
      *
-     * 内部会创建 StringInputStream，保持向后兼容性。
+     * 内部会创建字符串输入流，保持向后兼容性。
      */
     explicit Lexer(const Str& source);
     Lexer(const Str& source, LuaAllocator* allocator);
 
     /**
-     * @brief 从 InputStream 构造 Lexer
+     * @brief 从输入流构造词法分析器
      * @param input 输入流引用
      *
-     * 注意：input 必须在 Lexer 生命周期内保持有效。
+     * @note input 必须在词法分析器生命周期内保持有效。
      */
     explicit Lexer(IO::InputStream& input);
     Lexer(IO::InputStream& input, LuaAllocator* allocator);
@@ -63,20 +63,20 @@ public:
     Lexer& operator=(Lexer&&) = delete;
 
     /**
-     * @brief 获取下一个Token
-     * @return Token对象
+     * @brief 获取下一个词法单元
+     * @return 词法单元对象
      *
-     * 如果存在预读Token，则返回并清除预读状态；
-     * 否则从输入流中解析新Token。
+     * 如果存在预读词法单元，则返回并清除预读状态；
+     * 否则从输入流中解析新词法单元。
      */
     Token nextToken();
 
     /**
-     * @brief 预读下一个Token而不消费当前Token
-     * @return 预读的Token对象
+     * @brief 预读下一个词法单元而不消费当前词法单元
+     * @return 预读的词法单元对象
      *
-     * 支持LL(1)语法分析的前瞻功能。预读的Token会被缓存，
-     * 下次调用nextToken()时会返回该Token。
+     * 支持 LL(1) 语法分析的前瞻功能。预读的词法单元会被缓存，
+     * 下次获取词法单元时会返回该词法单元。
      */
     Token peekToken();
 
@@ -138,7 +138,7 @@ private:
     static bool isHexDigit(char c) noexcept;
 
     /**
-     * @brief 记录当前 token 的起始位置
+     * @brief 记录当前词法单元的起始位置
      */
     void beginToken();
 
@@ -153,16 +153,16 @@ private:
     void consumeNewlinePairRemainder(char firstNewline);
 
     // =====================================================================
-    // Token创建
+    // 词法单元创建
     // =====================================================================
 
     /**
-     * @brief 创建Token
+     * @brief 创建词法单元
      */
     Token makeToken(TokenType type);
 
     /**
-     * @brief 创建错误Token
+     * @brief 创建错误词法单元
      */
     Token errorToken(const Str& message);
 
@@ -195,7 +195,7 @@ private:
     Opt<Token> skipLongComment(i32 level);
 
     // =====================================================================
-    // 识别不同类型的Token
+    // 识别不同类型的词法单元
     // =====================================================================
 
     /**
@@ -234,16 +234,16 @@ private:
 
 private:
     /**
-     * @brief 内部Token解析函数
-     * @return 解析的Token对象
+     * @brief 内部词法单元解析函数
+     * @return 解析后的词法单元对象
      *
-     * 实际执行词法分析的核心函数，被nextToken()和peekToken()调用。
+     * 实际执行词法分析的核心函数，由获取与预读词法单元的接口调用。
      */
     Token scanToken();
 
     /**
      * @brief 尝试扫描长字符串 [[ 或 [=[
-     * @return 如果是长字符串，返回对应的Token；否则返回std::nullopt
+     * @return 如果是长字符串，返回对应的词法单元；否则返回空值
      *
      * 当检测到'['字符时调用，用于判断是长字符串还是单字符标记。
      */
@@ -288,7 +288,7 @@ private:
     /**
      * @brief 处理运算符和分隔符
      * @param c 当前字符
-     * @return Token对象
+     * @return 词法单元对象
      *
      * 处理所有单字符和多字符运算符、分隔符。
      */
@@ -340,14 +340,18 @@ private:
     // 输入流管理
     // =====================================================================
 
-    LuaAllocator allocator_; ///< 编译期 callback 快照；传给游标和 Token
+    /** @brief 编译期回调快照；传给游标和词法单元。 */
+    LuaAllocator allocator_;
 
-    // 当从字符串构造 Lexer 时，保存一份源代码副本，
-    // 以保证 InputStream 持有的 std::string_view 在整个 Lexer 生命周期内始终有效。
-    // 注意：此成员不会再用于基于下标的字符访问，仅用于管理生命周期。
+    /**
+     * @brief 从字符串构造词法分析器时保存源代码副本。
+     * @note 保证输入流持有的字符串视图在词法分析器的整个生命周期内始终有效；
+     * 此成员不再用于基于下标的字符访问，仅用于管理生命周期。
+     */
     LuaOwnedString sourceStorage_;
 
-    UPtr<IO::InputStream> ownedInput_; ///< 拥有的输入流（用于字符串构造）
+    /** @brief 拥有的输入流（用于字符串构造） */
+    UPtr<IO::InputStream> ownedInput_;
 
     // =====================================================================
     // 字符游标（用于实现 peek、peekNext、位置跟踪和内部回溯）
@@ -356,23 +360,27 @@ private:
     InputCursor inputCursor_;
 
     // =====================================================================
-    // Lexeme 累积缓冲区
+    // 词素累积缓冲区
     // =====================================================================
 
-    LuaOwnedString lexemeBuffer_; ///< 累积当前 token 的字符
+    /** @brief 累积当前词法单元的字符。 */
+    LuaOwnedString lexemeBuffer_;
 
     // =====================================================================
     // 位置跟踪
     // =====================================================================
 
-    i32 tokenStartLine_;   ///< 当前 Token 起始行号
-    i32 tokenStartColumn_; ///< 当前 Token 起始列号
+    /** @brief 当前词法单元的起始行号。 */
+    i32 tokenStartLine_;
+    /** @brief 当前词法单元的起始列号。 */
+    i32 tokenStartColumn_;
 
     // =====================================================================
-    // Token 预读机制（支持 LL(1) 语法分析）
+    // 词法单元预读机制（支持 LL(1) 语法分析）
     // =====================================================================
 
-    Opt<Token> lookahead_; ///< 预读 Token 缓存
+    /** @brief 预读词法单元缓存。 */
+    Opt<Token> lookahead_;
 };
 
 } // namespace Lua

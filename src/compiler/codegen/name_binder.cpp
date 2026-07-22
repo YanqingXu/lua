@@ -1,6 +1,6 @@
 /**
  * @file name_binder.cpp
- * @brief NameBinder implementation.
+ * @brief 名称绑定器实现
  */
 
 #include "compiler/codegen/name_binder.hpp"

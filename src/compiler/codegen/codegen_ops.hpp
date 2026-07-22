@@ -2,7 +2,7 @@
 
 /**
  * @file codegen_ops.hpp
- * @brief Shared low-level operations for codegen implementation slices.
+ * @brief 代码生成实现分片共享的底层操作
  */
 
 #include "compiler/codegen/codegen_state.hpp"
@@ -12,11 +12,10 @@
 namespace Lua {
 
 /**
- * Small facade for repeated low-level mutations during lowering.
+ * @brief 降级期间重复底层修改所使用的轻量外观
  *
- * Emitters still own semantic decisions. CodegenOps centralizes mechanical
- * details: pending jump flushes before instruction emission, instruction
- * argument rewrites, and common register/constant utilities.
+ * 发射器仍负责语义决策。CodegenOps 集中处理机械细节：指令发射前刷新待决跳转、重写指令
+ * 参数，以及通用寄存器与常量辅助操作。
  */
 class CodegenOps {
 public:
@@ -151,6 +150,7 @@ private:
     JumpPatcher& jumps_;
 };
 
+/** @brief 在作用域内保存并恢复当前源码行号的守卫。 */
 class LineGuard {
 public:
     LineGuard(CodegenState& state, i32 line) noexcept
@@ -173,6 +173,7 @@ private:
     i32 previousLine_;
 };
 
+/** @brief 在作用域结束时恢复寄存器分配状态的守卫。 */
 class RegisterGuard {
 public:
     explicit RegisterGuard(CodegenState& state) noexcept
@@ -209,6 +210,7 @@ private:
     bool active_ = true;
 };
 
+/** @brief 管理一组临时寄存器生命周期的作用域帧。 */
 class RegisterFrame {
 public:
     RegisterFrame(CodegenOps& ops, i32 base) noexcept

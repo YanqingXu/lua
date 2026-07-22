@@ -2,7 +2,7 @@
 
 /**
  * @file jump_patcher.hpp
- * @brief Jump list and backpatching boundary for CodeGenerator.
+ * @brief 代码生成器的跳转列表与回填边界
  */
 
 #include "compiler/codegen/codegen_state.hpp"
@@ -10,12 +10,11 @@
 namespace Lua {
 
 /**
- * @brief Owns CodeGenerator jump-list and backpatching operations.
+ * @brief 负责代码生成器的跳转列表与回填操作
  *
- * JumpPatcher keeps the old CodeGenerator jump semantics intact while moving
- * the linked-list encoding, pending `jpc_` handling, and PC offset writes behind
- * a focused helper. It does not own CodegenState; the facade and emitters keep
- * sharing the same mutable state during lowering.
+ * 跳转修补器保持原有代码生成器跳转语义不变，并将链表编码、待决 `jpc_` 处理与程序
+ * 计数器偏移写入收拢到专用辅助对象中。它不拥有代码生成状态；降级期间外观与发射器继续
+ * 共享同一可变状态。
  */
 class JumpPatcher {
 public:

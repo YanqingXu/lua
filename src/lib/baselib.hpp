@@ -11,7 +11,7 @@
  * 2. 类型操作：type、tonumber、tostring
  * 3. 元表操作：getmetatable、setmetatable
  * 4. 错误处理：error、assert
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-13
  */
 
@@ -23,6 +23,7 @@
 
 namespace Lua {
 
+/** @brief Lua 基础库模块。 */
 class BaseLibModule : public LibModule {
 public:
 	const char* getName() const override { return "base"; }

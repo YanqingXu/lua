@@ -1,6 +1,6 @@
 /**
  * @file vm_handlers_global_upvalue.cpp
- * @brief Global and upvalue opcode handlers.
+ * @brief 全局变量与上值操作码处理器
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"

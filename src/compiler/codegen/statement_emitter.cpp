@@ -1,6 +1,6 @@
 /**
  * @file statement_emitter.cpp
- * @brief StatementEmitter implementation.
+ * @brief 语句发射器实现
  */
 
 #include "compiler/codegen/statement_emitter.hpp"
@@ -424,7 +424,7 @@ void StatementEmitter::statement(const Stmt& s) {
 }
 
 void StatementEmitter::emitStmt(const EmptyStmt&) {
-    // Empty statement: no bytecode.
+        /** @brief 空语句不产生字节码。 */
 }
 
 void StatementEmitter::emitStmt(const AssignStmt& s) {
@@ -784,9 +784,11 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
             ValueResult val = emitValue(*s.values[i]);
             val = forceSingleValue(val);
             materializeValue(val, base + i);
-            // Keep each already-materialized return value below the next
-            // expression's scratch range. Calls may otherwise reuse `base`
-            // and overwrite earlier results before RETURN consumes them.
+        /**
+         * @brief 将每个已实体化返回值保存在下一表达式的暂存区下方。
+         *
+         * 否则调用可能复用 `base`，并在 RETURN 消费先前结果前将其覆盖。
+         */
             ops_.setFreeRegAndCheck(base + i + 1);
         }
 
@@ -920,8 +922,10 @@ void StatementEmitter::emitStmt(const RepeatStmt& s) {
 
     i32 bodyActiveVarCount = scopes_.activeLocalCount();
 
-    // Function-entry registers start nil, but repeat-body registers are reused
-    // on later iterations and therefore require explicit LOADNIL reset.
+    /**
+     * @brief 函数入口寄存器初始为 nil，但 repeat 循环体寄存器会在后续迭代中复用，因此需要
+     * 显式使用 LOADNIL 重置。
+     */
     const bool savedForceNilLocalInitialization = forceNilLocalInitialization_;
     forceNilLocalInitialization_ = true;
     try {
@@ -940,8 +944,10 @@ void StatementEmitter::emitStmt(const RepeatStmt& s) {
         return;
     }
 
-    // Lua 5.1 lowers a literal nil used as a repeat condition through a
-    // boolean false temporary (LOADBOOL), rather than a value LOADNIL.
+    /**
+     * @brief Lua 5.1 将 repeat 条件中的 nil 字面量降级为布尔 false 临时值（LOADBOOL），
+     * 而不是值 LOADNIL。
+     */
     ValueResult cond = std::holds_alternative<NilExpr>(s.condition->variant)
                            ? ValueResult::makeBoolean(false)
                            : emitValue(*s.condition);

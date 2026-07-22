@@ -1,6 +1,6 @@
 /**
  * @file codegen_binding.cpp
- * @brief CodeGenerator symbol binding facade wrappers.
+ * @brief 代码生成器的符号绑定外观封装
  */
 
 #include "compiler/codegen/codegen.hpp"
@@ -8,7 +8,7 @@
 namespace Lua {
 
 // =====================================================================
-// 符号绑定（PR-8 Symbol Binding）
+/** @brief 符号绑定（第 8 次拉取请求）。 */
 // =====================================================================
 
 SymbolRef CodeGenerator::resolve(const Str& name) {

@@ -2,7 +2,7 @@
 
 /**
  * @file gc_allocation_guard.hpp
- * @brief RAII guard for GC-registered objects during code generation.
+ * @brief 代码生成期间保护已注册垃圾回收对象的资源获取即初始化守卫
  */
 
 #include "common/types.hpp"
@@ -12,6 +12,7 @@
 
 namespace Lua {
 
+/** @brief 保护尚未正式托管的垃圾回收对象。 */
 template <typename T> class GCAllocationGuard {
 public:
     template <typename... Args>

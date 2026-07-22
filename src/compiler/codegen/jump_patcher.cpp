@@ -1,6 +1,6 @@
 /**
  * @file jump_patcher.cpp
- * @brief Jump list and backpatching helper implementation.
+ * @brief 跳转列表与回填辅助逻辑的实现
  */
 
 #include "compiler/codegen/jump_patcher.hpp"
@@ -12,11 +12,13 @@ namespace Lua {
 JumpPatcher::JumpPatcher(CodegenState& state) noexcept
     : state_(state) {}
 
-// Unresolved JMP instructions are encoded as a singly linked list: while a
-// jump is pending, its sBx points at the next unresolved jump PC rather than a
-// final destination. patchList() must read that next node before overwriting
-// sBx with the real target. blockManager.jpc_ holds jumps that should land on
-// "the next ordinary instruction"; emitting bytecode flushes that pending list.
+/**
+ * @brief 将未解析的 JMP 指令编码为单向链表。
+ *
+ * 跳转待决时，其 sBx 指向下一条未解析跳转的程序计数器，而非最终目标。patchList() 必须先
+ * 读取下一节点，再用真实目标覆盖 sBx。blockManager.jpc_ 保存应落到“下一条普通指令”的跳转；
+ * 发射字节码时会刷新该待决列表。
+ */
 
 i32 JumpPatcher::emitJump() {
     i32 pending = state_.blockManager.jpc_;

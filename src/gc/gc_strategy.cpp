@@ -1,3 +1,8 @@
+/**
+ * @file gc_strategy.cpp
+ * @brief 垃圾回收策略的收集入口与描述信息实现
+ */
+
 #include "gc/gc_strategy.hpp"
 
 #include "gc/garbage_collector.hpp"

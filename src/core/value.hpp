@@ -414,7 +414,8 @@ public:
     std::string toString() const;
 
 private:
-    ValueVariant value_;  ///< 值的内部存储
+    /** @brief 值的内部存储 */
+    ValueVariant value_;
 };
 
 namespace detail {

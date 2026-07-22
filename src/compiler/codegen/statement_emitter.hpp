@@ -2,7 +2,7 @@
 
 /**
  * @file statement_emitter.hpp
- * @brief Statement and block lowering boundary.
+ * @brief 语句与代码块的降级边界
  */
 
 #include "compiler/ast.hpp"
@@ -21,11 +21,10 @@ namespace Lua {
 class CodeGenerator;
 
 /**
- * @brief Owns CodeGenerator statement lowering operations.
+ * @brief 负责代码生成器的语句降级操作
  *
- * StatementEmitter centralizes statement and block lowering while sharing the
- * facade-owned CodegenState and helper boundaries. It does not own compiler
- * state and keeps the public CodeGenerator facade stable.
+ * 语句发射器集中处理语句与代码块降级，同时共享外观拥有的代码生成状态及辅助边界。
+ * 它不拥有编译器状态，并保持公共代码生成器外观稳定。
  */
 class StatementEmitter : private StmtVisitor<StatementEmitter, void> {
     friend struct StmtVisitor<StatementEmitter, void>;

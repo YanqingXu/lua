@@ -1,6 +1,6 @@
 /**
  * @file native_module_registry.cpp
- * @brief Platform implementation of context-owned native module leases.
+ * @brief 上下文拥有的原生模块租约的平台实现
  */
 
 #include "runtime/native_module_registry.hpp"
@@ -162,7 +162,7 @@ std::expected<NativeModuleRegistry::Handle, Str> NativeModuleRegistry::load(cons
 #ifdef _WIN32
     if (isCurrentExecutable(filename)) {
         handle = reinterpret_cast<Handle>(GetModuleHandleA(nullptr));
-        // GetModuleHandle does not increment the module reference count.
+        /** @brief GetModuleHandle 不会增加模块引用计数。 */
         owned = false;
     } else {
         const std::wstring widePath = std::filesystem::path(key).wstring();

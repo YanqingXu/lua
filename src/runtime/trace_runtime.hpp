@@ -2,7 +2,7 @@
 
 /**
  * @file trace_runtime.hpp
- * @brief Trace/debug state isolated to one runtime context.
+ * @brief 隔离在单个运行时上下文内的跟踪与调试状态
  */
 
 #include "common/types.hpp"
@@ -11,6 +11,7 @@ namespace Lua {
 
 class ITraceSink;
 
+/** @brief 单个运行时上下文拥有的追踪与调试状态。 */
 class TraceRuntime {
 public:
     void setSink(ITraceSink* sink) noexcept {

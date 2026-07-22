@@ -1,11 +1,17 @@
 ﻿#pragma once
 
+/**
+ * @file codegen_types.hpp
+ * @brief 代码生成器使用的绑定、值和控制流通道类型
+ */
+
 #include "common/types.hpp"
 
 namespace Lua {
 
 constexpr i32 NO_JUMP = -1;
 
+/** @brief 将多个可调用对象组合为 std::visit 使用的访问器。 */
 template <typename... Visitors>
 struct ValueResultVisitor : Visitors... {
     using Visitors::operator()...;
@@ -14,6 +20,7 @@ struct ValueResultVisitor : Visitors... {
 template <typename... Visitors>
 ValueResultVisitor(Visitors...) -> ValueResultVisitor<Visitors...>;
 
+/** @brief 保存等待回填的指令位置列表。 */
 struct PatchList {
     Vec<i32> pcs;
 
@@ -49,6 +56,7 @@ struct PatchList {
     }
 };
 
+/** @brief 条件表达式的真假跳转列表及可选常量结果。 */
 struct CondResult {
     PatchList trueList;
     PatchList falseList;
@@ -56,7 +64,9 @@ struct CondResult {
     bool constantValue = false;
 };
 
+/** @brief 表达式降级后的右值通道。 */
 struct ValueResult {
+    /** @brief 右值载荷类型。 */
     enum class Kind {
         None,
         Immediate,
@@ -68,6 +78,7 @@ struct ValueResult {
         PendingJump
     };
 
+    /** @brief 立即数的具体类型。 */
     enum class ImmediateKind {
         None,
         Nil,
@@ -75,6 +86,7 @@ struct ValueResult {
         Number
     };
 
+    /** @brief 右值的来源或访问方式。 */
     enum class AccessKind {
         None,
         Local,
@@ -188,6 +200,7 @@ private:
     }
 };
 
+/** @brief 赋值目标的局部、上值、全局或索引引用。 */
 struct LValueRef {
     enum class Kind {
         None,
@@ -208,6 +221,7 @@ struct LValueRef {
     }
 };
 
+/** @brief 调用或可变参数产生的多返回值通道。 */
 struct CallResultInfo {
     enum class Kind {
         None,
@@ -226,15 +240,15 @@ struct CallResultInfo {
 };
 
 // =============================================================================
-// SymbolRef — 名字绑定结果（PR-8 Symbol Binding）
+/** @brief 符号引用——名称绑定结果（第 8 次拉取请求）。 */
 // =============================================================================
 
 /**
  * @brief 名字解析结果
  *
- * 将 NameExpr 中的名字解析为 Local / Upvalue / Global 三种绑定结果。
- * 从 CodeGenerator 的 findLocalVar / resolveUpvalue / global fallback 提取，
- * 消除 emitValue / emitLValue / emitExpr(NameExpr) / FunctionStmt 中重复的查找逻辑。
+ * 将名称表达式中的名称解析为局部变量、上值或全局变量三种绑定结果。
+ * 从代码生成器的局部变量查找、上值解析和全局变量回退流程中提取，
+ * 消除值发射、左值发射、名称表达式发射和函数语句路径中重复的查找逻辑。
  */
 struct SymbolRef {
     enum class Kind {
@@ -245,8 +259,8 @@ struct SymbolRef {
     };
 
     Kind kind = Kind::None;
-    i32 index = -1;       // Local: 寄存器槽位; Upvalue: upvalue 索引; Global: 字符串常量索引
-    Str name;             // 原始名字（用于 Global 场景或调试）
+    i32 index = -1;       // 局部变量：寄存器槽位；上值：上值索引；全局变量：字符串常量索引
+    Str name;             // 原始名称（用于全局变量场景或调试）
 
     bool valid() const noexcept {
         return kind != Kind::None;

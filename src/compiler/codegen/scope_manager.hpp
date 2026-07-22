@@ -2,7 +2,7 @@
 
 /**
  * @file scope_manager.hpp
- * @brief Local, block, and upvalue scope boundary for CodeGenerator.
+ * @brief 代码生成器的局部变量、代码块与上值作用域边界
  */
 
 #include "compiler/codegen/jump_patcher.hpp"
@@ -10,12 +10,10 @@
 namespace Lua {
 
 /**
- * @brief Owns CodeGenerator scope lifecycle operations.
+ * @brief 负责代码生成器的作用域生命周期操作
  *
- * ScopeManager centralizes local variable activation/removal, block stack
- * bookkeeping, break-list patching, upvalue registration, and CLOSE emission.
- * It shares CodegenState with the facade and other emitters; it does not own
- * the state.
+ * 作用域管理器集中处理局部变量激活与移除、代码块栈记账、break 列表回填、上值注册与 CLOSE
+ * 发射。它与外观和其他发射器共享代码生成状态，但不拥有该状态。
  */
 class ScopeManager {
 public:

@@ -1,6 +1,6 @@
 /**
  * @file vm_handlers_loop.cpp
- * @brief Loop and close opcode handlers.
+ * @brief 循环与关闭操作码处理器
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"

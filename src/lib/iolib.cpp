@@ -5,7 +5,7 @@
  * 使用现代C++流式API进行函数注册
  * 遵循Lua 5.1.5标准I/O库规范
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-12-19
  */
 
@@ -133,8 +133,9 @@ struct OpenFileRegistry {
 };
 
 static OpenFileRegistry& openFileRegistry() {
-    // Runtime states are process-lifetime singletons in some embedding paths;
-    // keep the registry alive through static teardown.
+    /**
+     * @brief 某些嵌入路径中的运行时状态是进程生命周期单例，因此让注册表存活到静态析构结束。
+     */
     static auto* registry = new OpenFileRegistry();
     return *registry;
 }
@@ -147,8 +148,9 @@ static void unregisterFileHandle(FileHandleData* handle) noexcept {
                                               [handle](const OpenFileHandle& entry) { return entry.handle == handle; }),
                                registry.handles.end());
     } catch (...) {
-        // Userdata destruction is noexcept. A mutex failure cannot be
-        // recovered here, but must not terminate state teardown.
+        /**
+         * @brief 用户数据析构不抛出异常；此处无法从互斥锁失败恢复，但也不得终止状态析构。
+         */
     }
 }
 
@@ -450,9 +452,11 @@ Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe, const char* path,
         ud->setMetatable(mtVal.asTable());
     }
 
-    // Publish only after every operation that can allocate or throw. This
-    // keeps the process-wide handle registry free of dangling pointers when
-    // memory-limit injection aborts userdata construction.
+    /**
+     * @brief 所有可能分配或抛出的操作完成后才发布句柄。
+     *
+     * 当内存限制注入中止用户数据构造时，这可避免进程级句柄注册表出现悬空指针。
+     */
     if (handle->get() != nullptr) {
         OpenFileRegistry& registry = openFileRegistry();
         std::lock_guard lock(registry.mutex);
@@ -528,7 +532,7 @@ static bool readChars(LuaState* L, FILE* fp, usize count) {
         i32 c = std::fgetc(fp);
         if (c == EOF) {
             if (i == 0) {
-                return false; // EOF at start
+                return false; // 起始位置即到达文件末尾
             }
             break;
         }
@@ -1167,8 +1171,9 @@ void IOLibModule::registerFunctions(LuaState* L) {
         return;
     }
 
-    // Registration reflects the configured profile; operation-level checks
-    // still protect functions captured before a later restriction.
+    /**
+     * @brief 注册内容反映已配置方案；操作级检查仍保护在后续限制前捕获的函数。
+     */
     FunctionRegistrar registrar(L);
     registrar.addGlobal("close", io_close).addGlobal("type", io_type);
 

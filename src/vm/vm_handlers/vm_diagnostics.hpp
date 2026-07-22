@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file vm_diagnostics.hpp
+ * @brief VM 指令处理器使用的类型名称与诊断信息辅助函数
+ */
+
 #include "common/types.hpp"
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"

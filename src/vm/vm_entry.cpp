@@ -1,6 +1,6 @@
 /**
  * @file vm_entry.cpp
- * @brief VM public entry points and C-call bridge.
+ * @brief VM 公共入口与 C 调用桥接
  */
 
 #include "vm/vm.hpp"

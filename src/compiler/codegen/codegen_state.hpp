@@ -2,7 +2,7 @@
 
 /**
  * @file codegen_state.hpp
- * @brief Shared mutable state for CodeGenerator implementation slices.
+ * @brief 代码生成器各实现分片共享的可变状态
  */
 
 #include "compiler/codegen/bytecode_builder.hpp"
@@ -18,10 +18,10 @@ class CodeGenerator;
 class Proto;
 
 /**
- * @brief Mutable state used by CodeGenerator while lowering one function body.
+ * @brief 代码生成器降级单个函数体时使用的可变状态
  *
- * This is the first 8B boundary: implementation slices still use CodeGenerator
- * member functions, but their shared state now lives in one explicit object.
+ * 这是第一个 8B 边界：实现分片仍使用代码生成器成员函数，但共享状态现已集中存放在
+ * 一个显式对象中。
  */
 struct CodegenState {
     RuntimeServices services;

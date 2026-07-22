@@ -1,6 +1,6 @@
 ﻿/**
  * @file json_trace_sink.cpp
- * @brief JSONL Trace Sink 实现
+ * @brief JSONL 追踪输出端实现
  */
 
 #include "debug/json_trace_sink.hpp"

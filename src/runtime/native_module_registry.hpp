@@ -2,7 +2,7 @@
 
 /**
  * @file native_module_registry.hpp
- * @brief EngineContext-scoped ownership for dynamically loaded native modules.
+ * @brief 动态加载原生模块的 EngineContext 级所有权管理
  */
 
 #include "common/types.hpp"
@@ -13,6 +13,7 @@ namespace Lua {
 
 class SandboxPolicy;
 
+/** @brief 原生模块注册表的加载与可见性策略。 */
 struct NativeModulePolicy {
     bool requireAbsolutePath = true;
     bool requireAbiHandshake = false;
@@ -22,14 +23,12 @@ struct NativeModulePolicy {
 };
 
 /**
- * @brief Owns the operating-system leases for native modules used by one runtime.
+ * @brief 持有单个运行时所用原生模块的操作系统租约
  *
- * A path is opened at most once per registry. If distinct loader spellings
- * resolve to the same OS handle, the extra reference is released and the
- * spelling is cached as an alias. Different EngineContext instances deliberately
- * have different registries and therefore acquire independent OS references.
- * Handles are released only when the registry is destroyed; there is no eager
- * unload while Lua Function objects may still contain module code pointers.
+ * 每个注册表对同一路径最多打开一次。若不同加载器路径写法解析为同一操作系统句柄，则释放
+ * 多余引用并将该写法缓存为别名。不同 EngineContext 实例有意使用不同注册表，从而获取独立的
+ * 操作系统引用。句柄仅在注册表销毁时释放；只要 Lua Function 对象仍可能包含模块代码指针，
+ * 就不会提前卸载。
  */
 class NativeModuleRegistry {
 public:
@@ -45,19 +44,22 @@ public:
     NativeModuleRegistry& operator=(NativeModuleRegistry&&) = delete;
 
     /**
-     * @brief Acquire or reuse a module lease for this runtime.
+     * @brief 为当前运行时获取或复用模块租约
      */
     [[nodiscard]] std::expected<Handle, Str> load(const Str& filename);
 
     /**
-     * @brief Resolve a symbol from an already acquired module.
+     * @brief 从已获取的模块中解析符号
      */
     [[nodiscard]] std::expected<void*, Str> findSymbol(Handle handle, const Str& symbolName) const;
 
     NativeModulePolicy& policy() noexcept { return policy_; }
     const NativeModulePolicy& policy() const noexcept { return policy_; }
 
-    /** Add one canonical path to the allowlist. An empty allowlist allows all absolute paths. */
+    /**
+     * @brief 向允许列表添加一条规范路径
+     * @note 空允许列表放行所有绝对路径。
+     */
     void allowPath(const Str& filename);
 
     [[nodiscard]] usize loadedCount() const noexcept {
@@ -65,7 +67,7 @@ public:
     }
 
     /**
-     * @brief Test-only/diagnostic visibility into this context's path cache.
+     * @brief 为测试与诊断提供当前上下文路径缓存的只读视图
      */
     [[nodiscard]] bool contains(const Str& filename) const;
 

@@ -2,7 +2,7 @@
 
 /**
  * @file compilation_policy.hpp
- * @brief Per-context limits and per-compilation accounting for untrusted source.
+ * @brief 不可信源码的上下文级限制与单次编译计量策略
  */
 
 #include "common/types.hpp"
@@ -14,6 +14,7 @@
 
 namespace Lua {
 
+/** @brief 不可信源码编译过程的资源策略。 */
 struct CompilationPolicy {
     using Clock = std::chrono::steady_clock;
 
@@ -31,12 +32,15 @@ struct CompilationPolicy {
     std::optional<Clock::time_point> deadline;
 };
 
+/** @brief 编译过程超过资源限制时抛出的异常。 */
 class CompilationLimitError final : public std::runtime_error {
 public:
     explicit CompilationLimitError(const char* message) : std::runtime_error(message) {}
 };
 
-/** A short-lived budget shared by every nested Proto produced by one compile. */
+/**
+ * @brief 单次编译产生的所有嵌套函数原型共享的短期预算
+ */
 class CompilationBudget {
 public:
     explicit CompilationBudget(const CompilationPolicy& policy, ExecutionPolicy* execution = nullptr) noexcept

@@ -1,6 +1,6 @@
 /**
  * @file expression_emitter.cpp
- * @brief ExpressionEmitter implementation.
+ * @brief 表达式发射器实现
  */
 
 #include "compiler/codegen/expression_emitter.hpp"
@@ -313,7 +313,7 @@ CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
         }
     }
 
-    // PR-6: native ValueResult fallback
+    /** @brief PR-6：原生 ValueResult 后备路径。 */
     ValueResult val = emitValue(e);
     val = forceSingleValue(val);
 
@@ -327,7 +327,9 @@ CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
             break;
         case PayloadTruthiness::Runtime: {
             i32 reg = valueToAnyReg(val);
-            // TEST reg 0 0: truthy → skip JMP (fall through = true), falsy → exec JMP (→ falseList)
+    /**
+     * @brief TEST reg 0 0：真值跳过 JMP（顺序执行表示 true），假值执行 JMP（进入 falseList）。
+     */
             codeABC(OpCode::TEST, reg, 0, 0);
             result.falseList.append(jump());
             freeReg(reg);
@@ -385,7 +387,7 @@ CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
         }
     }
 
-    // PR-6: native ValueResult fallback
+    /** @brief PR-6：原生 ValueResult 后备路径。 */
     ValueResult val = emitValue(e);
     val = forceSingleValue(val);
 
@@ -399,7 +401,9 @@ CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
             break;
         case PayloadTruthiness::Runtime: {
             i32 reg = valueToAnyReg(val);
-            // TEST reg 0 1: falsy → skip JMP (fall through = false), truthy → exec JMP (→ trueList)
+    /**
+     * @brief TEST reg 0 1：假值跳过 JMP（顺序执行表示 false），真值执行 JMP（进入 trueList）。
+     */
             codeABC(OpCode::TEST, reg, 0, 1);
             result.trueList.append(jump());
             freeReg(reg);
@@ -411,7 +415,7 @@ CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
 }
 
 // =====================================================================
-// 值通道（PR-4 emitValue pipeline）
+// 值通道（PR-4 emitValue 管线）
 // =====================================================================
 
 ValueResult ExpressionEmitter::emitValue(const Expr& e) {
@@ -555,7 +559,7 @@ void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
         },
         [&](const ValueResult::MultiRet& multi) {
             if (multi.access == ValueResult::AccessKind::Call) {
-                // Call: 返回值在 baseReg，不能直接重写 A
+    /** @brief 调用结果位于 baseReg，不能直接重写 A。 */
                 Instruction inst = ops_.instruction(multi.instructionPc);
                 i32 callBase = GETARG_A(inst);
                 SETARG_C(inst, 2);  // 固定为 1 个返回值
@@ -694,7 +698,7 @@ ValueResult ExpressionEmitter::forceSingleValue(const ValueResult& val) {
 }
 
 // =====================================================================
-// 复合表达式原生通道（PR-6 Composite Expressions Cleanup）
+    /** @brief 复合表达式原生通道（第 6 次拉取请求的复合表达式清理）。 */
 // =====================================================================
 
 ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
@@ -711,7 +715,7 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
         return ValueResult::makeRegister(resultReg, true);
     }
 
-    // === And/Or: 短路求值 ===
+// === 与/或：短路求值 ===
     if (op == BinaryExpr::Op::And || op == BinaryExpr::Op::Or) {
         if (producesBoolean(*e.left) && producesBoolean(*e.right)) {
             CondResult cond;
@@ -1008,7 +1012,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
 }
 
 // =====================================================================
-// 调用/多返回值通道（PR-5 Call/Vararg/MultiRet pipeline）
+// 调用/多返回值通道（PR-5 Call/Vararg/MultiRet 管线）
 // =====================================================================
 
 CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase) {
@@ -1026,7 +1030,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
             throw std::runtime_error("Method call must have MemberExpr as func");
         }
 
-        // PR-6: native ValueResult pipeline for SELF
+    /** @brief PR-6：SELF 使用原生 ValueResult 管线。 */
         ValueResult obj = emitValue(*memberExpr->table);
         i32 objReg = valueToAnyReg(obj);
 
@@ -1316,7 +1320,7 @@ void ExpressionEmitter::emitStore(const LValueRef& target, const ValueResult& va
         }
 
         case LValueRef::Kind::Upvalue: {
-            // Upvalue：生成 SETUPVAL 指令
+    /** @brief 上值：生成 SETUPVAL 指令。 */
             ValueResult v = forceSingleValue(val);
             i32 reg = valueToAnyReg(v);
             codeABC(OpCode::SETUPVAL, reg, target.slot, 0);

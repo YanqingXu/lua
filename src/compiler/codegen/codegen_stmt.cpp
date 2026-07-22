@@ -1,6 +1,6 @@
 /**
  * @file codegen_stmt.cpp
- * @brief Compatibility forwarding for function-level codegen helpers.
+ * @brief 函数级代码生成辅助函数的兼容转发层
  */
 
 #include "compiler/codegen/codegen.hpp"

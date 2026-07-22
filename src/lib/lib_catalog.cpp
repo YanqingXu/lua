@@ -1,3 +1,8 @@
+/**
+ * @file lib_catalog.cpp
+ * @brief Lua 标准库目录的静态定义与查询实现
+ */
+
 #include "lib/lib_catalog.hpp"
 
 #include "lib/baselib.hpp"

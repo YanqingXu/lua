@@ -85,7 +85,7 @@ Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) 
     i32 finalLine = chunk.statements.empty() ? state_.currentLine : chunk.statements.back()->getEndLine();
     {
         LineGuard line(state_, finalLine);
-        codeABC(OpCode::RETURN, 0, 1, 0); // return (no values)
+        codeABC(OpCode::RETURN, 0, 1, 0); // 无返回值的 return
     }
 
     attachDebugMetadata();

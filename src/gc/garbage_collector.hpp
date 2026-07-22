@@ -2,21 +2,21 @@
  * @file garbage_collector.hpp
  * @brief Lua垃圾回收器：三色标记-清除算法实现
  *
- * 本文件实现了Lua的垃圾回收系统，采用三色标记-清除算法管理所有GC对象的生命周期。
+ * 本文件实现了 Lua 的垃圾回收系统，采用三色标记-清除算法管理所有垃圾回收对象的生命周期。
  *
  * 核心功能：
- * - 管理所有GC对象（GCString、Table等）
+ * - 管理所有垃圾回收对象（字符串、表等）
  * - 三色标记算法（白色、灰色、黑色）
  * - 标记-清除垃圾回收
  * - 根对象保护
  * - 内存统计
  *
  * 设计特点：
- * - 由 GlobalState 显式拥有；保留 getInstance() 作为旧代码兼容入口
- * - 链表管理：使用侵入式链表管理所有GC对象
- * - 增量准备：为后续增量GC预留接口
- * - 现代C++：使用RAII和智能指针辅助管理
- * @author Lua C++ Project
+ * - 由全局状态显式拥有；保留兼容入口供旧代码使用
+ * - 链表管理：使用侵入式链表管理所有垃圾回收对象
+ * - 增量准备：为后续增量垃圾回收预留接口
+ * - 现代 C++：使用资源获取即初始化和智能指针辅助管理
+ * @author Lua C++ 项目
  * @date 2025-11-12
  */
 
@@ -47,14 +47,14 @@ class IncrementalGC;
 /**
  * @brief 垃圾回收器类
  *
- * 管理所有GC对象的生命周期，实现三色标记-清除算法。
+ * 管理所有垃圾回收对象的生命周期，实现三色标记-清除算法。
  *
  * 三色标记算法：
- * - 白色（White）：未访问的对象，可能是垃圾
- * - 灰色（Gray）：已访问但未扫描的对象，待处理
- * - 黑色（Black）：已访问且已扫描的对象，确定存活
+ * - 白色：未访问的对象，可能是垃圾
+ * - 灰色：已访问但未扫描的对象，待处理
+ * - 黑色：已访问且已扫描的对象，确定存活
  *
- * GC流程：
+ * 垃圾回收流程：
  * 1. 标记阶段：从根对象开始，标记所有可达对象
  * 2. 清除阶段：回收所有未标记（白色）的对象
  *
@@ -122,20 +122,19 @@ public:
     /**
      * @brief 从GC管理链表中摘除对象
      *
-     * 主要用于尚未 commit 的 RAII guard 放弃 GC 托管。该函数不释放对象本身。
+ * 主要用于尚未提交的资源获取即初始化守卫放弃垃圾回收器托管。该函数不释放对象本身。
      */
     void unregisterObject(GCObject* obj) noexcept;
 
     /**
-     * @brief Reconcile dynamic object storage with the fast-path memory total.
+     * @brief 将对象动态存储量与快速路径内存总量对账
      */
     void accountObjectSizeChange(GCObject* obj) noexcept;
 
     /**
-     * @brief Destroy a registered object through its original allocation path.
+     * @brief 通过原始分配路径销毁已注册对象
      *
-     * Used by rollback guards that abandon an object before it becomes part of
-     * a completed Proto/object graph.
+     * 供回滚守卫在对象成为完整函数原型或对象图的一部分前放弃该对象时使用。
      */
     void destroyManagedObject(GCObject* obj) noexcept;
 
@@ -197,9 +196,9 @@ public:
     [[nodiscard]] usize collect();
 
     /**
-     * @brief 使用显式字符串池执行完整垃圾回收
+     * @brief 使用显式字符串驻留池执行完整垃圾回收
      *
-     * StringPool 负责字符串驻留表，sweep 删除字符串时必须从同一个池中摘除。
+     * 字符串驻留池负责驻留表，清扫阶段删除字符串时必须从同一个池中摘除。
      */
     [[nodiscard]] usize collect(StringPool& stringPool);
 
@@ -215,7 +214,7 @@ public:
     [[nodiscard]] usize collect(LuaState* currentState);
 
     /**
-     * @brief 使用显式字符串池执行完整垃圾回收，并将当前LuaState作为执行根
+     * @brief 使用显式字符串驻留池执行完整垃圾回收，并将当前 Lua 状态作为执行根
      */
     [[nodiscard]] usize collect(StringPool& stringPool, LuaState* currentState);
 
@@ -228,12 +227,12 @@ public:
     [[nodiscard]] usize collectAutomatic(LuaState* currentState);
 
     /**
-     * @brief 使用显式字符串池执行自动回收
+     * @brief 使用显式字符串驻留池执行自动回收
      */
     [[nodiscard]] usize collectAutomatic(StringPool& stringPool, LuaState* currentState);
 
     /**
-     * @brief Allocation/write barrier entry used by the VM's coarse automatic GC.
+     * @brief VM 粗粒度自动垃圾回收使用的分配与写屏障入口
      */
     [[nodiscard]] usize maybeCollectAutomatic(LuaState* currentState);
 
@@ -249,7 +248,7 @@ public:
     [[nodiscard]] isize getDebtBytes() const noexcept;
     [[nodiscard]] usize getAutomaticThresholdBytes() const noexcept;
     /**
-     * @brief TestC managed-size budget, not allocator live bytes or a host hard limit.
+     * @brief TestC 托管大小预算；并非分配器存活字节数或宿主硬限制
      */
     [[nodiscard]] usize getManagedMemoryBudgetBytes() const noexcept;
     usize setManagedMemoryBudgetBytes(usize limit) noexcept;
@@ -305,39 +304,33 @@ public:
     void markValue(const Value& value);
 
     /**
-     * @brief Conservative incremental-GC write barrier.
+     * @brief 保守的增量垃圾回收写屏障
      *
-     * If a black owner starts referencing a white child, immediately mark and
-     * propagate the child graph so a later sweep in the same cycle cannot
-     * reclaim newly reachable objects.
+     * 当黑色所有者开始引用白色子对象时，立即标记并传播子图，避免同一周期后续清扫回收新近
+     * 可达的对象。
      */
     void writeBarrier(GCObject* owner, GCObject* child);
 
     /**
-     * @brief Value overload for writeBarrier().
+     * @brief writeBarrier() 的 Value 重载
      */
     void writeBarrier(GCObject* owner, const Value& value);
 
     /**
-     * @brief Allocation-free barrier for noexcept state transitions.
+     * @brief 无异常状态转换使用的免分配写屏障
      *
-     * Upvalue closing can run
-     * while unwinding or destroying a state.  Queue
-     * the white child for later propagation without allocating; if
-     * the
-     * incremental queue invariant is unexpectedly unavailable, abandon that
-     * cycle before it reaches
-     * sweep.
+     * 上值关闭可能在栈展开或状态销毁期间运行。将白色子对象排入队列供稍后传播，且不执行分配；
+     * 若增量队列不变量意外失效，则在该周期进入清扫前将其放弃。
      */
     void writeBarrierDeferredNoexcept(GCObject* owner, const Value& value) noexcept;
 
     /**
-     * @brief Barrier for non-GC roots such as GlobalState side tables.
+     * @brief GlobalState 辅助表等非垃圾回收根使用的写屏障
      */
     void writeRootBarrier(GCObject* child);
 
     /**
-     * @brief 标记 LuaState 中的活动栈、调用帧窗口和 open upvalue
+     * @brief 标记 Lua 状态中的活动栈、调用帧窗口和开放上值
      */
     void markState(LuaState* state);
 
@@ -347,12 +340,12 @@ public:
     void markTable(Table* table);
 
     /**
-     * @brief 检查对象是否会在当前 sweep 中被回收
+     * @brief 检查对象是否会在当前清扫阶段被回收
      */
     bool isObjectDead(GCObject* obj) const;
 
     /**
-     * @brief 检查 Value 中的可回收对象是否会在当前 sweep 中被回收
+     * @brief 检查值中的可回收对象是否会在当前清扫阶段被回收
      */
     bool isValueDead(const Value& value) const;
 
@@ -378,22 +371,17 @@ public:
     usize getRootCount() const noexcept;
 
     /**
-     * @brief Sum of GCObject-reported managed sizes.
+     * @brief 垃圾回收对象报告的托管大小总和
      *
-     * This is not the allocator's exact live-byte count:
-     * object payloads and
-     * implementation/container metadata may have different accounting.
+     * 此值并非分配器的精确存活字节数；对象载荷与实现或容器元数据可能采用不同计量方式。
      */
     usize getTotalMemory() const noexcept;
 
     /**
-     * @brief O(1) memory total used by automatic-GC pacing.
+     * @brief 自动垃圾回收步调控制使用的 O(1) 内存总量
      *
-     * getTotalMemory() remains an exact
-     * traversal of object-reported sizes;
-     * this accessor exposes the independently maintained fast-path managed
-
-     * * size ledger for tests and runtime telemetry.
+     * getTotalMemory() 仍会精确遍历对象报告的大小；本访问器公开独立维护的快速路径托管大小
+     * 账本，供测试与运行时遥测使用。
      */
     usize getAccountedMemory() const noexcept;
 
@@ -419,25 +407,20 @@ public:
     void clearAll();
 
     /**
-     * @brief 使用显式字符串池清理所有对象（用于测试）
+     * @brief 使用显式字符串驻留池清理所有对象（用于测试）
      */
     void clearAll(StringPool& stringPool);
 
     /**
-     * @brief Run the permitted remaining userdata finalizers during shutdown.
+     * @brief 关闭期间运行仍获准执行的用户数据终结器
      *
-     * Shutdown also
-     * visits reachable userdata. Existing queues are consumed
-     * in place so lua_close stays noexcept under
-     * allocator failure. Finalizer
-     * errors are contained; a finite per-drain policy budget can intentionally
-
-     * * stop later callbacks.
+     * 关闭流程也会访问可达用户数据。现有队列就地消费，使 lua_close 在分配器失败时仍不抛出
+     * 异常。终结器错误会限制在边界内；有限的单轮策略预算可以有意停止后续回调。
      */
     void finalizeAll(LuaState* state) noexcept;
 
     /**
-     * @brief Number of userdata objects still queued for a later __gc drain.
+     * @brief 仍排队等待后续 __gc 清理的用户数据对象数
      */
     [[nodiscard]] usize getPendingFinalizerCount() const noexcept {
         return pendingFinalizers_.size();
@@ -597,7 +580,7 @@ private:
     void prepareFinalizers();
 
     /**
-     * @brief Resolve the current context's per-drain finalizer callback cap.
+     * @brief 解析当前上下文的单轮终结器回调上限
      */
     [[nodiscard]] usize finalizerDrainLimit() const noexcept;
 
@@ -612,7 +595,7 @@ private:
     void runFinalizers(LuaState* state);
 
     /**
-     * @brief Invoke one userdata finalizer and restore the caller state.
+     * @brief 调用一个用户数据终结器并恢复调用者状态
      */
     void callFinalizer(LuaState* state, Userdata* userdata);
 
@@ -620,44 +603,64 @@ private:
     // 数据成员
     // =====================================================================
 
-    /// 所有GC对象的链表头
+    /**
+     * @brief 所有GC对象的链表头
+     */
     GCObject* allObjects_;
 
-    /// 根对象集合（使用vector存储，简单实现）
+    /**
+     * @brief 根对象集合（使用vector存储，简单实现）
+     */
     LuaVector<GCObject*> roots_;
 
-    /// 灰色对象列表（待处理）
+    /**
+     * @brief 灰色对象列表（待处理）
+     */
     LuaVector<GCObject*> grayList_;
 
-    /// 本轮标记中发现的弱表
+    /**
+     * @brief 本轮标记中发现的弱表
+     */
     LuaVector<Table*> weakTables_;
 
-    /// 等待执行 __gc 的 userdata
+    /**
+     * @brief 等待执行 __gc 的 userdata
+     */
     LuaVector<Userdata*> pendingFinalizers_;
 
-    /// 本轮标记中已遍历的外部 collector 对象
+    /**
+     * @brief 本轮标记中已遍历的外部收集器对象
+     */
     LuaVector<GCObject*> externalMarked_;
 
-    /// 防止终结器递归执行
+    /**
+     * @brief 防止终结器递归执行
+     */
     bool finalizersRunning_;
 
-    /// 拥有此GC的全局状态；独立测试实例为空
+    /**
+     * @brief 拥有此GC的全局状态；独立测试实例为空
+     */
     GlobalState* globalState_;
 
-    /// 字符串驻留池；用于 sweep/clearAll 删除字符串时同步摘除池条目
+    /**
+     * @brief 字符串驻留池；用于清扫或全部清理时同步摘除驻留池条目
+     */
     StringPool* stringPool_;
 
-    /// Mutable Lua allocator shared by the owning EngineContext.
+    /** @brief 所属 EngineContext 共享的可变 Lua 分配器。 */
     LuaAllocator* allocator_;
 
-    /// 当前 GC 策略；默认指向 mark-sweep，策略对象本身为静态共享实例
+    /**
+     * @brief 当前垃圾回收策略；默认采用标记-清扫，策略对象本身为静态共享实例
+     */
     const GCStrategy* strategy_;
 
     bool automaticStopped_;
     bool automaticCollectionRunning_;
     bool preciseStackRoots_;
     usize automaticThresholdBytes_;
-    /// TestC/diagnostic managed-size fault-injection budget; never a hard limit.
+    /** @brief TestC 与诊断用托管大小故障注入预算；绝非硬限制。 */
     usize managedMemoryBudgetBytes_;
     isize gcDebtBytes_;
     i32 stepCountdown_;
@@ -669,10 +672,14 @@ private:
     usize incrementalCollected_;
     usize lastCompletedCollected_;
 
-    /// 统计信息：对象总数
+    /**
+     * @brief 统计信息：对象总数
+     */
     usize objectCount_;
 
-    /// 统计信息：总内存使用量
+    /**
+     * @brief 统计信息：总内存使用量
+     */
     usize totalMemory_;
 };
 

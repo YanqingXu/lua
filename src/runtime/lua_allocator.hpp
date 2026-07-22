@@ -2,7 +2,7 @@
 
 /**
  * @file lua_allocator.hpp
- * @brief Mutable Lua 5.1 allocator callback and user-data ownership.
+ * @brief 可变 Lua 5.1 分配器回调与用户数据所有权封装
  */
 
 #include <cstddef>
@@ -24,6 +24,7 @@ namespace Lua {
 namespace AllocatorDetail {
 
 #ifdef _MSC_VER
+/** @brief 调试构建中记录实现元数据分配的注册表。 */
 struct ImplementationAllocationRegistry {
     std::mutex mutex;
     std::vector<void*> allocations;
@@ -67,6 +68,7 @@ inline bool releaseImplementationAllocation(void*) noexcept {
 
 using LuaAllocatorFunction = void* (*)(void* userData, void* pointer, std::size_t oldSize, std::size_t newSize);
 
+/** @brief 封装 Lua 分配器回调及其用户数据的内存分配器。 */
 class LuaAllocator {
 public:
     LuaAllocator() = default;
@@ -102,7 +104,7 @@ public:
             try {
                 (void)function_(userData_, pointer, oldSize, 0);
             } catch (...) {
-                // Destruction and rollback are closed exception boundaries.
+                /** @brief 析构与回滚是禁止异常逸出的边界。 */
             }
         }
     }
@@ -125,6 +127,7 @@ private:
     void* userData_ = nullptr;
 };
 
+/** @brief 将 Lua 分配器适配到标准容器分配器接口。 */
 template <typename T> class LuaStdAllocator {
 public:
     using value_type = T;
@@ -142,15 +145,18 @@ public:
             throw std::bad_array_new_length();
         }
         if (count == 0) {
-            // lua_Alloc reserves nsize == 0 for deallocation, while standard
-            // containers are permitted to request a zero-sized allocation.
+            /**
+             * @brief lua_Alloc 将 nsize == 0 保留为释放操作，而标准容器允许请求零大小分配。
+             */
             return std::allocator<T>{}.allocate(count);
         }
         if (isImplementationMetadata()) {
-            // MSVC Debug rebinds user allocators for _Container_proxy. Keep
-            // that implementation-only block outside Lua's failure contract,
-            // while tracking it because destruction may arrive through a
-            // differently rebound allocator specialization.
+            /**
+             * @brief 将 MSVC 调试模式的容器代理元数据排除在 Lua 失败约定之外。
+             *
+             * MSVC 调试模式会为 _Container_proxy 重绑定用户分配器。该内存块仅服务于实现，
+             * 但仍需跟踪，因为析构可能通过另一种重绑定的分配器特化到达。
+             */
             T* memory = static_cast<T*>(::operator new(count * sizeof(T)));
             if (allocator_ != nullptr && allocator_->isConfigured()) {
                 try {
@@ -219,11 +225,10 @@ private:
 };
 
 /**
- * Standard allocator that snapshots a callback/userdata pair by value.
+ * @brief 按值保存回调与用户数据快照的标准分配器
  *
- * This is intended for compiler temporaries that may be copied or moved out
- * of their producing object. Each rebound allocator remains able to release
- * its storage without depending on a LuaAllocator object's lifetime.
+ * 供可能被复制或移出其创建对象的编译器临时值使用。每个重绑定分配器均可自行释放存储，
+ * 无需依赖 LuaAllocator 对象的生命周期。
  */
 template <typename T> class LuaSnapshotStdAllocator {
 public:
@@ -268,6 +273,7 @@ private:
 template <typename T> using LuaVector = std::vector<T, LuaStdAllocator<T>>;
 template <typename T> using LuaOwnedVector = std::vector<T, LuaSnapshotStdAllocator<T>>;
 
+/** @brief 销毁并释放由 Lua 分配器拥有的对象。 */
 template <typename T> class LuaOwnedObjectDeleter {
 public:
     LuaOwnedObjectDeleter() noexcept = default;
@@ -301,12 +307,11 @@ template <typename T, typename... Args>
 }
 
 /**
- * Mutable string with a fixed inline buffer and exact allocator byte counts.
+ * @brief 具有固定内联缓冲区和精确分配字节数的可变字符串
  *
- * Some standard-library basic_string implementations can request N bytes from
- * a user allocator and later deallocate the block with N-1. lua_Alloc requires
- * the original block size, so runtime/compiler strings use this small wrapper
- * instead of inheriting implementation-specific SSO/capacity bookkeeping.
+ * 某些标准库 basic_string 实现会向用户分配器请求 N 字节，随后却以 N-1 释放该内存块。
+ * lua_Alloc 要求提供原始块大小，因此运行时与编译器字符串使用此轻量封装，避免继承依赖
+ * 具体实现的小字符串优化或容量计量行为。
  */
 template <typename Allocator> class LuaBasicString {
 public:
@@ -570,11 +575,10 @@ using LuaString = LuaBasicString<LuaStdAllocator<char>>;
 using LuaOwnedString = LuaBasicString<LuaSnapshotStdAllocator<char>>;
 
 /**
- * Contiguous storage for trivially copyable runtime records.
+ * @brief 为可平凡复制的运行时记录提供连续存储
  *
- * Unlike std::vector's allocator protocol, growth uses lua_Alloc's real
- * realloc form. A failed growth therefore leaves the old block, capacity,
- * size, and elements unchanged, matching the Lua 5.1 allocator contract.
+ * 与 std::vector 的分配器协议不同，扩容使用 lua_Alloc 的真实 realloc 形式。因此扩容失败时
+ * 旧内存块、容量、大小和元素均保持不变，符合 Lua 5.1 分配器约定。
  */
 template <typename T> class LuaReallocVector {
     static_assert(std::is_trivially_copyable_v<T>,

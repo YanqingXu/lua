@@ -2,7 +2,7 @@
 
 /**
  * @file vm_switch_dispatch.hpp
- * @brief Opcode-specific inline entry points for the VM switch dispatch backend.
+ * @brief 虚拟机基于 switch 语句的调度后端操作码专用内联入口
  */
 
 #include "vm/vm_handlers.hpp"
@@ -165,6 +165,7 @@ inline HandlerStatus execOpVararg(OpExecutionContext& context, Instruction inst)
     return runHandler(context, inst);
 }
 
+/** @brief switch 调度后端使用的操作码处理器条目。 */
 struct SwitchHandlerEntry {
     OpCode opcode;
     SwitchOpHandler handler;

@@ -1,6 +1,6 @@
 /**
  * @file ast_visitor.hpp
- * @brief CRTP visitors for Lua AST variants.
+ * @brief Lua 抽象语法树变体使用的奇异递归模板模式访问器
  */
 
 #pragma once
@@ -59,6 +59,7 @@ template <typename Visitor, typename R = void>
 concept VisitsAstNodes = VisitsExprNodes<Visitor, R> && VisitsStmtNodes<Visitor, R>;
 
 template <typename Derived, typename R = void>
+/** @brief 基于奇异递归模板模式的表达式访问器。 */
 struct ExprVisitor {
     R visit(const Expr& expr) {
         static_assert(detail::visitsVariantNodes<Derived, ExprVariant, R>(
@@ -87,6 +88,7 @@ struct ExprVisitor {
 };
 
 template <typename Derived, typename R = void>
+/** @brief 基于奇异递归模板模式的语句访问器。 */
 struct StmtVisitor {
     R visit(const Stmt& stmt) {
         static_assert(detail::visitsVariantNodes<Derived, StmtVariant, R>(
@@ -115,6 +117,7 @@ struct StmtVisitor {
 };
 
 template <typename Derived, typename R = void>
+/** @brief 同时支持表达式和语句的抽象语法树访问器。 */
 struct AstVisitor : ExprVisitor<Derived, R>, StmtVisitor<Derived, R> {
     using ExprVisitor<Derived, R>::visit;
     using StmtVisitor<Derived, R>::visit;

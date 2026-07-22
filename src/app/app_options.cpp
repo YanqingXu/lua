@@ -1,3 +1,8 @@
+/**
+ * @file app_options.cpp
+ * @brief Lua 命令行参数解析的实现
+ */
+
 #include "app_options.hpp"
 
 #include <cstring>

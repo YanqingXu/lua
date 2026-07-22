@@ -53,7 +53,7 @@ static inline Value* refreshBase(LuaState* L) {
     return &L->getStack()[L->getCurrentCallInfo().base];
 }
 
-} // anonymous namespace
+} // 匿名命名空间
 
 // =====================================================================
 // 公共 API：namespace VM
@@ -130,16 +130,15 @@ enum class DispatchBackend : u8 {
     Table,
 };
 
-// Dispatch timing note:
-//
-// runDispatchBackend keeps a next-pc invariant. After fetch, `pc` immediately
-// points at the next instruction; branch, TEST-skip, CALL reentry, and table
-// handlers all adjust that next-pc value. `CallInfo::savedpc` stores the same
-// recoverable position before any debug/count/line hook runs, while
-// `instructionPc` remains the current instruction for line hooks and tracing.
-// New Lua frames have no saved position yet, so a null savedpc starts at PC 0.
-// Count hooks run before line hooks; either hook may touch the stack or call
-// info, so `base` is refreshed after each hook before executing the opcode.
+/**
+ * @brief 调度时序说明
+ *
+ * runDispatchBackend 保持“下一程序计数器”不变量。取指后，`pc` 立即指向下一条指令；分支、
+ * TEST 跳过、CALL 重入与表操作处理器都会调整该下一位置。任何调试、计数或行钩子运行前，
+ * `CallInfo::savedpc` 保存同一个可恢复位置，而 `instructionPc` 仍指向当前指令，供行钩子与
+ * 跟踪使用。新 Lua 调用帧尚无保存位置，因此空 savedpc 从 PC 0 开始。计数钩子先于行钩子
+ * 运行；两者都可能修改栈或调用信息，所以执行操作码前会在每个钩子之后刷新 `base`。
+ */
 ExecResult runDispatchBackend(VMContext& context, DispatchBackend backend) {
     RuntimeServices& services = context.services;
     LuaState* L = context.state;
@@ -174,7 +173,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
     const auto entryCode = proto->getInstructionSpan();
     pc = ci.savedpc ? static_cast<usize>(ci.savedpc - entryCode.data()) : 0;
 
-    // dump bytecode at entry
+    /** @brief 在入口处转储字节码。 */
     if (VM::detail::shouldDumpBytecode(L)) {
         const auto dcode = proto->getInstructionSpan();
         std::fprintf(stderr, "[BCDUMP] proto(%p) %zu instructions, pc=%zu\n", static_cast<const void*>(proto),
@@ -391,8 +390,8 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case HandlerStatus::Returned:
                 return ExecResult::Returned;
             }
-        } // while
-    } // scope for code reference
+} // while 循环
+} // 代码引用作用域
 
     return ExecResult::Returned;
 }

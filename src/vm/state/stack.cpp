@@ -2,7 +2,7 @@
  * @file stack.cpp
  * @brief Lua栈管理实现
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-12
  */
 

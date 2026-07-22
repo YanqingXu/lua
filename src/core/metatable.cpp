@@ -5,7 +5,7 @@
  * 详细说明：
  * 实现元方法的查找、调用和缓存机制。
  * 
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-22
  */
 

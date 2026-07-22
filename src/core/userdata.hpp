@@ -31,6 +31,7 @@ class Table;
 class GarbageCollector;
 class LuaAllocator;
 
+/** @brief 使用 Lua 分配器释放用户数据缓冲区的删除器。 */
 struct UserdataBufferDeleter {
     LuaAllocator* allocator = nullptr;
     usize allocationSize = 0;
@@ -64,9 +65,10 @@ public:
     [[nodiscard]] static UPtr<Userdata> createFullOwned(usize size);
 
     /**
-     * @brief Validate and return the GC-visible object plus payload size.
-     * @throws std::bad_alloc if the
-     * requested payload cannot be represented safely.
+     * @brief 验证并返回垃圾回收可见对象及其载荷大小
+     * @param size 请求的载荷大小
+     * @return 对象与载荷合计大小
+     * @throws std::bad_alloc 请求的载荷无法安全表示时抛出
      */
     [[nodiscard]] static usize getGCAllocationSize(usize size);
 
@@ -225,10 +227,14 @@ private:
     using BufferPtr = std::unique_ptr<std::byte, UserdataBufferDeleter>;
     using DataDestructor = void (*)(std::byte*) noexcept;
 
-    usize size_;         ///< 用户数据大小(字节)
-    BufferPtr data_;     ///< 用户数据指针
-    Table* metatable_;   ///< 元表指针
-    Table* environment_; ///< Lua 5.1 userdata environment
+    /** @brief 用户数据大小（字节）。 */
+    usize size_;
+    /** @brief 用户数据指针。 */
+    BufferPtr data_;
+    /** @brief 元表指针。 */
+    Table* metatable_;
+    /** @brief Lua 5.1 用户数据环境。 */
+    Table* environment_;
     DataDestructor dataDestructor_;
 };
 

@@ -4,7 +4,7 @@
  * @file token.hpp
  * @brief Lua词法标记定义
  *
- * 定义语法分析阶段使用的Token类型、语义值、词素文本和源代码位置信息。
+ * 定义语法分析阶段使用的词法单元类型、语义值、词素文本和源代码位置信息。
  */
 
 #include "common/types.hpp"
@@ -13,6 +13,7 @@
 
 namespace Lua {
 
+/** @brief Lua 词法单元类型。 */
 enum class TokenType : i32 {
     And = 257,
     Break,
@@ -70,6 +71,7 @@ inline bool operator!=(const Str& lhs, const TokenString& rhs) noexcept {
     return !(lhs == rhs);
 }
 
+/** @brief 带词素与源码位置的词法单元。 */
 struct Token {
     TokenType type;
     TokenValue value;

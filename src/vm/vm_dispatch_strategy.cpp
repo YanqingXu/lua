@@ -1,6 +1,6 @@
 /**
  * @file vm_dispatch_strategy.cpp
- * @brief Default VM dispatch strategy selection.
+ * @brief 默认 VM 调度策略选择
  */
 
 #include "vm/vm_dispatch_strategy.hpp"

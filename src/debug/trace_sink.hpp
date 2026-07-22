@@ -1,9 +1,9 @@
 ﻿/**
  * @file trace_sink.hpp
- * @brief VM Trace 输出接口
+ * @brief 虚拟机追踪输出接口
  *
- * 定义 ITraceSink 抽象接口和默认的 NullTraceSink。
- * VM 通过此接口输出事件，完全解耦于具体的输出实现。
+ * 定义追踪输出端抽象接口和默认的空输出端。
+ * 虚拟机通过此接口输出事件，完全解耦于具体的输出实现。
  */
 
 #pragma once
@@ -13,9 +13,9 @@
 namespace Lua {
 
 /**
- * @brief Trace 事件输出接口
+ * @brief 追踪事件输出接口
  *
- * VM 主循环持有 ITraceSink* 指针，在关键执行点调用对应方法。
+ * 虚拟机主循环持有追踪输出端指针，在关键执行点调用对应方法。
  * 实现类决定如何处理事件（写文件、发送网络、丢弃等）。
  */
 class ITraceSink {
@@ -39,9 +39,9 @@ public:
 };
 
 /**
- * @brief 空 Trace Sink（默认实现，零开销）
+ * @brief 空追踪输出端（默认实现，零开销）
  *
- * 所有方法为空实现，用于 trace 未启用时。
+ * 所有方法为空实现，用于未启用追踪时。
  */
 class NullTraceSink final : public ITraceSink {
 public:

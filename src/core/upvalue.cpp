@@ -1,6 +1,6 @@
 /**
  * @file upvalue.cpp
- * @brief Upvalue类的实现（✅ 改进版 - 使用索引避免悬空指针）
+ * @brief 上值类的实现（改进版——使用索引避免悬空指针）
  */
 
 #include "core/upvalue.hpp"
@@ -31,14 +31,14 @@ Upvalue::Upvalue(usize stackIndex, Stack& ownerStack)
     : GCObject(GCObjectType::Upval), isOpen_(true), stackIndex_(stackIndex), closedValue_() // 默认构造为nil
       ,
       next_(nullptr), ownerStack_(&ownerStack) {
-    // Open状态：存储索引和所属栈指针
+    /** @brief 开放状态：存储索引和所属栈指针。 */
 }
 
 Upvalue::Upvalue(const Value& value)
-    : GCObject(GCObjectType::Upval), isOpen_(false), stackIndex_(0) // Closed状态下无意义
+    : GCObject(GCObjectType::Upval), isOpen_(false), stackIndex_(0) // 关闭状态下无意义
       ,
       closedValue_(value), next_(nullptr), ownerStack_(nullptr) {
-    // Closed状态：存储值
+    /** @brief 关闭状态：存储值。 */
 }
 
 // ========== 状态查询 ==========
@@ -55,20 +55,20 @@ bool Upvalue::isClosed() const noexcept {
 
 Value& Upvalue::getValue(Stack&) noexcept {
     if (isOpen_) {
-        // Open状态：使用ownerStack_访问正确的栈（跨协程安全）
+        /** @brief 开放状态：使用 ownerStack_ 访问正确的栈，保证跨协程安全。 */
         return (*ownerStack_)[stackIndex_];
     } else {
-        // Closed状态：返回内部存储的值
+        /** @brief 关闭状态：返回内部存储的值。 */
         return closedValue_;
     }
 }
 
 const Value& Upvalue::getValue(const Stack&) const noexcept {
     if (isOpen_) {
-        // Open状态：使用ownerStack_访问正确的栈（跨协程安全）
+        /** @brief 开放状态：使用 ownerStack_ 访问正确的栈，保证跨协程安全。 */
         return (*ownerStack_)[stackIndex_];
     } else {
-        // Closed状态：返回内部存储的值
+        /** @brief 关闭状态：返回内部存储的值。 */
         return closedValue_;
     }
 }
@@ -79,10 +79,10 @@ void Upvalue::setValue(Stack&, const Value& value) {
     }
 
     if (isOpen_) {
-        // Open状态：使用ownerStack_设置正确的栈上的值
+        /** @brief 开放状态：使用 ownerStack_ 设置正确栈上的值。 */
         (*ownerStack_)[stackIndex_] = value;
     } else {
-        // Closed状态：设置内部存储的值
+        /** @brief 关闭状态：设置内部存储的值。 */
         closedValue_ = value;
     }
 }
@@ -91,7 +91,7 @@ void Upvalue::setValue(Stack&, const Value& value) {
 
 void Upvalue::close(Stack&) noexcept {
     if (isClosed()) {
-        // 已经是Closed状态，无需操作
+        /** @brief 已经是关闭状态，无需操作。 */
         return;
     }
 
@@ -102,7 +102,7 @@ void Upvalue::close(Stack&) noexcept {
     }
     closedValue_ = value;
 
-    // 2. 标记为Closed状态
+    /** @brief 2. 标记为关闭状态。 */
     isOpen_ = false;
     ownerStack_ = nullptr;
 

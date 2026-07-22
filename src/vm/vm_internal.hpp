@@ -2,7 +2,7 @@
 
 /**
  * @file vm_internal.hpp
- * @brief Internal VM helpers shared by implementation slices.
+ * @brief 各实现分片共享的 VM 内部辅助函数
  */
 
 #include "common/lua_error.hpp"

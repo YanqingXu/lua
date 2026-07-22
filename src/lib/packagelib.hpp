@@ -1,22 +1,22 @@
 /**
  * @file packagelib.hpp
- * @brief Lua package/module library: require() and module loading system
+ * @brief Lua 包与模块库：require() 和模块加载系统
  *
- * Implements the Lua 5.1 package system including:
- * - require(modname)    — load and cache modules
- * - module(name, ...)   — create a module environment
- * - package.loaded      — table of already-loaded modules
- * - package.preload     — table of preload functions
- * - package.path        — search path for Lua modules
- * - package.cpath       — search path for C modules
- * - package.config      — path configuration string
- * - package.loaders     — table of searcher functions
- * - package.loadlib     — dynamic library loader
- * - package.seeall      — open module environment to _G
+ * 实现 Lua 5.1 包系统，包括：
+ * - require(modname)——加载并缓存模块
+ * - module(name, ...)——创建模块环境
+ * - package.loaded——已加载模块表
+ * - package.preload——预加载函数表
+ * - package.path——Lua 模块搜索路径
+ * - package.cpath——C 模块搜索路径
+ * - package.config——路径配置字符串
+ * - package.loaders——搜索器函数表
+ * - package.loadlib——动态库加载器
+ * - package.seeall——向 _G 开放模块环境
  *
- * API behavior follows the Lua 5.1 Reference Manual §5.3.
+ * API 行为遵循 Lua 5.1 参考手册第 5.3 节。
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2026-04-10
  */
 
@@ -28,6 +28,7 @@
 
 namespace Lua {
 
+/** @brief Lua 包与模块加载库。 */
 class PackageLibModule : public LibModule {
 public:
     const char* getName() const override { return "package"; }
@@ -38,11 +39,10 @@ public:
 };
 
 /**
- * @brief Register the package library in the global environment
- * @param L Lua state pointer
+ * @brief 在全局环境中注册包库
+ * @param L Lua 状态指针
  *
- * Creates the global `package` table, registers require() and module()
- * as global functions, and sets up the default loaders.
+ * 创建全局 `package` 表，将 require() 与 module() 注册为全局函数，并配置默认加载器。
  */
 void openPackageLib(LuaState* L);
 

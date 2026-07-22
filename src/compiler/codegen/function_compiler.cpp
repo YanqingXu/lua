@@ -1,6 +1,6 @@
 /**
  * @file function_compiler.cpp
- * @brief Function prototype compilation boundary implementation.
+ * @brief 函数原型编译边界的实现
  */
 
 #include "compiler/codegen/function_compiler.hpp"

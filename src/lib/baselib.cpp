@@ -4,7 +4,7 @@
  *
  * 使用现代C++流式API进行函数注册（方案二）
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-13
  * @updated 2025-12-18 - 采用流式API改进注册方式
  */
@@ -505,7 +505,7 @@ i32 luaB_getmetatable(LuaState* L) {
 }
 
 // =====================================================================
-// newproxy([boolean|proxy]) - Lua 5.1 compatibility userdata factory
+// newproxy([boolean|proxy])——Lua 5.1 兼容用户数据工厂
 // =====================================================================
 
 static Table* currentFunctionEnvironment(LuaState* L) {
@@ -566,7 +566,7 @@ static i32 luaB_next(LuaState* L) {
     }
 
     Table* table = tableVal.asTable();
-    Value key = L->getTop() > 1 ? L->at(2) : Value(); // nil if not provided
+    Value key = L->getTop() > 1 ? L->at(2) : Value(); // 未提供时使用 nil
 
     // 获取下一个键值对
     Value nextKey, nextValue;
@@ -728,7 +728,7 @@ i32 luaB_rawset(LuaState* L) {
     // 检查 NaN（如果是数字）
     if (index.isNumber()) {
         f64 num = index.asNumber();
-        if (num != num) { // NaN check
+        if (num != num) { // NaN 检查
             L->error("rawset: table index is NaN");
         }
     }
@@ -879,7 +879,7 @@ i32 luaB_xpcall(LuaState* L) {
 }
 
 // =====================================================================
-// Project-local binary chunk loader for string.dump/load round-trips
+// 项目内部二进制代码块加载器，用于 string.dump/load 往返转换
 // =====================================================================
 
 class DumpReader {
@@ -1577,8 +1577,9 @@ i32 luaB_dofile(LuaState* L) {
     i32 loadResult = luaB_loadfile(L);
 
     if (loadResult != 1) {
-        // Lua 5.1 dofile raises the loader error; it does not return the
-        // loadfile-style (nil, message) pair.
+        /**
+         * @brief Lua 5.1 的 dofile 会抛出加载器错误，而不返回 loadfile 风格的 (nil, message)。
+         */
         Value errorValue = L->getTop() > 0 ? L->top() : Value(pool.intern("dofile: load failed"));
         L->setTop(0);
         L->pushValue(errorValue);
@@ -1595,11 +1596,12 @@ i32 luaB_dofile(LuaState* L) {
         L->error("dofile: invalid function");
     }
 
-    // Execute the function already returned at the top of this C frame.
-    // VM::call replaces it with the chunk results and preserves the frame's
-    // logical stack. Using Stack::size()/push() here mixed reserved physical
-    // register capacity with Lua-visible values and could return the loaded
-    // function itself instead of the chunk's result.
+    /**
+     * @brief 执行已返回到当前 C 调用帧栈顶的函数。
+     *
+     * VM::call 使用代码块结果替换该函数并保留调用帧逻辑栈。若在此使用 Stack::size()/push()，
+     * 会混淆预留物理寄存器容量与 Lua 可见值，可能返回已加载函数本身而非代码块结果。
+     */
     RuntimeServices services(L->getGlobalState());
     VM::call(services, L, 0, MULTRET);
     return L->getTop();
@@ -1856,7 +1858,7 @@ static i32 collectGarbageControlArgument(LuaState* L) {
  * - "stop"：停止自动垃圾回收
  * - "restart"：重启自动垃圾回收
  * - "step"：推进一段有界 GC 工作，完成一轮收集时返回 true
- * - "strategy"：查询或切换教学用GC策略（mark-sweep / incremental placeholder）
+ * - "strategy"：查询或切换教学用垃圾回收策略（标记-清扫或增量占位策略）
  * - "setpause"：设置自动 GC 暂停参数，返回旧值
  * - "setstepmul"：设置 step 工作量倍数，返回旧值
  */
@@ -1882,11 +1884,12 @@ i32 luaB_collectgarbage(LuaState* L) {
     if (firstChar == 'c') {
         if (strcmp(opt, "collect") == 0) {
             (void)gc.collect(L);
-            // Lua 5.1's LUA_GCCOLLECT path installs a fresh threshold after
-            // the full cycle, even when LUA_GCSTOP was used beforehand.
-            // Keeping our separate stopped flag set here strands later weak
-            // tables indefinitely (the upstream gc.lua -> closure.lua
-            // sequence relies on a full collection resuming automatic GC).
+            /**
+             * @brief Lua 5.1 的 LUA_GCCOLLECT 路径在完整周期后安装新阈值，即使此前使用了 LUA_GCSTOP。
+             *
+             * 若此处仍保持独立停止标志，后续弱表会无限期搁置；上游 gc.lua → closure.lua 序列
+             * 依赖完整收集恢复自动垃圾回收。
+             */
             gc.restartAutomatic();
             L->pushNumber(0);
             return 1;
@@ -1951,7 +1954,7 @@ static i32 luaB_unpack(LuaState* L) {
                 : static_cast<i32>(table->length());
 
     if (i > j)
-        return 0; // empty range
+        return 0; // 空区间
 
     const u64 count = static_cast<u64>(static_cast<i64>(j) - static_cast<i64>(i)) + 1U;
     if (count > L->getGlobalState().getResourcePolicy().maxReturnValues ||
@@ -2018,8 +2021,8 @@ static i32 luaB_load(LuaState* L) {
     Value loaderFunc = L->at(1);
     Str chunkname = (L->getTop() >= 2 && L->at(2).isString()) ? L->at(2).asString()->c_str() : "=(load)";
 
-    // Collect source pieces by calling the loader function repeatedly
-    // Use VM::call instead of L->pcall to preserve the stack (keeps upvalues valid)
+    // 通过反复调用加载器函数收集源码片段
+    // 使用 VM::call 而非 L->pcall 保留栈，从而保持上值有效
     RuntimeServices services(L->getGlobalState());
     Str source;
     usize readerPieces = 0;
@@ -2097,7 +2100,7 @@ static i32 luaB_load(LuaState* L) {
 
         L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
 
-        // Compile the collected source
+        // 编译已收集的源码
         Parser parser(source, services);
         auto parsed = parser.parse();
         if (!parsed) {

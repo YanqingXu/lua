@@ -1,3 +1,8 @@
+/**
+ * @file lauxlib.cpp
+ * @brief Lua 5.1 辅助库 C API 的实现
+ */
+
 #include "lauxlib.h"
 
 #include "core/function.hpp"

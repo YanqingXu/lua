@@ -1,10 +1,10 @@
 /**
  * @file debuglib.cpp
- * @brief Lua debug library implementation
+ * @brief Lua 调试库实现
  *
- * Uses the modern C++ fluent registration API.
+ * 使用现代 C++ 流式注册 API。
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2026-04-10
  */
 
@@ -39,7 +39,7 @@ namespace Lua {
 namespace {
 
 // =====================================================================
-// Internal Helpers
+// 内部辅助函数
 // =====================================================================
 
 constexpr usize SHORT_SRC_LIMIT = 60;
@@ -821,7 +821,7 @@ void runDebugCommand(LuaState* L, const Str& source) {
 } // namespace
 
 // =====================================================================
-// debug.getregistry() - Get the registry table
+// debug.getregistry()——获取注册表
 // =====================================================================
 
 i32 luaDebug_getregistry(LuaState* L) {
@@ -830,7 +830,7 @@ i32 luaDebug_getregistry(LuaState* L) {
 }
 
 // =====================================================================
-// debug.getupvalue(func, up) - Get a function upvalue
+// debug.getupvalue(func, up)——获取函数上值
 // =====================================================================
 
 i32 luaDebug_getupvalue(LuaState* L) {
@@ -854,7 +854,7 @@ i32 luaDebug_getupvalue(LuaState* L) {
 }
 
 // =====================================================================
-// debug.setupvalue(func, up, value) - Set a function upvalue
+// debug.setupvalue(func, up, value)——设置函数上值
 // =====================================================================
 
 i32 luaDebug_setupvalue(LuaState* L) {
@@ -877,7 +877,7 @@ i32 luaDebug_setupvalue(LuaState* L) {
 }
 
 // =====================================================================
-// debug.getinfo(thread|func|level [, what]) - Get debug information
+// debug.getinfo(thread|func|level [, what])——获取调试信息
 // =====================================================================
 
 i32 luaDebug_getinfo(LuaState* L) {
@@ -969,7 +969,7 @@ i32 luaDebug_getinfo(LuaState* L) {
 }
 
 // =====================================================================
-// debug.getlocal(thread|func|level, local) - Get a local variable
+// debug.getlocal(thread|func|level, local)——获取局部变量
 // =====================================================================
 
 i32 luaDebug_getlocal(LuaState* L) {
@@ -1031,7 +1031,7 @@ i32 luaDebug_getlocal(LuaState* L) {
 }
 
 // =====================================================================
-// debug.setlocal([thread,] level, local, value) - Set an active local variable
+// debug.setlocal([thread,] level, local, value)——设置活动局部变量
 // =====================================================================
 
 i32 luaDebug_setlocal(LuaState* L) {
@@ -1076,7 +1076,7 @@ i32 luaDebug_setlocal(LuaState* L) {
 }
 
 // =====================================================================
-// debug.getmetatable(object) / debug.setmetatable(object, table|nil)
+// debug.getmetatable(object) / debug.setmetatable(object, table|nil)——访问原始元表
 // =====================================================================
 
 i32 luaDebug_getmetatable(LuaState* L) {
@@ -1109,7 +1109,7 @@ i32 luaDebug_setmetatable(LuaState* L) {
 }
 
 // =====================================================================
-// debug.getfenv(f) / debug.setfenv(f, table)
+// debug.getfenv(f) / debug.setfenv(f, table)——访问函数环境
 // =====================================================================
 
 i32 luaDebug_getfenv(LuaState* L) {
@@ -1138,7 +1138,7 @@ i32 luaDebug_setfenv(LuaState* L) {
 }
 
 // =====================================================================
-// debug.traceback([thread,] [message [, level]]) - Build a traceback string
+// debug.traceback([thread,] [message [, level]])——构建调用栈回溯字符串
 // =====================================================================
 
 i32 luaDebug_traceback(LuaState* L) {
@@ -1185,7 +1185,7 @@ i32 luaDebug_traceback(LuaState* L) {
 }
 
 // =====================================================================
-// debug.sethook([thread,] hook, mask [, count]) - Install a debug hook
+// debug.sethook([thread,] hook, mask [, count])——安装调试钩子
 // =====================================================================
 
 i32 luaDebug_sethook(LuaState* L) {
@@ -1234,7 +1234,7 @@ i32 luaDebug_sethook(LuaState* L) {
 }
 
 // =====================================================================
-// debug.gethook([thread]) - Query the current debug hook
+// debug.gethook([thread])——查询当前调试钩子
 // =====================================================================
 
 i32 luaDebug_gethook(LuaState* L) {
@@ -1255,7 +1255,7 @@ i32 luaDebug_gethook(LuaState* L) {
 }
 
 // =====================================================================
-// debug.debug() - Enter the interactive debug console
+// debug.debug()——进入交互式调试控制台
 // =====================================================================
 
 i32 luaDebug_debug(LuaState* L) {
@@ -1287,7 +1287,7 @@ i32 luaDebug_debug(LuaState* L) {
 }
 
 // =====================================================================
-// Debug library registration entry
+// 调试库注册入口
 // =====================================================================
 
 void DebugLibModule::registerFunctions(LuaState* L) {

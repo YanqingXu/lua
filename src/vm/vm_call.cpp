@@ -1,6 +1,6 @@
 /**
  * @file vm_call.cpp
- * @brief VM call, return, C-call, and tailcall helpers.
+ * @brief VM 调用、返回、C 调用与尾调用辅助函数
  */
 
 #include "vm/vm_internal.hpp"
@@ -85,9 +85,12 @@ void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
         const i32 resultCount = (wantedResults < 0) ? availableResults : wantedResults;
         const i32 copyCount = std::min(availableResults, resultCount);
 
-        // Lua results usually move down over the consumed function and
-        // arguments. Keep the helper correct for either overlap direction so
-        // no retained result is overwritten before it is copied.
+    /**
+     * @brief 按重叠方向安全移动 Lua 返回值。
+     *
+     * Lua 返回值通常向下覆盖已消费的函数和参数。辅助逻辑需同时适配两个重叠方向，确保所有
+     * 保留结果在复制前均不会被覆盖。
+     */
         if (resultDestination > firstResult && resultDestination < firstResult + static_cast<usize>(copyCount)) {
             for (i32 i = copyCount; i > 0; --i) {
                 stack[resultDestination + static_cast<usize>(i - 1)] = stack[firstResult + static_cast<usize>(i - 1)];
@@ -122,9 +125,12 @@ void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
         newTop = resultDestination + static_cast<usize>(resultCount);
     }
 
-    // Results are now stable at their destination. Clear consumed function,
-    // argument, and surplus-result slots that remain inside a caller's wide
-    // GC scan window before lowering the logical top.
+    /**
+     * @brief 在降低逻辑栈顶前清理调用者垃圾回收扫描窗口。
+     *
+     * 结果已稳定存放在目标位置，此时清除仍位于调用者宽扫描窗口内的已消费函数、参数与多余
+     * 结果槽。
+     */
     const usize clearEnd = std::min(oldTop, stack.size());
     for (usize slot = newTop; slot < clearEnd; ++slot) {
         stack[slot] = Value();
@@ -132,9 +138,12 @@ void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
 
     L->setAbsoluteTop(newTop);
 
-    // A C frame may reserve physical slots above its caller. Drop only that
-    // tail: never grow a returned Lua frame here, and never shrink below the
-    // active caller's register window or an open MULTRET result range.
+    /**
+     * @brief 仅移除 C 调用帧在调用者上方预留的物理尾部栈槽。
+     *
+     * 此处绝不扩大已返回的 Lua 调用帧，也不缩小到活动调用者寄存器窗口或开放 MULTRET
+     * 结果范围以下。
+     */
     usize callerFrameTop = newTop;
     const usize currentFrame = L->getCurrentCI();
     LuaVector<CallInfo>& callStack = L->getCallStack();
@@ -228,10 +237,12 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str&
 
         while (stack.size() < ci.top)
             stack.push(Value());
-        // A Stack keeps spare physical slots after a call returns. Reusing
-        // those slots for a wider C frame must clear the non-argument window;
-        // conservative GC scans ci.top and must never see pointers left by an
-        // older frame whose objects may already have been reclaimed.
+        /**
+         * @brief 为更宽的 C 调用帧复用栈槽前清除非参数窗口。
+         *
+         * 调用返回后 Stack 会保留备用物理栈槽。保守垃圾回收会扫描 ci.top，因此绝不能看到
+         * 旧调用帧遗留的指针；这些指针指向的对象可能已经被回收。
+         */
         const usize argumentTop = funcPos + 1 + static_cast<usize>(actualNArgs);
         for (usize slot = argumentTop; slot < ci.top; ++slot) {
             stack[slot] = Value();
@@ -323,10 +334,12 @@ bool precallImpl(LuaState* L, i32 funcIndex, i32 nArgs, i32 nResults, const Str&
 
     while (stack.size() < ci.top)
         stack.push(Value());
-    // Initialize every non-parameter register even when the backing Stack is
-    // already large enough from a previous frame. Wide GC rooting scans the
-    // whole Lua register window, so stale values here would be interpreted as
-    // live GC pointers after their original objects have been swept.
+    /**
+     * @brief 初始化每个非参数寄存器，即使底层 Stack 已因先前调用帧而足够大。
+     *
+     * 宽范围垃圾回收根扫描会遍历整个 Lua 寄存器窗口；若保留陈旧值，其原对象被清扫后仍会
+     * 被误认为存活的垃圾回收指针。
+     */
     const usize firstLocal = base + static_cast<usize>(numParams);
     for (usize slot = firstLocal; slot < ci.top; ++slot) {
         stack[slot] = Value();

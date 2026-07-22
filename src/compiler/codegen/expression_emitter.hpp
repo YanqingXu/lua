@@ -2,7 +2,7 @@
 
 /**
  * @file expression_emitter.hpp
- * @brief Expression, condition, call, vararg, and lvalue lowering boundary.
+ * @brief 表达式、条件、调用、可变参数与左值的降级边界
  */
 
 #include "compiler/ast.hpp"
@@ -20,11 +20,10 @@ namespace Lua {
 class CodeGenerator;
 
 /**
- * @brief Owns CodeGenerator expression lowering operations.
+ * @brief 负责代码生成器的表达式降级操作
  *
- * ExpressionEmitter centralizes ValueResult, CondResult, CallResultInfo, and
- * LValueRef production. It shares CodegenState and the established
- * JumpPatcher/ScopeManager helpers with the facade; it does not own state.
+ * 表达式发射器集中生成值结果、条件结果、调用结果信息与左值引用。它与外观
+ * 共享代码生成状态及既有的跳转修补器、作用域管理器辅助对象，但不拥有状态。
  */
 class ExpressionEmitter : private ExprVisitor<ExpressionEmitter, ValueResult> {
     friend struct ExprVisitor<ExpressionEmitter, ValueResult>;

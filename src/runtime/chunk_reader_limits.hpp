@@ -2,7 +2,7 @@
 
 /**
  * @file chunk_reader_limits.hpp
- * @brief Hard limits applied while deserializing an untrusted Lua chunk.
+ * @brief 反序列化不可信 Lua 代码块时应用的硬限制
  */
 
 #include "common/types.hpp"
@@ -10,6 +10,7 @@
 
 namespace Lua {
 
+/** @brief 二进制代码块读取器的资源限制。 */
 struct ChunkReaderLimits {
     usize maxInputBytes = ResourcePolicy::DefaultMaxBytes;
     usize maxProtoDepth = 200;

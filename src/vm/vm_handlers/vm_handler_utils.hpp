@@ -2,7 +2,7 @@
 
 /**
  * @file vm_handler_utils.hpp
- * @brief Internal helpers for VM opcode handler slices.
+ * @brief VM 操作码处理器分片使用的内部辅助函数
  */
 
 #include "common/lua_error.hpp"

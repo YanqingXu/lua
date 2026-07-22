@@ -1,6 +1,6 @@
 ﻿/**
  * @file tablelib.hpp
- * @brief Lua Table Library - 表操作库
+ * @brief Lua 表操作库
  * 
  * 实现 Lua 5.1 标准的 table 库函数，提供表的插入、删除、排序、连接等操作。
  * 
@@ -14,7 +14,7 @@
  * - table.unpack: 解包表为多个返回值
  * - table.move: 移动表元素
  * 
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2026-01-23
  */
 
@@ -77,10 +77,9 @@ i32 table_concat(LuaState* L);
 i32 table_sort(LuaState* L);
 
 /**
- * @brief table.foreach(table, func) - Lua 5.1 compatibility iterator
+ * @brief table.foreach(table, func)——Lua 5.1 兼容迭代器
  *
- * Calls func(key, value) for each table entry. If the callback returns a
- * non-nil value, iteration stops and that value is returned.
+ * 对每个表条目调用 func(key, value)。若回调返回非 nil 值，则停止迭代并返回该值。
  *
  * @param L Lua 状态机
  * @return 返回值数量（0 或 1）
@@ -88,10 +87,10 @@ i32 table_sort(LuaState* L);
 i32 table_foreach(LuaState* L);
 
 /**
- * @brief table.foreachi(table, func) - Lua 5.1 compatibility array iterator
+ * @brief table.foreachi(table, func)——Lua 5.1 兼容数组迭代器
  *
- * Calls func(index, value) for indices 1..table.getn(table). If the callback
- * returns a non-nil value, iteration stops and that value is returned.
+ * 对 1..table.getn(table) 的每个索引调用 func(index, value)。若回调返回非 nil 值，则停止
+ * 迭代并返回该值。
  *
  * @param L Lua 状态机
  * @return 返回值数量（0 或 1）
@@ -107,7 +106,7 @@ i32 table_foreachi(LuaState* L);
 i32 table_maxn(LuaState* L);
 
 /**
- * @brief table.getn(table) - Lua 5.1 compatibility wrapper for #table
+ * @brief table.getn(table)——Lua 5.1 对 #table 的兼容封装
  *
  * @param L Lua 状态机
  * @return 返回值数量（1，数组长度）

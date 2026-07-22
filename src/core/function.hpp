@@ -15,7 +15,7 @@
  * - 支持C函数：可以注册C++函数供Lua调用
  * - 为后续扩展预留接口：字节码、上值等
  * - 继承GCObject：支持垃圾回收
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-12
  */
 
@@ -55,11 +55,15 @@ namespace Lua {
  * - bool值直接哈希
  */
 struct ConstantKey {
-    /// 键的内部表示：monostate=nil, bool, f64(number), GCString*(string)
+    /**
+     * @brief 键的内部表示：monostate=nil, bool, f64(number), GCString*(string)
+     */
     using KeyVariant = std::variant<std::monostate, bool, f64, GCString*>;
     KeyVariant key;
 
-    /// 从Value构造ConstantKey（仅支持常量类型：nil/bool/number/string）
+    /**
+     * @brief 从Value构造ConstantKey（仅支持常量类型：nil/bool/number/string）
+     */
     static ConstantKey fromValue(const Value& v) {
         ConstantKey ck;
         if (v.isNil()) {
@@ -83,7 +87,9 @@ struct ConstantKey {
     }
 };
 
-/// ConstantKey的哈希函数
+/**
+ * @brief ConstantKey的哈希函数
+ */
 struct ConstantKeyHash {
     std::size_t operator()(const ConstantKey& ck) const noexcept {
         return std::visit(
@@ -137,13 +143,19 @@ using ApiCFunction = int (*)(::lua_State* L);
  * 函数如何处理可变参数。
  */
 
-/// 有参数标志：函数有实际的可变参数
+/**
+ * @brief 有参数标志：函数有实际的可变参数
+ */
 constexpr u8 VARARG_HASARG = 1;
 
-/// 是可变参数函数：函数声明时使用了...语法
+/**
+ * @brief 是可变参数函数：函数声明时使用了...语法
+ */
 constexpr u8 VARARG_ISVARARG = 2;
 
-/// 需要参数：函数需要可变参数（旧式兼容）
+/**
+ * @brief 需要参数：函数需要可变参数（旧式兼容）
+ */
 constexpr u8 VARARG_NEEDSARG = 4;
 
 /**
@@ -161,10 +173,14 @@ constexpr u8 VARARG_NEEDSARG = 4;
  * - endpc: 变量失效的字节码位置（不包含）
  */
 struct LocVar {
-    GCString* varname; ///< 变量名称
-    i32 startpc;       ///< 起始PC：变量开始有效的字节码位置
-    i32 endpc;         ///< 结束PC：变量失效的字节码位置（不包含）
-    i32 reg;           ///< 对应的寄存器槽位（相对于当前栈帧base）
+    /** @brief 变量名称 */
+    GCString* varname;
+    /** @brief 起始PC：变量开始有效的字节码位置 */
+    i32 startpc;
+    /** @brief 结束PC：变量失效的字节码位置（不包含） */
+    i32 endpc;
+    /** @brief 对应的寄存器槽位（相对于当前栈帧base） */
+    i32 reg;
 
     /**
      * @brief 默认构造函数
@@ -327,7 +343,7 @@ public:
     /**
      * @brief 按原始槽位追加常量
      *
-     * binary chunk 反序列化必须保留 dump 时的常量表索引，不能像编译期
+     * 二进制代码块反序列化必须保留转储时的常量表索引，不能像编译期
      * addConstant() 一样对常量去重。
      *
      * @param value 常量值
@@ -626,86 +642,116 @@ private:
     // 核心数据结构
     // =====================================================================
 
-    /// 常量表：函数使用的常量值数组
+    /**
+     * @brief 常量表：函数使用的常量值数组
+     */
     LuaReallocVector<Value> constants_;
 
-    /// 常量去重缓存：从常量键到常量表索引的映射
-    /// 参考Lua 5.1中addk()使用的哈希表（fs->h）
+    /**
+     * @brief 常量去重缓存：从常量键到常量表索引的映射
+     * 参考Lua 5.1中addk()使用的哈希表（fs->h）
+     */
     using ConstantMapValue = std::pair<const ConstantKey, usize>;
     using ConstantMapAllocator = LuaStdAllocator<ConstantMapValue>;
     using ConstantMap =
         std::unordered_map<ConstantKey, usize, ConstantKeyHash, std::equal_to<ConstantKey>, ConstantMapAllocator>;
     ConstantMap constantMap_;
 
-    /// 字节码数组：函数的指令序列
+    /**
+     * @brief 字节码数组：函数的指令序列
+     */
     LuaReallocVector<Instruction> code_;
 
-    /// 子函数原型数组：函数内定义的嵌套函数
+    /**
+     * @brief 子函数原型数组：函数内定义的嵌套函数
+     */
     LuaReallocVector<Proto*> subProtos_;
 
-    /// 行号信息：字节码到源码行号的映射（每条指令对应一个行号）
+    /**
+     * @brief 行号信息：字节码到源码行号的映射（每条指令对应一个行号）
+     */
     LuaReallocVector<i32> lineInfo_;
 
-    /// 局部变量信息：调试用的局部变量描述
+    /**
+     * @brief 局部变量信息：调试用的局部变量描述
+     */
     LuaReallocVector<LocVar> locvars_;
 
-    /// 上值名称数组：闭包变量的名称（用于调试）
+    /**
+     * @brief 上值名称数组：闭包变量的名称（用于调试）
+     */
     LuaReallocVector<GCString*> upvalueNames_;
 
     // =====================================================================
     // 元数据字段
     // =====================================================================
 
-    /// 源文件名：函数所在的源文件
+    /**
+     * @brief 源文件名：函数所在的源文件
+     */
     GCString* source_;
 
-    /// 函数定义开始行号
+    /**
+     * @brief 函数定义开始行号
+     */
     i32 linedefined_;
 
-    /// 函数定义结束行号
+    /**
+     * @brief 函数定义结束行号
+     */
     i32 lastlinedefined_;
 
-    /// GC链表指针：用于垃圾回收遍历
+    /**
+     * @brief GC链表指针：用于垃圾回收遍历
+     */
     GCObject* gclist_;
 
     // =====================================================================
     // 函数签名信息（字节类型）
     // =====================================================================
 
-    /// 上值数量：函数引用的外部变量个数
+    /**
+     * @brief 上值数量：函数引用的外部变量个数
+     */
     u8 nups_;
 
-    /// 参数数量：函数的固定参数个数
+    /**
+     * @brief 参数数量：函数的固定参数个数
+     */
     u8 numParams_;
 
-    /// 可变参数标志：函数是否接受可变数量的参数
-    /// 对应Lua 5.1的VARARG_HASARG和VARARG_ISVARARG标志
+    /**
+     * @brief 可变参数标志：函数是否接受可变数量的参数
+     * 对应Lua 5.1的VARARG_HASARG和VARARG_ISVARARG标志
+     */
     u8 isVararg_;
 
-    /// 最大栈大小：函数执行时需要的最大栈空间
+    /**
+     * @brief 最大栈大小：函数执行时需要的最大栈空间
+     */
     u8 maxStackSize_;
 };
 
 /**
  * @brief 函数类（闭包）
  *
- * Function是Lua中的函数对象，可以是C函数或Lua函数。
- * 在Lua中也称为Closure（闭包）。
+ * 函数是 Lua 中的函数对象，可以是 C 函数或 Lua 函数。
+ * 在 Lua 中也称为闭包。
  *
  * C函数闭包：
  * - 包装C++函数指针
- * - 可以有上值（upvalues）
+ * - 可以有上值
  * - 直接由C++代码执行
  *
  * Lua函数闭包：
- * - 包含函数原型（Proto）
- * - 可以有上值（upvalues）
+ * - 包含函数原型
+ * - 可以有上值
  * - 由虚拟机解释执行
  *
  * 当前版本：
  * - 支持C函数
  * - 支持Lua函数（但暂无字节码执行）
- * - 支持上值（Upvalue）管理
+ * - 支持上值管理
  */
 class Function : public GCObject {
 public:
@@ -716,7 +762,7 @@ public:
     explicit Function(CFunction func);
     Function(LuaAllocator* allocator, CFunction func);
 
-    // Public C API callbacks retain their exact lua_State* signature.
+    /** @brief 公开 C API 回调保留其精确的 lua_State* 签名。 */
     explicit Function(ApiCFunction func);
     Function(LuaAllocator* allocator, ApiCFunction func);
 
@@ -764,14 +810,27 @@ public:
         return isC_ ? cFunction_ : nullptr;
     }
 
+    /**
+     * @brief 获取公共 C API 回调。
+     * @return 公共 C API 回调；当前对象不是对应闭包时返回空指针。
+     */
     ApiCFunction getApiCFunction() const noexcept {
         return isC_ ? apiCFunction_ : nullptr;
     }
 
+    /**
+     * @brief 检查是否为公共 C API 回调闭包。
+     * @return 是公共 C API 回调闭包时返回 true。
+     */
     bool isApiCFunction() const noexcept {
         return isC_ && apiCFunction_ != nullptr;
     }
 
+    /**
+     * @brief 调用当前 C 函数闭包。
+     * @param state Lua 状态。
+     * @return C 函数返回值数量。
+     */
     i32 callCFunction(LuaState* state) const;
 
     // =====================================================================
@@ -801,24 +860,24 @@ public:
     }
 
     /**
-     * @brief 获取指定索引的Upvalue
-     * @param index Upvalue索引（从0开始）
-     * @return Upvalue指针，如果索引越界返回nullptr
+     * @brief 获取指定索引的上值
+     * @param index 上值索引（从 0 开始）
+     * @return 上值指针，如果索引越界则返回空指针
      */
     Upvalue* getUpvalue(usize index) const;
 
     /**
-     * @brief 设置指定索引的Upvalue
-     * @param index Upvalue索引（从0开始）
-     * @param upvalue Upvalue指针
+     * @brief 设置指定索引的上值
+     * @param index 上值索引（从 0 开始）
+     * @param upvalue 上值指针
      *
      * 注意：如果索引越界会抛出异常
      */
     void setUpvalue(usize index, Upvalue* upvalue);
 
     /**
-     * @brief 添加Upvalue到数组末尾
-     * @param upvalue Upvalue指针
+     * @brief 将上值添加到数组末尾
+     * @param upvalue 上值指针
      */
     void addUpvalue(Upvalue* upvalue);
 
@@ -896,7 +955,9 @@ public:
     // GCObject接口实现
     // =====================================================================
 
+    /** @brief 标记闭包引用的垃圾回收对象。 */
     void mark(GarbageCollector& gc) override;
+    /** @brief 获取闭包对象占用的字节数。 */
     usize getSize() const override;
 
 private:
@@ -904,43 +965,59 @@ private:
     // ClosureHeader 字段
     // =====================================================================
 
-    /// 是否为C函数
-    /// 注意：为了保持现有代码兼容性暂时保留bool
+    /**
+     * @brief 是否为C函数
+     * 注意：为了保持现有代码兼容性暂时保留bool
+     */
     bool isC_;
 
-    /// 上值数量
+    /**
+     * @brief 上值数量
+     */
     u8 nupvalues_;
 
-    /// GC链表指针
-    /// 用于增量GC和分代GC的灰色对象链表遍历
+    /**
+     * @brief GC链表指针
+     * 用于增量GC和分代GC的灰色对象链表遍历
+     */
     GCObject* gclist_;
 
-    /// 环境表
-    /// 用于控制函数的全局变量访问范围
-    /// 如果为nullptr，则使用LuaState的全局表
+    /**
+     * @brief 环境表
+     * 用于控制函数的全局变量访问范围
+     * 如果为nullptr，则使用LuaState的全局表
+     */
     Table* env_;
 
     // =====================================================================
     // 函数特有字段
     // =====================================================================
 
-    /// C函数指针（仅当isC_为true时有效）
-    /// 对应CClosure的lua_CFunction f字段
+    /**
+     * @brief C函数指针（仅当isC_为true时有效）
+     * 对应CClosure的lua_CFunction f字段
+     */
     CFunction cFunction_;
 
-    /// 公共 C API 回调；与内部 LuaState* 回调保持独立的函数指针类型
+    /**
+     * @brief 公共 C API 回调；与内部 LuaState* 回调保持独立的函数指针类型
+     */
     ApiCFunction apiCFunction_;
 
-    /// 函数原型（仅当isC_为false时有效）
-    /// 对应LClosure的struct Proto *p字段
+    /**
+     * @brief 函数原型（仅当isC_为false时有效）
+     * 对应LClosure的struct Proto *p字段
+     */
     Proto* proto_;
 
-    /// Upvalue数组（闭包捕获的外部变量）
-    /// 注意：
-    /// - 对于C函数（CClosure），应该直接存储Value（对应TValue upvalue[1]）
-    /// - 对于Lua函数（LClosure），存储Upvalue*指针（对应UpVal *upvals[1]）
-    /// - 当前实现统一使用Upvalue*，这与C实现略有不同
-    /// - Upvalue由GC管理，这里只持有指针
+    /**
+     * @brief 上值数组（闭包捕获的外部变量）
+     * 注意：
+     * - 对于C函数（CClosure），应该直接存储Value（对应TValue upvalue[1]）
+     * - 对于Lua函数（LClosure），存储Upvalue*指针（对应UpVal *upvals[1]）
+     * - 当前实现统一使用Upvalue*，这与C实现略有不同
+     * - 上值由垃圾回收器管理，这里只持有指针
+     */
     LuaVector<Upvalue*> upvalues_;
 };
 

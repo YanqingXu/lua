@@ -1,6 +1,6 @@
 /**
  * @file repl.cpp
- * @brief Public REPL facade and session loop.
+ * @brief 公共 REPL 外观与会话循环
  */
 
 #include "repl.hpp"

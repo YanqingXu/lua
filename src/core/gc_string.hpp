@@ -5,7 +5,7 @@
  * @brief GC管理的字符串对象 - 字符串驻留和哈希缓存
  *
  * 设计说明：
- * GCString是Lua字符串系统的核心，实现了字符串驻留（string interning）机制。
+ * 垃圾回收字符串是 Lua 字符串系统的核心，实现了字符串驻留机制。
  * 相同内容的字符串在内存中只存储一份，通过StringPool统一管理。
  *
  * 核心特性：
@@ -53,6 +53,7 @@ namespace Lua {
  * 字符串一旦创建，内容不可修改。这是字符串驻留的前提条件。
  */
 // clang-format on
+/** @brief 由垃圾回收器管理的不可变 Lua 字符串。 */
 class GCString : public GCObject {
 public:
     // =====================================================================
@@ -211,8 +212,10 @@ private:
     }
 
     static constexpr usize kInlineStorageBytes = 24;
-    usize hash_;   ///< 预计算的哈希值
-    usize length_; ///< 字符串长度（字节数）
+    /** @brief 预计算的哈希值 */
+    usize hash_;
+    /** @brief 字符串长度（字节数） */
+    usize length_;
     LuaAllocator* allocator_ = nullptr;
     char* externalData_ = nullptr;
     bool callbackOwned_ = false;

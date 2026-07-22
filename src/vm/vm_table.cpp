@@ -1,6 +1,6 @@
 /**
  * @file vm_table.cpp
- * @brief VM table-construction helpers.
+ * @brief 虚拟机表构造辅助函数
  */
 
 #include "vm/vm_internal.hpp"

@@ -2,7 +2,7 @@
  * @file lua_state.cpp
  * @brief Lua状态管理实现
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-12
  */
 
@@ -228,9 +228,12 @@ LuaState* LuaState::newAllocatedState(LuaAllocatorFunction allocatorFunction, vo
     LuaState* state = nullptr;
     bool stateOwnsContext = false;
     try {
-        // ownedContext_ is the first LuaState member and its construction is
-        // non-throwing. From this point, a later member-construction failure
-        // destroys the context during constructor unwinding.
+        /**
+         * @brief 保证拥有型上下文在构造失败时安全销毁。
+         *
+         * ownedContext_ 是 LuaState 的首个成员且其构造不会抛出异常。从此处开始，后续成员
+         * 构造失败时会在构造函数栈展开期间销毁该上下文。
+         */
         stateOwnsContext = true;
         state = std::construct_at(static_cast<LuaState*>(stateMemory), CtorToken{}, context, true, true);
         state->initialize();
@@ -295,7 +298,7 @@ LuaState* LuaState::newThread(LuaState* parentL) {
     }
 
     try {
-        // 共享全局表（不创建新的，不注册为 GC root）
+    /** @brief 共享全局表，不创建新表，也不注册为垃圾回收根对象。 */
         L->globalTable_ = parentL->globalTable_;
         L->isChildThread_ = true;
 
@@ -346,7 +349,7 @@ LuaState::LuaState(GlobalState& globalState)
       globalTable_(nullptr), status_(ThreadStatus::OK), openUpvalues_(nullptr) {}
 
 LuaState::~LuaState() {
-    // 关闭所有open upvalue
+    /** @brief 关闭所有开放上值。 */
     closeUpvalues(0);
 
     if (globalState_.getMainThread() == this) {
@@ -455,7 +458,7 @@ void LuaState::closeUpvalues(usize level) {
 }
 
 // =====================================================================
-// Debug hook support
+/** @brief 调试钩子支持。 */
 // =====================================================================
 
 void LuaState::setDebugHook(Function* hook, u8 mask, i32 count) {
@@ -678,9 +681,12 @@ void LuaState::setTop(i32 idx) {
 
     const usize oldTop = top_;
 
-    // Fill every newly exposed logical slot with nil. The backing Stack can
-    // already contain reserved frame registers beyond top_, so merely growing
-    // its physical size would leak stale register values through lua_settop.
+    /**
+     * @brief 使用 nil 填充每个新暴露的逻辑栈槽。
+     *
+     * 底层 Stack 在 top_ 之外可能已有预留的调用帧寄存器；若仅增加物理大小，
+     * lua_settop 会泄露陈旧的寄存器值。
+     */
     while (static_cast<i64>(stack_.size()) < newTop) {
         stack_.push(Value()); // nil
     }
@@ -688,9 +694,11 @@ void LuaState::setTop(i32 idx) {
         stack_[i] = Value();
     }
 
-    // Shrinking the logical top must not discard a VM frame's reserved
-    // register area. Clear the removed logical values so they neither retain
-    // GC objects nor reappear if the C API grows the top again.
+    /**
+     * @brief 缩小逻辑栈顶时保留 VM 调用帧的预留寄存器区。
+     *
+     * 清空移除的逻辑值，使其既不会继续持有垃圾回收对象，也不会在 C API 再次扩大栈顶时重现。
+     */
     for (usize i = static_cast<usize>(newTop); i < oldTop && i < stack_.size(); ++i) {
         stack_[i] = Value();
     }
@@ -801,7 +809,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     }
 
     // 保护调用结束后只回收 func/args 之上的逻辑栈顶，不能覆盖外层帧槽位：
-    // 被保护函数在抛错前可能已经写入了外层 local/upvalue。
+    /** @brief 被保护函数在抛错前可能已经写入外层局部变量或上值。 */
     usize savedPrefixTop = static_cast<usize>(funcIdx);
 
     const usize savedCallFrameCount = currentCI_ + 1;
@@ -883,9 +891,11 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
 
         const usize handlerSavedCI = currentCI_;
         if (currentCI_ + 1 >= MAX_CALL_DEPTH && currentCI_ > savedCurrentCI) {
-            // Keep one emergency CallInfo slot for the message handler after
-            // logical stack overflow. The faulting frame remains stored and
-            // is restored after the handler has produced the error object.
+            /**
+             * @brief 逻辑栈溢出后为消息处理器保留一个应急 CallInfo 槽。
+             *
+             * 出错的调用帧会继续保存，并在处理器生成错误对象后恢复。
+             */
             --currentCI_;
         }
 

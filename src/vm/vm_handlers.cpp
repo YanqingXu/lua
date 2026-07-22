@@ -1,6 +1,6 @@
 /**
  * @file vm_handlers.cpp
- * @brief Opcode command handler registry used by VM dispatch strategies.
+ * @brief VM 调度策略使用的操作码命令处理器注册表
  */
 
 #include "vm/vm_handlers.hpp"

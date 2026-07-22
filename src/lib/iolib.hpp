@@ -22,7 +22,7 @@
  * 文件句柄类型：
  * 文件句柄通过 Userdata 实现，包含文件指针和元表。
  * 支持面向对象的方法调用（如 file:read()）。
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-12-19
  */
 
@@ -249,10 +249,10 @@ Userdata* createFileHandle(
 );
 
 /**
- * @brief Close open file handles that reference the given path.
+ * @brief 关闭引用指定路径的已打开文件句柄
  *
- * This is used by Windows rename/remove compatibility paths where the CRT
- * refuses to rename or remove a file that remains open.
+ * 供 Windows 重命名或删除兼容路径使用；在这些路径中，CRT 会拒绝重命名或删除仍处于打开
+ * 状态的文件。
  */
 bool releaseFileHandlesForPath(LuaState* L, const char* path);
 

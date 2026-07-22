@@ -28,7 +28,7 @@
  * │  函数对象   │ ← func
  * └─────────────┘
  * ```
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-12
  */
 
@@ -138,17 +138,16 @@ public:
     i32 tailcalls;
 
     /**
-     * @brief The last source line reported to the debug line hook
+     * @brief 最近一次向调试行钩子报告的源码行号
      *
-     * -1 means no line hook has fired for this frame yet.
+     * -1 表示当前调用帧尚未触发行钩子。
      */
     i32 hookLine;
 
     /**
-     * @brief The last bytecode PC considered by the debug line hook.
+     * @brief 调试行钩子最近一次处理的字节码程序计数器
      *
-     * Used to fire same-line hooks again after backward jumps, matching Lua's
-     * loop line-hook behavior.
+     * 用于在向后跳转后再次触发同一行的钩子，以匹配 Lua 的循环行钩子行为。
      */
     i32 hookPc;
     

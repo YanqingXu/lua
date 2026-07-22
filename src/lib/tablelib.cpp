@@ -1,8 +1,8 @@
 /**
  * @file tablelib.cpp
- * @brief Lua Table Library Implementation - 表操作库实现
+ * @brief Lua 表操作库实现
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2026-01-23
  */
 
@@ -180,9 +180,11 @@ static void safeMergeSort(LuaState* L, LuaVector<Value>& values, Function* compa
         return;
     }
 
-    // Reject the two most common invalid comparators before sorting. The
-    // merge implementation below remains memory-safe even if a stateful
-    // comparator changes its answer after these checks.
+    /**
+     * @brief 排序前拒绝两种最常见的无效比较器。
+     *
+     * 即使有状态比较器在这些检查后改变结果，下方归并实现仍保持内存安全。
+     */
     if (comparator != nullptr) {
         for (const Value& value : values) {
             if (checkedSortLess(L, comparator, value, value, comparisons)) {
@@ -269,13 +271,13 @@ i32 table_insert(LuaState* L) {
     Table* table = getTableArg(L, 1, "insert");
 
     if (nargs == 2) {
-        // table.insert(table, value) - 在末尾插入
+// table.insert(table, value)——在末尾插入
         i32 len = getTableLength(table);
         L->consumeNativeWork();
         Value value = L->at(2);
         table->set(Value(static_cast<f64>(len + 1)), value);
     } else {
-        // table.insert(table, pos, value) - 在指定位置插入
+// table.insert(table, pos, value)——在指定位置插入
         i32 pos = getIntegerArg(L, 2, "insert");
         Value value = L->at(3);
         i32 len = getTableLength(table);

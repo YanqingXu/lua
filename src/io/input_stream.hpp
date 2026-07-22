@@ -9,10 +9,10 @@
  * 
  * 设计原则：
  * - 使用 std::istream 替代 lua_Reader 回调
- * - RAII 资源管理
+ * - 资源获取即初始化的资源管理
  * - 零拷贝优化（字符串模式）
  * - 类型安全
- * @author Lua C++ Implementation Team
+ * @author Lua C++ 实现团队
  * @version 0.1.0
  * @date 2025-12-08
  * @since C++17
@@ -38,7 +38,7 @@ namespace IO {
  * 特性：
  * - 字符串模式：零拷贝，使用 StrView
  * - 流模式：批量缓冲，减少系统调用
- * - RAII 资源管理
+ * - 资源获取即初始化的资源管理
  * - 类型安全
  * 
  * 使用示例：
@@ -63,10 +63,10 @@ class InputStream {
 public:
     /**
      * @brief 从字符串创建输入流（零拷贝）
-     * @param source 源字符串（必须在 InputStream 生命周期内有效）
+     * @param source 源字符串（必须在输入流生命周期内有效）
      * 
      * 注意：使用 std::string_view，不拷贝数据。
-     * 调用者必须确保源字符串在 InputStream 使用期间保持有效。
+     * 调用者必须确保源字符串在输入流使用期间保持有效。
      */
     explicit InputStream(StrView source);
     
@@ -75,7 +75,7 @@ public:
      * @param stream 输入流引用（文件流、字符串流等）
      * @param bufferSize 内部缓冲区大小（默认 4KB）
      * 
-     * 注意：stream 必须在 InputStream 生命周期内有效。
+     * @note stream 必须在输入流生命周期内有效。
      */
     explicit InputStream(std::istream& stream, usize bufferSize = 4096);
     
@@ -94,7 +94,7 @@ public:
      * 特性：
      * - 文件以二进制模式打开（避免换行符转换）
      * - 源名称自动设置为文件路径
-     * - 文件流由 InputStream 自动管理（RAII）
+     * - 文件流由输入流对象自动管理
      *
      * 使用示例：
      * @code
@@ -194,26 +194,36 @@ private:
     // 输入源
     // =====================================================================
 
-    std::istream* stream_;           ///< 流式输入（可选，流模式使用）
-    Opt<std::ifstream> ownedFileStream_;  ///< 拥有的文件流（用于文件路径构造）
-    StrView stringView_;    ///< 字符串输入（零拷贝，字符串模式使用）
+    /** @brief 流式输入（可选，流模式使用） */
+    std::istream* stream_;
+    /** @brief 拥有的文件流（用于文件路径构造） */
+    Opt<std::ifstream> ownedFileStream_;
+    /** @brief 字符串输入（零拷贝，字符串模式使用） */
+    StrView stringView_;
 
     // =====================================================================
     // 缓冲区（仅流模式使用）
     // =====================================================================
 
-    Vec<char> buffer_;               ///< 内部缓冲（RAII 管理）
-    usize bufferPos_;                ///< 缓冲区当前位置
-    usize bufferSize_;               ///< 缓冲区有效数据大小
+    /** @brief 内部缓冲（自动资源管理）。 */
+    Vec<char> buffer_;
+    /** @brief 缓冲区当前位置 */
+    usize bufferPos_;
+    /** @brief 缓冲区有效数据大小 */
+    usize bufferSize_;
 
     // =====================================================================
     // 状态
     // =====================================================================
 
-    bool eof_;                       ///< EOF 标志
-    usize position_;                 ///< 全局位置（用于错误报告）
-    bool useStringView_;             ///< 是否使用字符串视图模式
-    Str sourceName_;                 ///< 源名称（用于错误报告）
+    /** @brief EOF 标志 */
+    bool eof_;
+    /** @brief 全局位置（用于错误报告） */
+    usize position_;
+    /** @brief 是否使用字符串视图模式 */
+    bool useStringView_;
+    /** @brief 源名称（用于错误报告） */
+    Str sourceName_;
 };
 
 } // namespace IO

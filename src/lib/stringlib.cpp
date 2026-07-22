@@ -1,11 +1,10 @@
 /**
  * @file stringlib.cpp
- * @brief Lua String Library Implementation
+ * @brief Lua 字符串库实现
  *
- * Implements Lua 5.1 string library functions using modern C++.
- * Follows the established pattern from mathlib.cpp and baselib.cpp.
+ * 使用现代 C++ 实现 Lua 5.1 字符串库函数，并遵循 mathlib.cpp 与 baselib.cpp 的既有模式。
  *
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2026-01-23
  */
 
@@ -34,15 +33,15 @@
 namespace Lua {
 
 // =====================================================================
-// Helper Functions
+// 辅助函数
 // =====================================================================
 
 /**
- * @brief Get string argument from stack
- * @param L Lua state pointer
- * @param idx Argument index (1-based)
- * @param funcName Function name (for error messages)
- * @return String pointer and length
+ * @brief 从栈中获取字符串参数
+ * @param L Lua 状态指针
+ * @param idx 参数索引（从 1 开始）
+ * @param funcName 函数名称（用于错误消息）
+ * @return 字符串指针与长度
  */
 static inline const char* getStringArg(LuaState* L, i32 idx, const char* funcName, usize* len = nullptr) {
     const char* str = L->toString(idx);
@@ -57,11 +56,11 @@ static inline const char* getStringArg(LuaState* L, i32 idx, const char* funcNam
 }
 
 /**
- * @brief Get number argument from stack
- * @param L Lua state pointer
- * @param idx Argument index (1-based)
- * @param funcName Function name (for error messages)
- * @return Number value
+ * @brief 从栈中获取数值参数
+ * @param L Lua 状态指针
+ * @param idx 参数索引（从 1 开始）
+ * @param funcName 函数名称（用于错误消息）
+ * @return 数值
  */
 static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
     const Value& value = L->at(idx);
@@ -215,20 +214,20 @@ static LuaString quoteLuaString(LuaState* L, const char* str, usize len) {
 }
 
 /**
- * @brief Adjust string position (Lua uses 1-based indexing, supports negative indices)
- * @param pos Position from Lua (1-based, negative from end)
- * @param len String length
- * @return Adjusted 0-based position
+ * @brief 调整字符串位置（Lua 使用从 1 开始的索引，并支持负索引）
+ * @param pos Lua 位置（从 1 开始，负值表示从末尾起算）
+ * @param len 字符串长度
+ * @return 调整后的从 0 开始位置
  */
 static inline usize adjustPosition(i32 pos, usize len) {
     if (pos > 0) {
-        return static_cast<usize>(pos - 1); // Convert 1-based to 0-based
+        return static_cast<usize>(pos - 1); // 将从 1 开始的索引转换为从 0 开始
     } else if (pos < 0) {
-        // Negative index: count from end
+        // 负索引：从末尾起算
         i32 adjusted = static_cast<i32>(len) + pos + 1;
         return adjusted > 0 ? static_cast<usize>(adjusted - 1) : 0;
     } else {
-        // pos == 0 is treated as 1 in Lua
+        // Lua 将 pos == 0 视为 1
         return 0;
     }
 }
@@ -247,7 +246,7 @@ static inline i32 luaStringPosition(i32 pos, usize len) {
 }
 
 // =====================================================================
-// Basic String Functions
+// 基本字符串函数
 // =====================================================================
 
 i32 str_len(LuaState* L) {
@@ -285,7 +284,7 @@ i32 str_sub(LuaState* L) {
         return 1;
     }
 
-    // Extract substring
+    /** @brief 提取子字符串。 */
     usize startIndex = static_cast<usize>(startPos - 1);
     usize subLen = static_cast<usize>(endPos - startPos + 1);
     ensureStringOutput(L, 0, subLen, "sub");
@@ -374,7 +373,7 @@ i32 str_rep(LuaState* L) {
     }
     const usize outputSize = len * static_cast<usize>(n);
 
-    // Build repeated string
+    // 构建重复字符串
     ensureStringOutput(L, 0, outputSize, "rep");
     LuaString result(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     result.reserve(outputSize);
@@ -405,7 +404,7 @@ i32 str_byte(LuaState* L) {
         endPos = static_cast<i32>(len);
 
     if (startPos > endPos) {
-        return 0; // Return no values
+        return 0; // 不返回值
     }
 
     const usize returnCount = static_cast<usize>(endPos - startPos + 1);
@@ -418,7 +417,7 @@ i32 str_byte(LuaState* L) {
     L->getStack().checkLimit(L->getAbsoluteTop() + returnCount);
     L->consumeNativeWork(returnCount);
 
-    // Push byte values
+    /** @brief 压入各字节的数值。 */
     i32 count = 0;
     for (i32 i = startPos; i <= endPos; i++) {
         L->pushNumber(static_cast<f64>(static_cast<unsigned char>(s[i - 1])));
@@ -451,10 +450,10 @@ i32 str_char(LuaState* L) {
 }
 
 // =====================================================================
-// Lua 5.1 Pattern Matching Engine
+// Lua 5.1 模式匹配引擎
 // =====================================================================
 
-/// Plain text search (used by string.find with plain=true)
+/** @brief 纯文本搜索，供 plain=true 的 string.find 使用。 */
 static i32 plainFind(LuaState* L, const char* s, usize slen, const char* pattern, usize plen, usize init) {
     if (plen == 0)
         return static_cast<i32>(init);
@@ -509,7 +508,7 @@ struct PatternCursor {
 
 using MatchResult = Opt<const char*>;
 
-// Forward declarations
+/** @brief 模式匹配辅助函数的前置声明。 */
 static const char* lmatch(MatchState* ms, const char* s, const char* p);
 
 static MatchResult tryMatch(MatchState* ms, PatternCursor source, const char* pattern) {
@@ -802,7 +801,7 @@ init:
     }
 }
 
-/// Push one capture result (or the whole match if no captures)
+/** @brief 压入一个捕获结果；没有捕获时压入完整匹配。 */
 static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e) {
     LuaState* L = ms->L;
     if (i >= ms->level) {
@@ -824,7 +823,7 @@ static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e)
     }
 }
 
-/// Return how many captures to push (at least 1)
+/** @brief 返回要压入的捕获数量，至少为 1。 */
 static i32 push_captures(MatchState* ms, const char* s, const char* e) {
     i32 nlevels = (ms->level == 0) ? 1 : ms->level;
     ms->L->getStack().checkLimit(ms->L->getAbsoluteTop() + static_cast<usize>(nlevels));
@@ -833,7 +832,7 @@ static i32 push_captures(MatchState* ms, const char* s, const char* e) {
     return nlevels;
 }
 
-/// Prepare MatchState for pattern p on string s
+/** @brief 为字符串 s 上的模式 p 准备 MatchState。 */
 static void prepareMatchState(MatchState* ms, LuaState* L, const char* s, usize slen, const char* p, usize plen) {
     ms->L = L;
     ms->src_init = s;
@@ -845,7 +844,7 @@ static void prepareMatchState(MatchState* ms, LuaState* L, const char* s, usize 
 }
 
 // =====================================================================
-// string.find(s, pattern [, init [, plain]])
+/** @brief 字符串查找函数。 */
 // =====================================================================
 
 i32 str_find(LuaState* L) {
@@ -892,7 +891,7 @@ i32 str_find(LuaState* L) {
         if (res.has_value()) {
             L->pushNumber(static_cast<f64>(i + 1));
             L->pushNumber(static_cast<f64>(res.value() - s));
-            // Push captures after start/end
+            /** @brief 在起止位置之后压入捕获结果。 */
             for (i32 c = 0; c < ms.level; c++)
                 push_onecapture(&ms, c, s + i, res.value());
             return 2 + ms.level;
@@ -906,7 +905,7 @@ i32 str_find(LuaState* L) {
 }
 
 // =====================================================================
-// string.match(s, pattern [, init])
+/** @brief 字符串匹配函数。 */
 // =====================================================================
 
 i32 str_match(LuaState* L) {
@@ -949,7 +948,7 @@ i32 str_match(LuaState* L) {
 }
 
 // =====================================================================
-// string.gsub(s, pattern, repl [, n])
+/** @brief 字符串全局替换函数。 */
 // =====================================================================
 
 enum class GsubReplacementKind { String, Table, Function };
@@ -1118,7 +1117,7 @@ i32 str_gsub(LuaState* L) {
                 appendStringOutput(L, result, s + srcPos,
                                    static_cast<usize>(matchEnd - (s + srcPos)), "gsub");
             }
-            // If empty match, advance by one
+            // 若为空匹配，则前进一个位置
             if (matchEnd == s + srcPos) {
                 if (srcPos < slen) {
                     pushStringOutput(L, result, s[srcPos], "gsub");
@@ -1141,7 +1140,7 @@ i32 str_gsub(LuaState* L) {
         }
     }
 
-    // Append remaining
+    // 追加剩余内容
     if (srcPos < slen) {
         appendStringOutput(L, result, s + srcPos, slen - srcPos, "gsub");
     }
@@ -1153,17 +1152,17 @@ i32 str_gsub(LuaState* L) {
 }
 
 // =====================================================================
-// string.gmatch(s, pattern) → iterator function
+// string.gmatch(s, pattern) → 迭代器函数
 // =====================================================================
 
-/// Helper: get current C closure from call stack
+/** @brief 从调用栈获取当前 C 闭包。 */
 static Function* getCurrentCClosure(LuaState* L) {
     const CallInfo& ci = L->getCurrentCallInfo();
     Value funcVal = L->getStack()[ci.func];
     return funcVal.isFunction() ? funcVal.asFunction() : nullptr;
 }
 
-/// Helper: get closed upvalue value from current closure
+/** @brief 从当前闭包获取已关闭上值的值。 */
 static Value getUpval(LuaState* L, usize index) {
     Function* closure = getCurrentCClosure(L);
     if (!closure)
@@ -1174,7 +1173,7 @@ static Value getUpval(LuaState* L, usize index) {
     return uv->getValue(L->getStack());
 }
 
-/// Helper: set closed upvalue value on current closure
+/** @brief 设置当前闭包中已关闭上值的值。 */
 static void setUpval(LuaState* L, usize index, const Value& val) {
     Function* closure = getCurrentCClosure(L);
     if (!closure)
@@ -1185,7 +1184,7 @@ static void setUpval(LuaState* L, usize index, const Value& val) {
     uv->setValue(L->getStack(), val);
 }
 
-/// gmatch iterator function — upvalues: [0]=string, [1]=pattern, [2]=position
+/** @brief gmatch 迭代器函数；上值：[0]=字符串，[1]=模式，[2]=位置。 */
 static i32 gmatch_aux(LuaState* L) {
     Value sVal = getUpval(L, 0);
     Value pVal = getUpval(L, 1);
@@ -1214,7 +1213,7 @@ static i32 gmatch_aux(LuaState* L) {
         MatchResult e = tryMatch(&ms, PatternCursor{s + i, s + slen}, pattern);
         if (e.has_value()) {
             const char* matchEnd = e.value();
-            // Advance position: if empty match, move forward by 1
+            // 推进位置：若为空匹配，则向前移动 1
             usize newpos = (matchEnd == s + i) ? i + 1 : static_cast<usize>(matchEnd - s);
             setUpval(L, 2, Value(static_cast<f64>(newpos)));
             return push_captures(&ms, s + i, matchEnd);
@@ -1223,7 +1222,7 @@ static i32 gmatch_aux(LuaState* L) {
     return 0;
 }
 
-/// Helper: create C closure with closed upvalues (same pattern as iolib)
+/** @brief 创建带已关闭上值的 C 闭包，模式与 iolib 相同。 */
 static Function* createClosureWithUpvalues(LuaState* L, CFunction func, const LuaVector<Value>& upvalues) {
     Function* closure = L->getGlobalState().getGC().create<Function>(func);
     for (const Value& v : upvalues) {
@@ -1242,7 +1241,7 @@ i32 str_gmatch(LuaState* L) {
     const char* s = getStringArg(L, 1, "gmatch", &slen);
     const char* p = getStringArg(L, 2, "gmatch", &plen);
 
-    // Strip anchor — gmatch ignores '^'
+    /** @brief 去除锚点，因为 gmatch 会忽略起始锚点。 */
     const char* pat = p;
     usize patLen = plen;
     if (patLen > 0 && *pat == '^') {
@@ -1547,14 +1546,14 @@ i32 str_dump(LuaState* L) {
     LuaString chunk(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     BoundedDumpWriter writer(L, chunk);
     writer.bytes("\x1bLua", 4);
-    writer.byte(0x51); // Lua 5.1 version marker.
-    writer.byte(0);    // Project-local Lua 5.1 payload.
-    writer.byte(1);    // Little-endian payload.
+    writer.byte(0x51); // Lua 5.1 版本标记
+    writer.byte(0);    // 项目内部 Lua 5.1 载荷
+    writer.byte(1);    // 小端序载荷
     writer.byte(static_cast<u8>(sizeof(i32)));
     writer.byte(static_cast<u8>(sizeof(usize)));
     writer.byte(static_cast<u8>(sizeof(Instruction)));
     writer.byte(static_cast<u8>(sizeof(LuaNumber)));
-    writer.byte(0); // LuaNumber is floating point.
+    writer.byte(0); // LuaNumber 为浮点数
     writer.bytes("LC++", 4);
     writer.proto(proto);
 
@@ -1563,7 +1562,7 @@ i32 str_dump(LuaState* L) {
 }
 
 // =====================================================================
-// Library Registration
+// 库注册
 // =====================================================================
 
 void StringLibModule::registerFunctions(LuaState* L) {
@@ -1571,10 +1570,10 @@ void StringLibModule::registerFunctions(LuaState* L) {
         return;
     }
 
-    // Create string table
+    // 创建字符串表
     Table* stringTable = FunctionRegistrar::createLibTable(L, "string");
 
-    // Register functions using FunctionRegistrar
+    // 使用 FunctionRegistrar 注册函数
     FunctionRegistrar(L)
         .addGlobal("len", str_len)
         .addGlobal("sub", str_sub)
@@ -1597,7 +1596,7 @@ void StringLibModule::registerFunctions(LuaState* L) {
     GCString* gfindKey = gs.getStringPool().intern("gfind");
     stringTable->set(Value(gfindKey), stringTable->get(Value(gmatchKey)));
 
-    // Lua 5.1 exposes string methods through the shared string metatable.
+    // Lua 5.1 通过共享字符串元表公开字符串方法
     Table* stringMT = gs.getMetatable(ValueType::String);
     if (stringMT == nullptr) {
         stringMT = gs.getGC().create<Table>();
@@ -1609,7 +1608,7 @@ void StringLibModule::registerFunctions(LuaState* L) {
 }
 
 void StringLibModule::initialize(LuaState* L) {
-    // No additional initialization needed
+    // 无需额外初始化
     (void)L;
 }
 

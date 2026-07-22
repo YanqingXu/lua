@@ -1,6 +1,6 @@
 /**
  * @file thread.cpp
- * @brief Lua Thread (协程) 实现
+ * @brief Lua 协程实现
  */
 
 #include "core/thread.hpp"
@@ -59,7 +59,7 @@ Thread* Thread::create(LuaState* parentL, Function* func) {
         throw std::bad_alloc();
     }
 
-    // Stack: [nil(0), func(1)]
+    /** @brief 栈布局：[空值(0)，函数(1)]。 */
     coState->pushValue(Value(func));
 
     return parentL->getGlobalState().getGC().create<Thread>(std::move(coState));
@@ -78,7 +78,7 @@ Thread* Thread::create(LuaState* parentL) {
 }
 
 // =====================================================================
-// resume 核心逻辑
+/** @brief 协程恢复的核心逻辑。 */
 // =====================================================================
 
 bool Thread::resume(LuaState* callerL, i32 nargs) {
@@ -106,9 +106,11 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         }
     };
 
-    // A failure response must still be publishable while the configured Lua
-    // allocator rejects every request. In the normal case the caller's frame
-    // already owns these slots, so write them without invoking the allocator.
+    /**
+     * @brief 在配置的 Lua 分配器拒绝全部请求时仍能发布失败响应。
+     *
+     * 正常情况下，调用者的调用帧已拥有这些栈槽，因此无需调用分配器即可写入。
+     */
     auto publishPairNoThrow = [&](bool success, const Value& value) noexcept {
         callerL->setAbsoluteTop(callerResultBase);
         if (callerResultBase <= callerStack.size() && callerStack.size() - callerResultBase >= 2) {
@@ -128,7 +130,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
             try {
                 callerStack.setTop(previousStackTop);
             } catch (...) {
-                // Shrinking to the saved physical top is allocation-free.
+                /** @brief 缩小到已保存的物理栈顶无需分配内存。 */
             }
             clearCallerSlots(callerResultBase, std::max(callerTop, callerResultBase + 2));
             callerL->setAbsoluteTop(callerResultBase);
@@ -167,9 +169,11 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         }
 
         if (!publishPairNoThrow(false, errorValue)) {
-            // There is no representable Lua result when even the caller's two
-            // reserved result slots are unavailable. Keep every runtime state
-            // canonical and contain the C++ allocation failure regardless.
+            /**
+             * @brief 调用者的两个预留结果槽均不可用时，无法表示 Lua 结果。
+             *
+             * 即便如此，也要保持每项运行时状态规范，并在边界内消化 C++ 分配失败。
+             */
             callerL->setAbsoluteTop(callerResultBase);
         }
         return false;
@@ -231,8 +235,11 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
     }
 
     try {
-        // callerL -> coroutine. Do not consume the caller's arguments until
-        // every copy succeeds; the failure path then has one stable base.
+        /**
+         * @brief 将参数从 callerL 复制到协程。
+         *
+         * 所有复制均成功前不要消费调用者参数，以便失败路径拥有稳定的基准位置。
+         */
         if (nargs > 0) {
             Stack& sourceStack = callerL->getStack();
             for (usize i = callerResultBase; i < callerTop; ++i) {
@@ -303,7 +310,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
             firstResume_ = false;
             savedNexeccalls_ = 1;
         } else {
-            // Resume arguments replace the suspended yield call's results.
+/** @brief 恢复参数替换暂停的挂起调用结果。 */
             CallInfo& yieldCallInfo = state_->getCurrentCallInfo();
             const usize functionPosition = yieldCallInfo.func;
             const i32 wantedResults = yieldCallInfo.nresults;
@@ -416,14 +423,16 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         return failMemory();
     } catch (const LuaError& error) {
         if (error.hasErrorObject()) {
-            // Lua 5.1 keeps the failed coroutine's frames available to
-            // debug.traceback after resume reports the error.
+            /**
+ * @brief Lua 5.1 在恢复报告错误后仍保留失败协程的调用帧，供调试回溯函数使用。
+             */
             return failRuntimeValue(error.getErrorObject(), false);
         }
         return failRuntimeMessage(error.what(), false);
     } catch (const std::exception& error) {
-        // A foreign exception can interrupt a frame mutation at an arbitrary
-        // point, so use the stronger rollback while containing it.
+        /**
+         * @brief 外部异常可在任意位置中断调用帧修改，因此在边界内消化异常时使用更强的回滚。
+         */
         return failRuntimeMessage(error.what(), true);
     } catch (...) {
         return failRuntimeValue(Value(globalState.getApiExceptionMessage()), true);
@@ -436,13 +445,14 @@ void Thread::abortResume(ThreadStatus status) noexcept {
         try {
             state_->closeUpvalues(frameBase);
         } catch (...) {
-            // A failed close must not leave a half-built CallInfo visible.
+/** @brief 关闭失败时不得暴露构造不完整的调用信息。 */
         }
         try {
             state_->popCallInfo();
         } catch (...) {
-            // popCallInfo only rejects the base frame. Stop defensively if a
-            // future implementation adds another throwing operation.
+            /**
+             * @brief popCallInfo 仅拒绝基础调用帧；若未来实现增加其他抛出操作，则防御性停止。
+             */
             break;
         }
     }

@@ -3,14 +3,14 @@
  * @brief Lua栈管理：动态扩展的值栈实现
  *
  * 详细说明：
- * Stack类管理Lua虚拟机的值栈，用于存储函数参数、局部变量和临时值。
+ * 栈类管理 Lua 虚拟机的值栈，用于存储函数参数、局部变量和临时值。
  * 栈采用连续内存布局，支持高效的随机访问和动态扩展。
  *
  * 核心特性：
  * - 动态扩展：栈空间不足时自动扩展
  * - 边界检查：防止栈溢出和下溢
- * - 高效访问：O(1)的push/pop操作
- * - 内存安全：使用Vec管理内存，自动释放
+ * - 高效访问：常数时间复杂度的压栈和出栈操作
+ * - 内存安全：使用动态数组管理内存并自动释放
  *
  * 栈布局：
  * ```
@@ -24,7 +24,7 @@
  *       │   值 1      │
  * 低地址 └─────────────┘ ← base (栈底，索引0)
  * ```
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-12
  */
 
@@ -41,7 +41,7 @@ namespace Lua {
 /**
  * @brief 栈类
  *
- * 管理Lua值的动态栈，支持push/pop操作和自动扩展。
+ * 管理 Lua 值的动态栈，支持压栈、出栈和自动扩展。
  *
  * 使用示例：
  * @code
@@ -96,7 +96,7 @@ public:
      *
      * 用途：
      * - 批量操作前预先检查空间
-     * - 避免每次push都检查（性能优化）
+     * - 避免每次压栈都检查（性能优化）
      *
      * 使用示例：
      * ```cpp
@@ -108,11 +108,14 @@ public:
      */
     void checkSpace(usize needed);
 
-    /** Check an absolute logical/physical top against the current policy. */
+    /**
+     * @brief 按当前资源策略检查绝对逻辑或物理栈顶
+     * @param newTop 请求的绝对栈顶位置
+     */
     void checkLimit(usize newTop) const;
 
     /**
-     * @brief 压入值到栈顶（✅ 新增 - 无检查版本，性能优化）
+     * @brief 将值压入栈顶（新增的无检查优化版本）
      * @param value 要压入的值
      *
      * 注意：
@@ -123,12 +126,12 @@ public:
     void pushUnchecked(const Value& value) noexcept;
 
     /**
-     * @brief 压入值到栈顶（兼容版本）
+     * @brief 将值压入栈顶（兼容版本）
      * @param value 要压入的值
      *
      * 注意：
      * - 自动检查空间并扩展
-     * - 适用于单次push操作
+     * - 适用于单次压栈操作
      */
     void push(const Value& value);
 
@@ -221,13 +224,17 @@ public:
     void setTop(usize newTop);
 
 private:
-    /// 值栈（使用Vec自动管理内存）
+    /**
+     * @brief 值栈（使用Vec自动管理内存）
+     */
     LuaVector<Value> stack_;
 
-    /// 栈顶位置（指向下一个可用位置）
+    /**
+     * @brief 栈顶位置（指向下一个可用位置）
+     */
     usize top_;
 
-    /// Borrowed from the owning GlobalState; policy fields remain mutable per context.
+    /** @brief 从所属全局状态借用；每个上下文仍可修改策略字段。 */
     const ResourcePolicy* resourcePolicy_;
 };
 

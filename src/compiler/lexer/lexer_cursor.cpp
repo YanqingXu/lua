@@ -1,6 +1,6 @@
 /**
  * @file lexer_cursor.cpp
- * @brief Lexer input cursor implementation
+ * @brief 词法分析器输入游标的实现
  */
 
 #include "lexer_cursor.hpp"

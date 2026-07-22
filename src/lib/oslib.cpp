@@ -1,3 +1,8 @@
+/**
+ * @file oslib.cpp
+ * @brief Lua 操作系统标准库的实现
+ */
+
 #include "lib/oslib.hpp"
 #include "lib/iolib.hpp"
 #include "lib/lib_registry.hpp"
@@ -26,7 +31,7 @@
 namespace Lua {
 
 // ===================================================================
-// Helper Functions
+// 辅助函数
 // ===================================================================
 
 static std::string errnoMessage(int err) {
@@ -120,7 +125,7 @@ static i32 getboolfield(LuaState* L, Table* t, const char* key) {
 }
 
 // ===================================================================
-// OS Function Implementations
+// 操作系统函数实现
 // ===================================================================
 
 i32 luaOS_clock(LuaState* L) {
@@ -462,7 +467,7 @@ i32 luaOS_date(LuaState* L) {
 }
 
 // ===================================================================
-// Library Registration
+// 库注册
 // ===================================================================
 
 void openOSLib(LuaState* L) {

@@ -43,9 +43,11 @@ usize GarbageCollector::sweep(StringPool& stringPool) {
             // 如果是白色对象（未标记）且不是固定对象，则回收
             if (obj->getColor() == GCColor::White && !isFixed) {
                 if (isOpenUpvalue(obj)) {
-                    // Open upvalues point into a LuaState stack. If their
-                    // owning thread is also unreachable, thread destruction
-                    // closes them before a later pass can reclaim them.
+            /**
+             * @brief 开放上值指向 LuaState 栈。
+             *
+             * 若其所属线程也不可达，线程析构会在后续遍历回收这些上值前将其关闭。
+             */
                     prev = obj;
                     obj = next;
                     continue;
@@ -74,9 +76,12 @@ usize GarbageCollector::sweep(StringPool& stringPool) {
         return passCollected;
     };
 
-    // Threads own LuaState stacks that may still be referenced by open
-    // upvalues. Reclaim unreachable threads before the generic object pass so
-    // LuaState::~LuaState() closes those upvalues while they are still alive.
+    /**
+     * @brief 在通用对象遍历前回收不可达线程。
+     *
+     * 线程拥有的 LuaState 栈可能仍被开放上值引用；此顺序使 LuaState::~LuaState() 能在这些
+     * 上值仍存活时将其关闭。
+     */
     collected += sweepMatching([](GCObject* obj) {
         return obj->getType() == GCObjectType::Thread;
     });

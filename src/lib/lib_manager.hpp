@@ -1,13 +1,21 @@
 ﻿#pragma once
 
+/**
+ * @file lib_manager.hpp
+ * @brief Lua 标准库的统一打开与兼容入口
+ */
+
 #include "lib/lib_module.hpp"
 
 namespace Lua {
 
+/** @brief 提供标准库目录驱动入口及旧式兼容打开函数。 */
 class StandardLibrary {
 public:
+    /** @brief 打开当前沙箱策略允许的全部标准库。 */
     static void openAll(LuaState* L);
 
+    /** @brief 按目录标识打开标准库。 */
     static void openCatalogLibrary(LuaState* L, StrView id);
 
     [[deprecated("Use StandardLibrary::openCatalogLibrary(L, \"base\") instead.")]]
@@ -37,6 +45,7 @@ public:
     [[deprecated("Use StandardLibrary::openCatalogLibrary(L, \"package\") instead.")]]
     static void openPackage(LuaState* L);
 
+    /** @brief 注册并初始化指定标准库模块。 */
     static void openModule(LuaState* L, LibModule& module);
 };
 

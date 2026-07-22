@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file oslib.hpp
+ * @brief Lua 操作系统标准库接口
+ */
+
 #include "common/types.hpp"
 #include "vm/state/lua_state.hpp"
 #include <ctime>

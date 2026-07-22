@@ -18,7 +18,7 @@
  * - 测试模式：直接运行 main.exe
  * - 解释器模式：main.exe <script.lua> (未来实现)
  * - 交互模式：main.exe -i (未来实现)
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-12-04
  */
 
@@ -73,9 +73,9 @@
 #define LUA_TEST_SCRIPT_PATH ""
 #endif
 
-// 测试脚本 Trace 输出路径（配合 LUA_TEST_SCRIPT_PATH 使用）。
-// - 为空串：不启用默认脚本 Trace
-// - 非空串：执行 LUA_TEST_SCRIPT_PATH 时自动启用 Trace，输出到此路径
+/** @brief 测试脚本追踪输出路径（配合 LUA_TEST_SCRIPT_PATH 使用）。 */
+// - 为空串：不启用默认脚本追踪
+// - 非空串：执行 LUA_TEST_SCRIPT_PATH 时自动启用追踪，输出到此路径
 //   可在此处直接改为目标路径，或通过编译器定义 /DLUA_TRACE_TEST_SCRIPT_OUTPUT=\"out.jsonl\"
 #ifndef LUA_TRACE_TEST_SCRIPT_OUTPUT
 #define LUA_TRACE_TEST_SCRIPT_OUTPUT "out.jsonl"
@@ -164,39 +164,37 @@ UPtr<LuaState> createLuaState(EngineContext& context) {
 // ============================================================================
 
 /**
- * @brief Setup arg table for Lua script to access command-line arguments
+ * @brief 设置供 Lua 脚本访问命令行参数的 arg 表
  *
- * arg table structure (Lua 5.1.5 standard):
- * - arg[-1]: interpreter name (e.g., "lua.exe")
- * - arg[0]:  script file name
- * - arg[1] ... arg[n]: script arguments
+ * arg 表结构（Lua 5.1.5 标准）：
+ * - arg[-1]：解释器名称，例如 "lua.exe"
+ * - arg[0]：脚本文件名
+ * - arg[1] ... arg[n]：脚本参数
  *
- * Example: lua.exe script.lua a b c
+ * 示例：lua.exe script.lua a b c
  * - arg[-1] = "lua.exe"
  * - arg[0]  = "script.lua"
  * - arg[1]  = "a"
  * - arg[2]  = "b"
  * - arg[3]  = "c"
  *
- * Implementation details:
- * - Uses index formula: i - scriptIndex (same as official Lua)
- * - Pre-allocates table size for performance
- * - Registers all arguments from argv[0] to argv[argc-1]
+ * 实现细节：
+ * - 使用索引公式 i - scriptIndex，与官方 Lua 一致
+ * - 预分配表大小以提高性能
+ * - 注册参数集合中的全部参数
  *
- * @param L Lua state pointer
- * @param argc Total number of command-line arguments
- * @param argv Command-line argument array
- * @param scriptIndex Index of script file name in argv
+ * @param L Lua 状态指针
+ * @param args 命令行参数集合
+ * @param scriptIndex 参数集合中脚本文件名的索引
  */
 void setupArgTable(LuaState* L, std::span<const Str> args, i32 scriptIndex) {
-    // Create arg table and register to GC
-    // Note: In official Lua, table is pre-allocated with lua_createtable(L, narg, n+1)
-    // where narg = argc - (scriptIndex + 1) is the script argument count
+    // 创建 arg 表并注册到垃圾回收器
+    // 官方 Lua 使用 lua_createtable(L, narg, n+1) 预分配表，其中 narg 为脚本参数数量
     Table* argTable = L->getGlobalState().getGC().create<Table>();
 
-    // Populate arg table with all arguments
-    // Index formula: i - scriptIndex (matches official Lua implementation)
-    // This creates: arg[-scriptIndex] ... arg[0] ... arg[narg-1]
+    // 使用全部参数填充 arg 表
+    // 索引公式为 i - scriptIndex，与官方 Lua 实现一致
+    // 生成范围：arg[-scriptIndex] ... arg[0] ... arg[narg-1]
     for (i32 i = 0; i < static_cast<i32>(args.size()); i++) {
         const Str& arg = args[static_cast<usize>(i)];
         const char* argText = arg.c_str();
@@ -215,11 +213,11 @@ void setupArgTable(LuaState* L, std::span<const Str> args, i32 scriptIndex) {
             argText = adjustedArg.c_str();
         }
         GCString* argStr = L->getGlobalState().getStringPool().intern(argText ? argText : "");
-        i32 index = i - scriptIndex; // Key calculation: same as official Lua
+        i32 index = i - scriptIndex; // 键计算方式与官方 Lua 一致
         argTable->set(Value(static_cast<LuaNumber>(index)), Value(argStr));
     }
 
-    // Register arg table as global variable
+    // 将 arg 表注册为全局变量
     L->setGlobal("arg", Value(argTable));
 }
 

@@ -1,3 +1,8 @@
+/**
+ * @file repl_exe.cpp
+ * @brief REPL 源码编译、执行和错误转换的实现
+ */
+
 #include "repl/repl_exe.hpp"
 
 #include "compiler/codegen/codegen.hpp"

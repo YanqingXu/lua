@@ -18,6 +18,7 @@
 
 namespace Lua {
 
+/** @brief 语法分析器的内部递归下降实现。 */
 class Parser::Impl {
 public:
     Impl(const Str& source, ParserOptions options);

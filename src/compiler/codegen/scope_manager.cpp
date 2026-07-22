@@ -1,6 +1,6 @@
 /**
  * @file scope_manager.cpp
- * @brief ScopeManager implementation.
+ * @brief 作用域管理器实现
  */
 
 #include "compiler/codegen/scope_manager.hpp"

@@ -15,7 +15,7 @@
  * - 函数调用和返回机制
  * - 栈帧管理和程序计数器
  * - 错误处理和异常传播
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-13
  */
 
@@ -35,10 +35,12 @@ class Proto;
 class ITraceSink;
 struct RuntimeServices;
 
-/// VM 执行结果（替代 void 返回，让 yield 成为正常控制流）
+/**
+ * @brief 虚拟机执行结果（替代无返回值，使挂起成为正常控制流）
+ */
 enum class ExecResult : u8 {
     Returned,      // 函数正常返回
-    Yielded        // 协程 yield
+    Yielded        // 协程挂起
 };
 
 /**
@@ -117,27 +119,27 @@ namespace VM {
     void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults);
 
     /**
-     * @brief 设置全局 Trace Sink（nullptr 表示关闭 trace）
+     * @brief 设置全局追踪输出端（空指针表示关闭追踪）
      */
     void setTraceSink(ITraceSink* sink);
 
-    /// Context-local trace configuration for isolated runtimes.
+    /** @brief 隔离运行时所使用的上下文本地跟踪配置。 */
     void setTraceSink(RuntimeServices& services, ITraceSink* sink);
 
     /**
-     * @brief 获取当前 Trace Sink
+     * @brief 获取当前追踪输出端
      */
     ITraceSink* getTraceSink();
     ITraceSink* getTraceSink(RuntimeServices& services);
 
     /**
-     * @brief 开关 trace 差异模式；开启后 instruction 事件包含 changedRegisters。
+     * @brief 开关追踪差异模式；开启后指令事件包含已变化的寄存器。
      */
     void setTraceDiffEnabled(bool enabled);
     void setTraceDiffEnabled(RuntimeServices& services, bool enabled);
 
     /**
-     * @brief 查询 trace 差异模式是否开启。
+     * @brief 查询追踪差异模式是否开启。
      */
     bool isTraceDiffEnabled();
     bool isTraceDiffEnabled(RuntimeServices& services);

@@ -1,6 +1,6 @@
 /**
  * @file vm_loop.cpp
- * @brief VM loop helper operations.
+ * @brief VM 循环辅助操作
  */
 
 #include "vm/vm_internal.hpp"

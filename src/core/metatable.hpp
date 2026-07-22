@@ -19,7 +19,7 @@
  * - 比较操作：__eq, __lt, __le
  * - 其他操作：__concat, __len, __call
  * - 特殊方法：__gc, __mode
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-11-22
  */
 
@@ -39,7 +39,7 @@ class LuaState;
 class GlobalState;
 
 /**
- * @brief 元方法类型枚举（Tag Method System）
+ * @brief 元方法类型枚举（标签方法系统）
  * 
  * 定义所有支持的元方法类型。枚举顺序与Lua 5.1.5保持一致，
  * 前5个（TM_INDEX到TM_EQ）是"快速"元方法，有特殊优化。
@@ -49,62 +49,98 @@ class GlobalState;
 enum class TMS : u8 {
     // ===== 快速访问元方法（有缓存优化） =====
     
-    /// __index: 控制表的索引访问行为（table[key]）
+    /**
+     * @brief __index: 控制表的索引访问行为（table[key]）
+     */
     TM_INDEX = 0,
     
-    /// __newindex: 控制表的索引赋值行为（table[key] = value）
+    /**
+     * @brief __newindex: 控制表的索引赋值行为（table[key] = value）
+     */
     TM_NEWINDEX,
     
-    /// __gc: 垃圾回收终结器
+    /**
+     * @brief __gc: 垃圾回收终结器
+     */
     TM_GC,
     
-    /// __mode: 弱引用模式（"k", "v", "kv"）
+    /**
+     * @brief __mode: 弱引用模式（"k", "v", "kv"）
+     */
     TM_MODE,
     
-    /// __eq: 相等比较运算符（==, ~=）
+    /**
+     * @brief __eq: 相等比较运算符（==, ~=）
+     */
     TM_EQ,  // 最后一个快速访问元方法
     
     // ===== 算术运算元方法 =====
     
-    /// __add: 加法运算符（+）
+    /**
+     * @brief __add: 加法运算符（+）
+     */
     TM_ADD,
     
-    /// __sub: 减法运算符（-）
+    /**
+     * @brief __sub: 减法运算符（-）
+     */
     TM_SUB,
     
-    /// __mul: 乘法运算符（*）
+    /**
+     * @brief __mul: 乘法运算符（*）
+     */
     TM_MUL,
     
-    /// __div: 除法运算符（/）
+    /**
+     * @brief __div: 除法运算符（/）
+     */
     TM_DIV,
     
-    /// __mod: 取模运算符（%）
+    /**
+     * @brief __mod: 取模运算符（%）
+     */
     TM_MOD,
     
-    /// __pow: 幂运算符（^）
+    /**
+     * @brief __pow: 幂运算符（^）
+     */
     TM_POW,
     
-    /// __unm: 一元负号运算符（-x）
+    /**
+     * @brief __unm: 一元负号运算符（-x）
+     */
     TM_UNM,
     
     // ===== 其他操作元方法 =====
     
-    /// __len: 长度运算符（#）
+    /**
+     * @brief __len: 长度运算符（#）
+     */
     TM_LEN,
     
-    /// __lt: 小于比较运算符（<）
+    /**
+     * @brief __lt: 小于比较运算符（<）
+     */
     TM_LT,
     
-    /// __le: 小于等于比较运算符（<=）
+    /**
+     * @brief __le: 小于等于比较运算符（<=）
+     */
     TM_LE,
     
-    /// __concat: 字符串连接运算符（..）
+    /**
+     * @brief __concat: 字符串连接运算符（..）
+     */
     TM_CONCAT,
     
-    /// __call: 函数调用运算符（obj(...)）
+    /**
+     * @brief __call: 函数调用运算符（obj(...)）
+     */
     TM_CALL,
     
-    /// 元方法总数
+    /**
+     * @brief 元方法总数
+     */
     TM_N
 };
 

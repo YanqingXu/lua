@@ -3,19 +3,19 @@
  * @brief Lua状态管理：每个线程的独立执行环境
  *
  * 详细说明：
- * LuaState类表示一个Lua线程（协程）的完整执行状态，包括：
- * - 值栈（Stack）：存储函数参数、局部变量和临时值
- * - 调用栈（CallInfo数组）：管理函数调用层次
+ * Lua 状态类表示一个 Lua 线程（协程）的完整执行状态，包括：
+ * - 值栈：存储函数参数、局部变量和临时值
+ * - 调用栈：管理函数调用层次
  * - 全局状态引用：访问共享资源
  * - 全局表：线程的全局变量表
  * - 执行状态：正常、挂起、错误等
  *
  * 核心特性：
- * - 独立执行：每个LuaState有独立的栈和调用信息
- * - 资源共享：通过GlobalState共享字符串池、GC等资源
+ * - 独立执行：每个 Lua 状态有独立的栈和调用信息
+ * - 资源共享：通过全局状态共享字符串驻留池、垃圾回收器等资源
  * - 协程支持：为后续协程实现预留接口
- * - 现代C++：使用RAII管理资源
- * @author Lua C++ Project
+ * - 现代 C++：使用资源获取即初始化管理资源
+ * @author Lua C++ 项目
  * @date 2025-11-12
  */
 
@@ -44,6 +44,7 @@ class Thread;
 class EngineContext;
 struct RuntimeServices;
 
+/** @brief 按分配方式销毁拥有型运行时上下文的删除器。 */
 struct EngineContextDeleter {
     bool allocatorBacked = false;
     void operator()(EngineContext* context) const noexcept;
@@ -53,16 +54,22 @@ struct EngineContextDeleter {
  * @brief Lua线程状态枚举
  */
 enum class ThreadStatus : u8 {
-    OK = 0,        ///< 正常执行状态
-    Yield = 1,     ///< 协程挂起状态
-    ErrRun = 2,    ///< 运行时错误
-    ErrSyntax = 3, ///< 语法错误
-    ErrMem = 4,    ///< 内存错误
-    ErrErr = 5     ///< 错误处理函数错误
+    /** @brief 正常执行状态 */
+    OK = 0,
+    /** @brief 协程挂起状态 */
+    Yield = 1,
+    /** @brief 运行时错误 */
+    ErrRun = 2,
+    /** @brief 语法错误 */
+    ErrSyntax = 3,
+    /** @brief 内存错误 */
+    ErrMem = 4,
+    /** @brief 错误处理函数错误 */
+    ErrErr = 5
 };
 
 /**
- * @brief Debug hook mask bits
+ * @brief 调试钩子掩码位
  */
 enum DebugHookMask : u8 {
     HookMaskCall = 1 << 0,
@@ -74,7 +81,7 @@ enum DebugHookMask : u8 {
 using ApiDebugHook = void (*)(::lua_State* L, ::lua_Debug* ar);
 
 /**
- * @brief Debug hook event kinds
+ * @brief 调试钩子事件类型
  */
 enum class DebugHookEvent : u8 { Call, Return, TailReturn, Line, Count };
 
@@ -120,16 +127,15 @@ public:
     LuaState(CtorToken, GlobalState& globalState, bool allocatorOwnedSelf);
 
     /**
-     * @brief Construct a state that owns an isolated runtime context.
+     * @brief 构造拥有独立运行时上下文的状态
      *
-     * The token keeps construction behind the factories while allowing the
-     * owning context to outlive every state member that refers into it.
+     * 令牌将构造过程限制在工厂内部，同时保证拥有型上下文晚于所有引用它的状态成员析构。
      */
     LuaState(CtorToken, EngineContext* ownedContext, bool allocatorOwnedContext, bool allocatorOwnedSelf);
 
     /**
      * @brief 创建拥有型Lua状态（主线程）
-     * @return unique_ptr 承载所有权
+     * @return 承载所有权的独占指针
      */
     [[nodiscard]] static UPtr<LuaState> create();
 
@@ -144,13 +150,13 @@ public:
     [[nodiscard]] static UPtr<LuaState> create(EngineContext& context);
 
     /**
-     * @brief Create a state that owns an isolated EngineContext.
+     * @brief 创建拥有独立 EngineContext 的状态
      */
     [[nodiscard]] static UPtr<LuaState> createIsolated();
 
     /**
      * @brief 创建新的Lua状态（主线程），兼容旧 C API 风格所有权
-     * @return 调用者负责 delete 的 LuaState 指针
+     * @return 由调用者负责销毁的 Lua 状态指针
      */
     static LuaState* newState();
 
@@ -165,17 +171,17 @@ public:
     static LuaState* newState(EngineContext& context);
 
     /**
-     * @brief Create a caller-owned state with its own isolated EngineContext.
+     * @brief 创建由调用者持有且拥有独立 EngineContext 的状态
      */
     static LuaState* newIsolatedState();
 
     /**
-     * @brief Create a C API state whose context and state blocks use lua_Alloc.
+     * @brief 创建上下文与状态内存块均使用 lua_Alloc 的 C API 状态
      */
     static LuaState* newAllocatedState(LuaAllocatorFunction allocator, void* userData);
 
     /**
-     * @brief Destroy either a normal or allocator-backed state correctly.
+     * @brief 正确销毁普通状态或由分配器支撑的状态
      */
     static void destroyState(LuaState* state) noexcept;
 
@@ -265,9 +271,11 @@ public:
      */
     void pushValue(const Value& v) {
         stack_.checkLimit(top_ + 1);
-        // Keep one already-allocated slot out of the ordinary push path.  A
-        // protected C API boundary can then publish the fixed memory-error
-        // object even when growing the stack is the allocation that failed.
+    /**
+     * @brief 在普通压栈路径之外保留一个已分配的栈槽。
+     *
+     * 即使失败的分配操作正是栈扩容，保护 C API 边界仍可用该槽发布固定的内存错误对象。
+     */
         if (stack_.capacity() == 0 || top_ >= stack_.capacity() - 1) {
             const usize available = stack_.capacity() - stack_.size();
             stack_.ensureSpace(available + STACK_GROW_MARGIN);
@@ -281,14 +289,12 @@ public:
     }
 
     /**
-     * @brief Publish a value using only storage already owned by this state.
-     * @return false only when the
-     * emergency stack slot invariant was broken.
+     * @brief 仅使用当前状态已有的存储空间发布值
+     * @param v 要发布的值
+     * @return 仅当应急栈槽不变量被破坏时返回 false
      *
-     * This is reserved for exception-to-status translation at
-     * C API
-     * boundaries.  Unlike pushValue(), it never asks the Lua allocator to
-     * grow the stack.
+     * 此接口专供 C API 边界将异常转换为状态码。与 pushValue() 不同，它绝不会请求 Lua
+     * 分配器扩展栈空间。
      */
     [[nodiscard]] bool tryPushValueNoAlloc(const Value& v) noexcept {
         if (top_ >= stack_.capacity()) {
@@ -350,7 +356,7 @@ public:
     void replace(i32 idx);
 
     /**
-     * @brief 保护调用函数（Protected Call）
+     * @brief 保护调用函数
      *
      * 在保护模式下调用栈上的函数，捕获所有错误。
      *
@@ -367,7 +373,7 @@ public:
     i32 pcall(i32 nargs, i32 nresults, i32 errfunc);
 
     /**
-     * @brief Modern protected-call facade; preserves pcall stack effects.
+     * @brief 现代保护调用外观，并保持 pcall 的栈效果。
      */
     [[nodiscard]] std::expected<i32, RuntimeError> tryPCall(i32 nargs, i32 nresults, i32 errfunc);
 
@@ -549,17 +555,17 @@ public:
     [[noreturn]] void error(const char* msg);
 
     /**
-     * @brief Reject a privileged Lua operation disabled by this context.
+     * @brief 拒绝当前上下文禁用的 Lua 特权操作
      */
     void requireSandboxCapability(SandboxCapability capability);
 
     /**
-     * @brief Charge work performed inside a native standard-library loop.
+     * @brief 统计原生标准库循环内部执行的工作量
      */
     void consumeNativeWork(ExecutionPolicy::NativeWorkCount units = 1);
 
     /**
-     * @brief Reject explicit opening of a disabled standard library.
+     * @brief 拒绝显式打开已禁用的标准库
      */
     void requireStandardLibrary(StrView id);
 
@@ -639,13 +645,13 @@ public:
     // =====================================================================
 
     /**
-     * @brief 查找或创建指向栈位置的Upvalue
+     * @brief 查找或创建指向栈位置的上值
      * @param stackIndex 栈索引位置
-     * @return Upvalue指针
+     * @return 上值指针
      *
      * 详细说明：
-     * 这是Upvalue管理的核心函数，实现了Upvalue的共享机制。
-     * 多个闭包可以共享指向同一栈位置的Upvalue，确保变量语义的正确性。
+     * 这是上值管理的核心函数，实现了上值的共享机制。
+     * 多个闭包可以共享指向同一栈位置的上值，确保变量语义的正确性。
      *
      * 查找策略：
      * 1. 遍历openUpvalues_链表（按栈索引降序排列）
@@ -662,12 +668,12 @@ public:
     Upvalue* findOrCreateUpvalue(usize stackIndex);
 
     /**
-     * @brief 关闭指定栈层级及以上的所有Open Upvalue
+     * @brief 关闭指定栈层级及以上的所有开放上值
      * @param level 栈层级阈值
      *
      * 详细说明：
-     * 当函数返回或栈收缩时，需要关闭相应的Upvalue。
-     * 关闭操作将Open状态的Upvalue转换为Closed状态。
+     * 当函数返回或栈收缩时，需要关闭相应的上值。
+     * 关闭操作将开放状态的上值转换为关闭状态。
      *
      * 处理策略：
      * 1. 遍历openUpvalues_链表
@@ -683,16 +689,18 @@ public:
     void closeUpvalues(usize level);
 
     // =====================================================================
-    // Coroutine support
+    /** @brief 协程支持。 */
     // =====================================================================
 
     /**
      * @brief 创建子线程（协程用）
-     * 共享 GlobalState + globalTable，独立 Stack + CallStack
+     * 共享全局状态和全局表，拥有独立值栈和调用栈。
      */
     static LuaState* newThread(LuaState* parentL);
 
-    /// yield 许可计数器
+    /**
+     * @brief 挂起许可计数器
+     */
     void incAllowYield() noexcept {
         allowYield_++;
     }
@@ -704,7 +712,9 @@ public:
         return allowYield_ > 0;
     }
 
-    /// yield 值数量
+    /**
+     * @brief 挂起值数量
+     */
     void setYieldResults(i32 n) noexcept {
         yieldResults_ = n;
     }
@@ -712,7 +722,9 @@ public:
         return yieldResults_;
     }
 
-    /// nexeccalls 保存/恢复
+    /**
+     * @brief nexeccalls 保存/恢复
+     */
     void setSavedNexeccalls(i32 n) noexcept {
         savedNexeccalls_ = n;
     }
@@ -720,7 +732,7 @@ public:
         return savedNexeccalls_;
     }
 
-    /// C/C++ host frames that re-enter Lua through VM::call.
+    /** @brief 通过 VM::call 重新进入 Lua 的 C/C++ 宿主调用帧。 */
     void enterHostCall();
     void leaveHostCall() noexcept;
     i32 getHostCallDepth() const noexcept {
@@ -730,7 +742,9 @@ public:
         hostCallDepth_ = depth;
     }
 
-    /// 当前 LuaState 对应的 Thread 对象（主线程为 nullptr）
+    /**
+     * @brief 当前 Lua 状态对应的协程对象（主线程为空指针）
+     */
     Thread* getThread() const noexcept {
         return thread_;
     }
@@ -745,35 +759,39 @@ public:
         mainThreadFacade_ = thread;
     }
 
-    /// 调用栈访问（供 Thread GC marking 使用）
+    /**
+     * @brief 调用栈访问（供协程对象执行垃圾回收标记时使用）
+     */
     LuaVector<CallInfo>& getCallStack() noexcept {
         return callStack_;
     }
 
-    /// Open Upvalue 链表头访问
+    /**
+     * @brief 开放上值链表头访问
+     */
     Upvalue* getOpenUpvalues() const noexcept {
         return openUpvalues_;
     }
 
     // =====================================================================
-    // Debug hook support
+    /** @brief 调试钩子支持。 */
     // =====================================================================
 
     /**
-     * @brief Install or clear the per-thread debug hook
-     * @param hook Hook function, nullptr clears the hook
-     * @param mask Bitmask made of DebugHookMask values
-     * @param count Instruction count interval for count hooks
+     * @brief 安装或清除线程级调试钩子
+     * @param hook 钩子函数；空指针表示清除钩子
+     * @param mask 由调试钩子掩码值组成的位掩码
+     * @param count 计数钩子的指令间隔
      */
     void setDebugHook(Function* hook, u8 mask, i32 count);
 
     /**
-     * @brief Install or clear the public Lua 5.1 C debug hook
+     * @brief 安装或清除公开的 Lua 5.1 C 调试钩子
      */
     void setApiDebugHook(ApiDebugHook hook, u8 mask, i32 count);
 
     /**
-     * @brief Get the installed debug hook function
+     * @brief 获取已安装的调试钩子函数
      */
     Function* getDebugHook() const noexcept {
         return hookFunc_;
@@ -784,43 +802,43 @@ public:
     }
 
     /**
-     * @brief Get the debug hook mask bits
+     * @brief 获取调试钩子掩码位
      */
     u8 getDebugHookMask() const noexcept {
         return hookMask_;
     }
 
     /**
-     * @brief Get the count-hook interval
+     * @brief 获取计数钩子的触发间隔
      */
     i32 getDebugHookCount() const noexcept {
         return hookCount_;
     }
 
     /**
-     * @brief Check whether the debug hook is currently running
+     * @brief 检查调试钩子当前是否正在运行
      */
     bool isDebugHookActive() const noexcept {
         return hookActive_;
     }
 
     /**
-     * @brief Check whether the given hook mask bit is enabled
+     * @brief 检查指定的钩子掩码位是否启用
      */
     bool hasDebugHookMask(u8 mask) const noexcept {
         return (hookFunc_ != nullptr || apiDebugHook_ != nullptr) && (hookMask_ & mask) != 0;
     }
 
     /**
-     * @brief Consume one instruction for count hooks
-     * @return true when a count hook should fire
+     * @brief 为计数钩子消耗一条指令配额
+     * @return 应触发计数钩子时返回 true
      */
     bool consumeDebugHookCount();
 
     /**
-     * @brief Call the installed debug hook for a VM event
-     * @param event Hook event kind
-     * @param line Current line number, or -1 for non-line events
+     * @brief 针对 VM 事件调用已安装的调试钩子
+     * @param event 钩子事件类型
+     * @param line 当前行号；非行事件传入 -1
      */
     void callDebugHook(DebugHookEvent event, i32 line = -1);
 
@@ -840,74 +858,102 @@ private:
     // 成员变量
     // =====================================================================
 
-    /// Optional owning context for independently created public C API states.
+    /** @brief 独立创建的公开 C API 状态可选拥有的上下文。 */
     std::unique_ptr<EngineContext, EngineContextDeleter> ownedContext_;
     bool allocatorOwnedSelf_;
 
-    /// 全局状态引用
+    /**
+     * @brief 全局状态引用
+     */
     GlobalState& globalState_;
 
-    /// 值栈
+    /**
+     * @brief 值栈
+     */
     Stack stack_;
 
-    /// 栈顶索引（指向下一个可用位置）
+    /**
+     * @brief 栈顶索引（指向下一个可用位置）
+     */
     usize top_;
 
-    /// 调用信息栈
+    /**
+     * @brief 调用信息栈
+     */
     LuaVector<CallInfo> callStack_;
 
-    /// 当前调用信息索引
+    /**
+     * @brief 当前调用信息索引
+     */
     usize currentCI_;
 
-    /// 全局表
+    /**
+     * @brief 全局表
+     */
     Table* globalTable_;
 
-    /// 线程状态
+    /**
+     * @brief 线程状态
+     */
     ThreadStatus status_;
 
-    /// Open Upvalue链表头（按栈索引降序排列）
-    /// 注意：Upvalue由GC管理，这里只持有指针
+    /**
+     * @brief 开放上值链表头（按栈索引降序排列）
+     * @note 上值由垃圾回收器管理，这里只持有指针。
+     */
     Upvalue* openUpvalues_;
 
     // =====================================================================
     // Coroutine 相关字段
     // =====================================================================
 
-    /// 允许 yield 的嵌套层数（> 0 可 yield，== 0 不可 yield）
+    /**
+     * @brief 允许挂起的嵌套层数（大于 0 可挂起，等于 0 不可挂起）
+     */
     u16 allowYield_ = 0;
 
-    /// yield 返回值数量
+    /**
+     * @brief 挂起返回值数量
+     */
     i32 yieldResults_ = 0;
 
-    /// 保存的执行深度（yield 时写入，resume 时恢复）
+    /**
+     * @brief 保存的执行深度（挂起时写入，恢复时还原）
+     */
     i32 savedNexeccalls_ = 1;
 
-    /// 嵌套 C/C++ -> Lua 调用深度，用于在宿主栈耗尽前报 Lua stack overflow。
+    /**
+     * @brief 嵌套 C/C++ 到 Lua 的调用深度，用于在宿主栈耗尽前报告 Lua 栈溢出。
+     */
     i32 hostCallDepth_ = 0;
 
-    /// 所属 Thread 对象（主线程为 nullptr）
+    /**
+     * @brief 所属协程对象（主线程为空指针）
+     */
     Thread* thread_ = nullptr;
     Thread* mainThreadFacade_ = nullptr;
 
-    /// 是否由 newThread 创建（析构时不 removeRoot globalTable_）
+    /**
+     * @brief 是否由新建线程接口创建（析构时不移除全局表根对象）
+     */
     bool isChildThread_ = false;
 
-    /// Installed debug hook function.
+    /** @brief 已安装的调试钩子函数。 */
     Function* hookFunc_ = nullptr;
 
-    /// Installed public C debug hook callback.
+    /** @brief 已安装的公开 C 调试钩子回调。 */
     ApiDebugHook apiDebugHook_ = nullptr;
 
-    /// Hook mask bits (call/return/line/count).
+    /** @brief 钩子掩码位（调用、返回、行、计数）。 */
     u8 hookMask_ = 0;
 
-    /// Instruction interval for count hooks.
+    /** @brief 计数钩子的指令间隔。 */
     i32 hookCount_ = 0;
 
-    /// Remaining instructions until the next count hook.
+    /** @brief 距离下一次计数钩子触发的剩余指令数。 */
     i32 hookCountdown_ = 0;
 
-    /// Prevent recursive hook invocation while the hook is running.
+    /** @brief 防止钩子运行期间递归调用钩子。 */
     bool hookActive_ = false;
 
 public:

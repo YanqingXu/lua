@@ -1,6 +1,6 @@
 /**
  * @file vm_arith.cpp
- * @brief VM arithmetic opcode execution helpers.
+ * @brief 虚拟机算术操作码执行辅助函数
  */
 
 #include "vm/vm_internal.hpp"

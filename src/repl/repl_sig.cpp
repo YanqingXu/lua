@@ -1,3 +1,8 @@
+/**
+ * @file repl_sig.cpp
+ * @brief REPL 控制台信号、中断和平台输入处理的实现
+ */
+
 #include "repl/repl_sig.hpp"
 
 #include <cctype>

@@ -1,6 +1,6 @@
 /**
  * @file vm_handlers_branch.cpp
- * @brief Comparison and branch opcode handlers.
+ * @brief 比较与分支操作码处理器
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"

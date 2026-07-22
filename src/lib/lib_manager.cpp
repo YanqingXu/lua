@@ -1,3 +1,8 @@
+/**
+ * @file lib_manager.cpp
+ * @brief Lua 标准库目录驱动的打开逻辑实现
+ */
+
 #include "lib/lib_manager.hpp"
 
 #include "lib/lib_catalog.hpp"

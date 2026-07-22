@@ -1,3 +1,8 @@
+/**
+ * @file bytecode_printer.cpp
+ * @brief Lua 函数原型字节码打印与差异比较的实现
+ */
+
 #include "bytecode_printer.hpp"
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"

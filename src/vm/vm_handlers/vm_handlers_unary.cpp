@@ -1,6 +1,6 @@
 /**
  * @file vm_handlers_unary.cpp
- * @brief Unary and concat opcode handlers.
+ * @brief 一元运算与拼接操作码处理器
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"

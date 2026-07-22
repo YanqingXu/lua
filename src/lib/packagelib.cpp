@@ -1,19 +1,17 @@
 /**
  * @file packagelib.cpp
- * @brief Lua package/module library implementation
+ * @brief Lua 包与模块库实现
  *
- * Implements the Lua 5.1.5 package system: require(), module(),
- * and the package.* table fields.
+ * 实现 Lua 5.1.5 包系统：require()、module() 与 package.* 表字段。
  *
- * Design notes:
- * - package.loaded caches all successfully loaded modules
- * - package.preload allows C code to pre-register loader functions
- * - package.loaders is a sequence of searcher functions tried in order
- * - Default loaders: [1] preload, [2] Lua file, [3] C library,
- *   [4] all-in-one C library
- * - require() is idempotent: repeated calls return the cached value
- * - module() creates a module table and adjusts the environment
- * @author Lua C++ Project
+ * 设计说明：
+ * - package.loaded 缓存所有成功加载的模块
+ * - package.preload 允许 C 代码预先注册加载器函数
+ * - package.loaders 是按顺序尝试的搜索器函数序列
+ * - 默认加载器：[1] 预加载，[2] Lua 文件，[3] C 库，[4] 一体式 C 库
+ * - require() 具有幂等性：重复调用返回缓存值
+ * - module() 创建模块表并调整环境
+ * @author Lua C++ 项目
  * @date 2026-04-10
  */
 
@@ -48,14 +46,13 @@
 namespace Lua {
 
 // =====================================================================
-// Internal keys — used to retrieve package sub-tables from the registry
-// or global "package" table.
+// 内部键——用于从注册表或全局 package 表中获取包子表
 // =====================================================================
 
 static constexpr const char* PACKAGE_TABLE_NAME = "package";
 static constexpr StrView PACKAGE_REGISTRY_KEY = "_PACKAGE_TABLE";
 
-// Default paths
+// 默认路径
 #ifdef _WIN32
 static constexpr StrView LUA_DEFAULT_PATH = ".\\?.lua;"
                                             ".\\?\\init.lua;"
@@ -85,7 +82,7 @@ static constexpr StrView LUA_IGMARK = "-";
 static constexpr StrView LUA_OFSEP = "_";
 #endif
 
-// Config string: sep \n dirsep \n mark \n execdir \n igmark
+// 配置字符串：分隔符、目录分隔符、替换标记、执行目录、忽略标记，以换行分隔
 static constexpr StrView LUA_CONFIG_STRING =
 #ifdef _WIN32
     "\\\n;\n?\n!\n-";
@@ -94,7 +91,7 @@ static constexpr StrView LUA_CONFIG_STRING =
 #endif
 
 // =====================================================================
-// Helper: get the "package" table from global environment
+// 辅助函数：从全局环境获取 package 表
 // =====================================================================
 
 static Table* getPackageTable(LuaState* L) {
@@ -112,7 +109,7 @@ static Table* getPackageTable(LuaState* L) {
 }
 
 // =====================================================================
-// Helper: get a sub-table from the package table
+// 辅助函数：从 package 表获取子表
 // =====================================================================
 
 static Table* getPackageSubTable(LuaState* L, const char* fieldName) {
@@ -143,7 +140,7 @@ static void appendPackageBuffer(LuaState* L, LuaString& output, StrView text) {
 }
 
 // =====================================================================
-// Helper: get a string field from the package table
+// 辅助函数：从 package 表获取字符串字段
 // =====================================================================
 
 static Str getPackageStringField(LuaState* L, const char* fieldName) {
@@ -160,10 +157,10 @@ static Str getPackageStringField(LuaState* L, const char* fieldName) {
 }
 
 // =====================================================================
-// Path searching: replace "?" with module name in each path template
+// 路径搜索：在每个路径模板中用模块名替换问号
 // =====================================================================
 
-/// Replace all occurrences of `pattern` with `replacement` in `str`
+/** @brief 将 `str` 中出现的所有 `pattern` 替换为 `replacement`。 */
 static Str replaceAll(StrView str, StrView pattern, StrView replacement) {
     Str result;
     result.reserve(str.size());
@@ -182,7 +179,7 @@ static Str replaceAll(StrView str, StrView pattern, StrView replacement) {
     return result;
 }
 
-/// Convert module name dots to directory separators for path searching
+/** @brief 将模块名中的点转换为目录分隔符，以便搜索路径。 */
 static Str moduleNameToPath(const Str& modname) {
     return replaceAll(modname, ".", LUA_DIR_SEP);
 }
@@ -379,13 +376,15 @@ static void callModuleOption(LuaState* L, const Value& option, Table* modTable) 
     }
 }
 
-/// Search for a file along the given path template string.
-/// Returns the file path that was found, or empty string.
-/// On failure, appends tried paths to `errorBuf` for the error message.
+/**
+ * @brief 按给定路径模板字符串搜索文件
+ * @return 找到的文件路径，未找到时返回空字符串
+ * @note 失败时将尝试过的路径追加到 `errorBuf`，用于生成错误消息。
+ */
 static Str searchPath(const Str& name, const Str& pathStr, Str& errorBuf) {
     Str modPath = moduleNameToPath(name);
 
-    // Split pathStr by the configured path separator.
+    // 按配置的路径分隔符拆分 pathStr
     usize pos = 0;
     while (pos <= pathStr.size()) {
         usize sep = pathStr.find(LUA_PATH_SEP, pos);
@@ -400,17 +399,17 @@ static Str searchPath(const Str& name, const Str& pathStr, Str& errorBuf) {
 
         tmpl = applyExecutableDirectory(tmpl);
 
-        // Replace "?" with the module name (with dots replaced by dirsep)
+        // 用模块名替换问号，其中点已替换为目录分隔符
         Str filePath = replaceAll(tmpl, LUA_PATH_MARK, modPath);
 
-        // Try to open the file
+        // 尝试打开文件
         std::ifstream file(filePath, std::ios::binary);
         if (file.is_open()) {
             file.close();
             return filePath;
         }
 
-        // Accumulate error message
+        // 累积错误消息
         errorBuf += "\n\tno file '";
         errorBuf += filePath;
         errorBuf += "'";
@@ -419,8 +418,7 @@ static Str searchPath(const Str& name, const Str& pathStr, Str& errorBuf) {
 }
 
 // =====================================================================
-// Helper: load a Lua file and return a compiled function
-// Returns nullptr on failure and pushes nil + error to the stack.
+// 辅助函数：加载 Lua 文件并返回已编译函数；失败时返回 nullptr，并将 nil 与错误压栈
 // =====================================================================
 
 static Function* loadLuaFile(LuaState* L, const Str& filename) {
@@ -464,7 +462,7 @@ static Function* loadLuaFile(LuaState* L, const Str& filename) {
 }
 
 // =====================================================================
-// Dynamic C library support
+// 动态 C 库支持
 // =====================================================================
 
 enum class DynamicLookupStatus { Success, OpenFailure, InitFailure };
@@ -522,7 +520,7 @@ static void pushSearchError(LuaState* L, const Str& message) {
 }
 
 // =====================================================================
-// package.loaders[1] — preload searcher
+// package.loaders[1]——预加载搜索器
 // =====================================================================
 
 i32 loader_preload(LuaState* L) {
@@ -537,7 +535,7 @@ i32 loader_preload(LuaState* L) {
     const StrView modname = modKey->view();
     auto& pool = L->getGlobalState().getStringPool();
 
-    // Look up package.preload[modname]
+    // 查询 package.preload[modname]
     Table* preload = getPackageSubTable(L, "preload");
     if (!preload) {
         L->setTop(0);
@@ -553,7 +551,7 @@ i32 loader_preload(LuaState* L) {
         return 1;
     }
 
-    // Not found — return error string (not a hard error)
+    // 未找到——返回错误字符串，但不抛出硬错误
     LuaString msg = makePackageBuffer(L);
     appendPackageBuffer(L, msg, "\n\tno field package.preload['");
     appendPackageBuffer(L, msg, modname);
@@ -564,7 +562,7 @@ i32 loader_preload(LuaState* L) {
 }
 
 // =====================================================================
-// package.loaders[2] — Lua file searcher
+// package.loaders[2]——Lua 文件搜索器
 // =====================================================================
 
 i32 loader_lua(LuaState* L) {
@@ -590,13 +588,13 @@ i32 loader_lua(LuaState* L) {
     Str filename = searchPath(modname, pathStr, errorBuf);
 
     if (filename.empty()) {
-        // Not found — return error string
+    // 未找到——返回错误字符串
         L->setTop(0);
         L->pushString(pool.intern(errorBuf.c_str()));
         return 1;
     }
 
-    // Found — compile and return the loader function
+    // 已找到——编译并返回加载器函数
     Function* func = loadLuaFile(L, filename);
     if (!func) {
         Str msg = "\n\terror loading module '" + modname + "' from file '" + filename + "'";
@@ -611,7 +609,7 @@ i32 loader_lua(LuaState* L) {
 }
 
 // =====================================================================
-// package.loaders[3] — C library searcher
+// package.loaders[3]——C 库搜索器
 // =====================================================================
 
 i32 loader_clib(LuaState* L) {
@@ -649,7 +647,7 @@ i32 loader_clib(LuaState* L) {
 }
 
 // =====================================================================
-// package.loaders[4] — all-in-one C library searcher
+// package.loaders[4]——一体式 C 库搜索器
 // =====================================================================
 
 i32 loader_clib_allinone(LuaState* L) {
@@ -700,7 +698,7 @@ i32 loader_clib_allinone(LuaState* L) {
 }
 
 // =====================================================================
-// require(modname) — load and return a module
+// require(modname)——加载并返回模块
 // =====================================================================
 
 i32 luaP_require(LuaState* L) {
@@ -715,7 +713,7 @@ i32 luaP_require(LuaState* L) {
     GCString* modKey = L->at(1).asString();
     const StrView modname = modKey->view();
 
-    // 1. Check package.loaded[modname]
+    // 1. 检查 package.loaded[modname]
     Table* loaded = getPackageSubTable(L, "loaded");
     if (!loaded) {
         L->error("'package.loaded' table is missing");
@@ -724,13 +722,13 @@ i32 luaP_require(LuaState* L) {
     Value cachedVal = loaded->get(Value(modKey));
 
     if (cachedVal.isTrue()) {
-        // Already loaded — return cached value
+        // 已加载——返回缓存值
         L->setTop(0);
         L->pushValue(cachedVal);
         return 1;
     }
 
-    // 2. Try each loader in package.loaders
+    // 2. 逐一尝试 package.loaders 中的加载器
     Table* loaders = getPackageSubTable(L, "loaders");
     if (!loaders) {
         L->error("'package.loaders' table is missing");
@@ -741,34 +739,34 @@ i32 luaP_require(LuaState* L) {
     appendPackageBuffer(L, errorAccum, modname);
     appendPackageBuffer(L, errorAccum, "' not found:");
 
-    // Iterate loaders[1], loaders[2], ...
+    // 依次遍历 loaders[1]、loaders[2] 等
     for (i32 i = 1;; i++) {
         L->consumeNativeWork();
         Value loaderEntry = loaders->get(Value(static_cast<f64>(i)));
         if (loaderEntry.isNil()) {
-            break; // No more loaders
+            break; // 已无更多加载器
         }
 
         if (!loaderEntry.isFunction()) {
-            continue; // Skip non-function entries
+            continue; // 跳过非函数条目
         }
 
         Function* searcherFunc = loaderEntry.asFunction();
 
-        // Call the searcher: result = searcher(modname)
-        // Use VM::call to properly set up a call frame so at(1) = modname
+        // 调用搜索器：result = searcher(modname)
+        // 使用 VM::call 正确建立调用帧，使 at(1) = modname
         L->setTop(0);
         L->pushValue(Value(searcherFunc));
         L->pushString(modKey);
         RuntimeServices services(L->getGlobalState());
-        VM::call(services, L, 1, 1); // 1 arg (modname), 1 result
+        VM::call(services, L, 1, 1); // 1 个参数 modname，1 个结果
 
-        // After VM::call, result is on the stack
+        // VM::call 返回后，结果位于栈上
         if (L->getTop() >= 1) {
             Value result = L->at(1);
 
             if (result.isFunction()) {
-                // Found a loader function — call it with modname
+                // 找到加载器函数——以 modname 为参数调用
                 Function* loaderFunc = result.asFunction();
 
                 L->setTop(0);
@@ -778,7 +776,7 @@ i32 luaP_require(LuaState* L) {
                 Value moduleResult;
 
                 try {
-                    VM::call(services, L, 1, 1); // 1 arg (modname), 1 result
+                    VM::call(services, L, 1, 1); // 1 个参数 modname，1 个结果
 
                     if (L->getTop() >= 1) {
                         moduleResult = L->at(1);
@@ -792,12 +790,11 @@ i32 luaP_require(LuaState* L) {
                     L->error(msg.c_str());
                 }
 
-                // If the loader returned a non-nil value, store it
+                // 若加载器返回非 nil 值，则保存它
                 if (!moduleResult.isNil()) {
                     loaded->set(Value(modKey), moduleResult);
                 } else {
-                    // If no explicit return, check if package.loaded[modname]
-                    // was set by the module itself; if not, set it to true
+                    // 若无显式返回值，检查模块本身是否设置 package.loaded[modname]；否则设为 true
                     Value check = loaded->get(Value(modKey));
                     if (check.isNil()) {
                         moduleResult = Value(true);
@@ -812,20 +809,20 @@ i32 luaP_require(LuaState* L) {
                 return 1;
 
             } else if (result.isString()) {
-                // Searcher returned an error string
+                // 搜索器返回错误字符串
                 appendPackageBuffer(L, errorAccum, result.asString()->view());
             }
-            // else: unexpected type, skip
+            // 其他情况：类型不符合预期，跳过
         }
     }
 
-    // No loader succeeded
+    // 没有加载器成功
     L->error(errorAccum.c_str());
-    return 0; // unreachable
+    return 0; // 不可达
 }
 
 // =====================================================================
-// module(name [, ...]) — create a module
+// module(name [, ...])——创建模块
 // =====================================================================
 
 i32 luaP_module(LuaState* L) {
@@ -848,7 +845,7 @@ i32 luaP_module(LuaState* L) {
         options.push_back(L->at(i));
     }
 
-    // 1. Check package.loaded[modname]; create/reuse global module path if absent
+    // 1. 检查 package.loaded[modname]；不存在时创建或复用全局模块路径
     Table* loaded = getPackageSubTable(L, "loaded");
     if (!loaded) {
         L->error("'package.loaded' table is missing");
@@ -863,11 +860,11 @@ i32 luaP_module(LuaState* L) {
     } else {
         modTable = findOrCreateGlobalModuleTable(L, modname);
 
-        // Store it in package.loaded
+        // 将其存入 package.loaded
         loaded->set(Value(modKey), Value(modTable));
     }
 
-    // 2. Set _NAME, _M, and _PACKAGE fields
+    // 2. 设置 _NAME、_M 与 _PACKAGE 字段
     GCString* nameKey = pool.intern("_NAME");
     modTable->set(Value(nameKey), Value(modKey));
 
@@ -879,10 +876,10 @@ i32 luaP_module(LuaState* L) {
     GCString* packageVal = pool.intern(packagePrefix);
     modTable->set(Value(packageKey), Value(packageVal));
 
-    // 3. Switch the calling Lua function to the module environment
+    // 3. 将调用方 Lua 函数切换到模块环境
     setCallingLuaFunctionEnv(L, modTable);
 
-    // 4. Apply option functions (e.g., package.seeall)
+    // 4. 应用选项函数，例如 package.seeall
     for (const Value& optVal : options) {
         callModuleOption(L, optVal, modTable);
     }
@@ -892,7 +889,7 @@ i32 luaP_module(LuaState* L) {
 }
 
 // =====================================================================
-// package.loadlib(libname, funcname) — dynamic C library loading
+// package.loadlib(libname, funcname)——加载动态 C 库
 // =====================================================================
 
 i32 luaP_loadlib(LuaState* L) {
@@ -935,7 +932,7 @@ i32 luaP_loadlib(LuaState* L) {
 }
 
 // =====================================================================
-// package.seeall(module) — set module env to see all globals
+// package.seeall(module)——设置模块环境以访问全部全局变量
 // =====================================================================
 
 i32 luaP_seeall(LuaState* L) {
@@ -951,8 +948,7 @@ i32 luaP_seeall(LuaState* L) {
     Table* modTable = L->at(1).asTable();
     auto& pool = L->getGlobalState().getStringPool();
 
-    // Set __index of the module's metatable to _G
-    // If the module table has no metatable, create one
+    // 将模块元表的 __index 设为 _G；若模块表没有元表，则创建一个
     Table* mt = modTable->getMetatable();
     if (!mt) {
         mt = L->getGlobalState().getGC().create<Table>();
@@ -967,11 +963,11 @@ i32 luaP_seeall(LuaState* L) {
 
 // =====================================================================
 // package.searchpath(name, path [, sep [, rep]])
-// Not in Lua 5.1 proper, but useful helper — skip for now.
+// 并非 Lua 5.1 正式接口，但属于实用辅助函数——暂不实现
 // =====================================================================
 
 // =====================================================================
-// Library Registration
+// 库注册
 // =====================================================================
 
 void PackageLibModule::registerFunctions(LuaState* L) {
@@ -982,7 +978,7 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     auto& pool = L->getGlobalState().getStringPool();
     auto& gc = L->getGlobalState().getGC();
 
-    // ---- Create the package table ----
+    // ---- 创建 package 表 ----
     Table* pkgTable = FunctionRegistrar::createLibTable(L, PACKAGE_TABLE_NAME);
     if (!pkgTable) {
         L->error("Failed to create package library table");
@@ -992,7 +988,7 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     GCString* registryKey = pool.intern(PACKAGE_REGISTRY_KEY);
     L->getGlobalState().getRegistry()->set(Value(registryKey), Value(pkgTable));
 
-    // ---- Register functions into the package table ----
+    // ---- 向 package 表注册函数 ----
     FunctionRegistrar packageRegistrar(L);
     packageRegistrar.addGlobal("seeall", luaP_seeall);
     const SandboxPolicy& policy = L->getGlobalState().getSandboxPolicy();
@@ -1001,48 +997,50 @@ void PackageLibModule::registerFunctions(LuaState* L) {
     }
     packageRegistrar.commitToTable(pkgTable);
 
-    // ---- Register global functions: require, module ----
+    // ---- 注册全局函数：require、module ----
     FunctionRegistrar(L).addGlobal("require", luaP_require).addGlobal("module", luaP_module).commit();
 
-    // ---- package.loaded ----
+    // ---- package.loaded 已加载模块表 ----
     Table* loadedTable = gc.create<Table>();
     GCString* loadedKey = pool.intern("loaded");
     pkgTable->set(Value(loadedKey), Value(loadedTable));
 
-    // Pre-populate package.loaded with already-opened standard libraries.
-    // We store _G for the base library, and the lib tables for named libs.
-    // These will be detected at the point require() is called. For now,
-    // we just leave loaded empty — modules register on first require().
+    /**
+     * @brief 使用已打开的标准库预填充 package.loaded。
+     *
+     * 基础库保存为 _G，具名库保存其库表。require() 调用时会检测这些条目；当前先将 loaded
+     * 保持为空，模块在首次 require() 时注册。
+     */
 
-    // ---- package.preload ----
+    // ---- package.preload 预加载表 ----
     Table* preloadTable = gc.create<Table>();
     GCString* preloadKey = pool.intern("preload");
     pkgTable->set(Value(preloadKey), Value(preloadTable));
 
-    // ---- package.path ----
+    // ---- package.path Lua 模块路径 ----
     GCString* pathKey = pool.intern("path");
     Str defaultPath = policy.allows(SandboxCapability::Filesystem) ? applyExecutableDirectory(LUA_DEFAULT_PATH) : Str();
     GCString* pathVal = pool.intern(defaultPath.c_str());
     pkgTable->set(Value(pathKey), Value(pathVal));
 
-    // ---- package.cpath ----
+    // ---- package.cpath C 模块路径 ----
     GCString* cpathKey = pool.intern("cpath");
     Str defaultCPath =
         policy.allows(SandboxCapability::NativeModules) ? applyExecutableDirectory(LUA_DEFAULT_CPATH) : Str();
     GCString* cpathVal = pool.intern(defaultCPath.c_str());
     pkgTable->set(Value(cpathKey), Value(cpathVal));
 
-    // ---- package.config ----
+    // ---- package.config 路径配置 ----
     GCString* configKey = pool.intern("config");
     GCString* configVal = pool.intern(LUA_CONFIG_STRING);
     pkgTable->set(Value(configKey), Value(configVal));
 
-    // ---- package.loaders ----
+    // ---- package.loaders 加载器表 ----
     Table* loadersTable = gc.create<Table>();
     GCString* loadersKey = pool.intern("loaders");
     pkgTable->set(Value(loadersKey), Value(loadersTable));
 
-    // loader[1] = preload searcher
+    // loader[1] = 预加载搜索器
     Function* preloadSearcher = gc.create<Function>(loader_preload);
     loadersTable->set(Value(1.0), Value(preloadSearcher));
 
@@ -1065,15 +1063,14 @@ void PackageLibModule::initialize(LuaState* L) {
         return;
     }
 
-    // Pre-populate package.loaded with standard libraries that are
-    // already open. This allows  require("math")  etc. to work.
+    // 使用已打开的标准库预填充 package.loaded，使 require("math") 等调用可用
     Table* loaded = getPackageSubTable(L, "loaded");
     if (!loaded)
         return;
 
     auto& pool = L->getGlobalState().getStringPool();
 
-    // Map library names to their global table entries
+    // 将库名称映射到对应的全局表条目
     static constexpr std::array<StrView, 9> stdlibs = {"_G",    "math",      "io",    "os",     "string",
                                                        "table", "coroutine", "debug", "package"};
 

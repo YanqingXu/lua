@@ -2,7 +2,7 @@
 
 /**
  * @file bytecode_builder.hpp
- * @brief Narrow Proto write boundary for bytecode emission.
+ * @brief 字节码发射所使用的精简函数原型写入边界
  */
 
 #include "compiler/opcode.hpp"
@@ -16,10 +16,10 @@
 namespace Lua {
 
 /**
- * @brief Small facade for writes to the current Proto during code generation.
+ * @brief 代码生成期间写入当前函数原型的轻量外观
  *
- * CodeGenerator lowering code still decides what to emit; this class owns the
- * direct mutation of bytecode, line info, constants, sub-protos, and debug names.
+ * 代码生成器的降级代码仍决定发射内容；此类负责直接修改字节码、行信息、常量、子函数
+ * 原型与调试名称。
  */
 class BytecodeBuilder {
 public:

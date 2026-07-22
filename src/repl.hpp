@@ -15,7 +15,7 @@
  * - 处理错误并继续运行
  * - 支持 Ctrl+C 中断信号
  * - 支持默认行号提示符和可配置的提示符 (_PROMPT, _PROMPT2)
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-12-04
  */
 
@@ -40,27 +40,42 @@ namespace REPL {
 // REPL 常量定义
 // ============================================================================
 
-/// 默认主提示符（对应 LUA_PROMPT）
+/**
+ * @brief 默认主提示符（对应 LUA_PROMPT）
+ */
 constexpr const char* DEFAULT_PROMPT1 = "> ";
 
-/// 默认续行提示符（对应 LUA_PROMPT2）
+/**
+ * @brief 默认续行提示符（对应 LUA_PROMPT2）
+ */
 constexpr const char* DEFAULT_PROMPT2 = ">> ";
 
-/// 版本信息
+/**
+ * @brief 版本信息
+ */
 constexpr const char* VERSION = "Lua 5.1.5";
 
-/// 版权信息
+/**
+ * @brief 版权信息
+ */
 constexpr const char* COPYRIGHT = "Copyright (C) 1994-2012 Lua.org, PUC-Rio";
 
-/// Lua 版本字符串（用于 _VERSION 全局变量）
+/**
+ * @brief Lua 版本字符串（用于 _VERSION 全局变量）
+ */
 constexpr const char* LUA_VERSION = "Lua 5.1";
 
-/// 默认程序名（用于错误消息前缀）
+/**
+ * @brief 默认程序名（用于错误消息前缀）
+ */
 constexpr const char* DEFAULT_PROGNAME = "lua";
 
-/// 默认持久化历史文件名
+/**
+ * @brief 默认持久化历史文件名
+ */
 constexpr const char* DEFAULT_HISTORY_FILE = ".lua_history";
 
+/** @brief 交互式解释器元命令类型。 */
 enum class MetaCommandKind {
     None,
     Help,
@@ -70,16 +85,19 @@ enum class MetaCommandKind {
     Unknown,
 };
 
+/** @brief 解析后的交互式解释器元命令。 */
 struct MetaCommand {
     MetaCommandKind kind = MetaCommandKind::None;
     Str argument;
 };
 
+/** @brief 输入补全候选及其替换范围。 */
 struct CompletionResult {
     Str completedLine;
     Vec<Str> candidates;
 };
 
+/** @brief 错误消息的颜色输出模式。 */
 enum class ErrorColorMode {
     Auto,
     Never,

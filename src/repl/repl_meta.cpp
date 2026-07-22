@@ -1,3 +1,8 @@
+/**
+ * @file repl_meta.cpp
+ * @brief REPL 字节码、AST 与垃圾回收元命令的实现
+ */
+
 #include "repl/repl_meta.hpp"
 
 #include "bytecode/bytecode_printer.hpp"

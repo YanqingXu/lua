@@ -2,7 +2,7 @@
 
 /**
  * @file sandbox_policy.hpp
- * @brief Context-owned standard-library and privileged-operation policy.
+ * @brief 上下文拥有的标准库与特权操作策略
  */
 
 #include "common/types.hpp"
@@ -12,7 +12,7 @@
 namespace Lua {
 
 /**
- * @brief Privileged host resources reachable from Lua standard libraries.
+ * @brief Lua 标准库可访问的特权宿主资源
  */
 enum class SandboxCapability : u8 {
     Filesystem,
@@ -24,7 +24,7 @@ enum class SandboxCapability : u8 {
 };
 
 /**
- * @brief Standard-library exposure bits used by SandboxProfile.
+ * @brief SandboxProfile 使用的标准库暴露位
  */
 enum class StandardLibrarySet : u16 {
     None = 0,
@@ -51,7 +51,7 @@ enum class StandardLibrarySet : u16 {
 }
 
 /**
- * @brief Value configured into one context's SandboxPolicy.
+ * @brief 配置到单个上下文 SandboxPolicy 中的值
  */
 struct SandboxProfile {
     StandardLibrarySet standardLibraries = StandardLibrarySet::All;
@@ -63,14 +63,14 @@ struct SandboxProfile {
     bool gcControl = true;
 
     /**
-     * @brief Lua 5.1-compatible unrestricted behavior.
+ * @brief 与 Lua 5.1 兼容的无限制行为。
      */
     [[nodiscard]] static constexpr SandboxProfile unrestricted() noexcept {
         return {};
     }
 
     /**
-     * @brief Conservative server profile with preload-only Lua modules.
+     * @brief 仅允许预加载 Lua 模块的保守服务器配置
      */
     [[nodiscard]] static constexpr SandboxProfile gameServer() noexcept {
         return {
@@ -87,12 +87,10 @@ struct SandboxProfile {
 };
 
 /**
- * @brief Owner-thread configuration shared by every LuaState in one context.
+ * @brief 单个上下文内所有 LuaState 共享的所有者线程配置
  *
- * Library exposure is evaluated when a library is opened. Privileged capabilities
- * are also checked at each operation so an already-captured function cannot bypass
- * a later restriction. Configure the profile before opening standard libraries when
- * disabled globals must never be published.
+ * 打开标准库时评估库暴露权限。每次操作也会检查特权能力，避免已捕获的函数绕过后续限制。
+ * 若被禁用的全局项绝不能发布，应在打开标准库之前配置此方案。
  */
 class SandboxPolicy {
 public:

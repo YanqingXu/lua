@@ -1,5 +1,10 @@
 #pragma once
 
+/**
+ * @file codegen_context.hpp
+ * @brief 代码生成器的局部变量、作用域与上值上下文类型
+ */
+
 #include "common/types.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/register_allocator.hpp"
@@ -16,6 +21,7 @@ class GCString;
 // LocalVar — 局部变量信息（从 codegen.hpp 移出）
 // =============================================================================
 
+/** @brief 代码生成期间跟踪的局部变量信息。 */
 struct LocalVar {
     Str name;
     i32 reg;
@@ -34,8 +40,8 @@ struct LocalVar {
 /**
  * @brief 局部变量作用域管理器
  *
- * 从 CodeGenerator 中提取的局部变量管理子系统。
- * 迁移说明 (PR-7):
+ * 从代码生成器中提取的局部变量管理子系统。
+ * @note 第 7 次拉取请求的迁移说明：
  * - activeVarCount_  现在由 CodegenState::localScope.activeVarCount_ 持有（公开字段）
  * - localVars_ 现在由 CodegenState::localScope.localVars_ 持有（公开字段）
  */
@@ -70,7 +76,7 @@ public:
         return false;
     }
 
-    /// 关闭离开作用域的局部变量（设置 endpc）
+    /** @brief 关闭离开作用域的局部变量并设置 endpc。 */
     void closeLocals(i32 tolevel, i32 currentPc) {
         while (activeVarCount_ > tolevel) {
             activeVarCount_--;
@@ -94,11 +100,11 @@ public:
 };
 
 // =============================================================================
-// UpvalueCapture + UpvalueContext
+/** @brief 上值捕获信息与上值上下文。 */
 // =============================================================================
 
 /**
- * @brief Upvalue 捕获信息
+ * @brief 上值捕获信息
  */
 struct UpvalueCapture {
     Str name;
@@ -110,12 +116,12 @@ struct UpvalueCapture {
 };
 
 /**
- * @brief Upvalue 上下文
+ * @brief 上值上下文
  *
- * 管理当前函数捕获的 upvalue 列表。
- * parent 指针保留在 CodegenState 中用于跨函数 upvalue 解析。
+ * 管理当前函数捕获的上值列表。
+ * parent 指针保留在代码生成状态中，用于跨函数解析上值。
  *
- * 迁移说明 (PR-7):
+ * @note 第 7 次拉取请求的迁移说明：
  * - upvalues_ 现在由 CodegenState::upvalueContext.upvalues_ 持有（公开字段）
  */
 class UpvalueContext {
@@ -147,7 +153,7 @@ public:
 };
 
 // =============================================================================
-// BlockInfo + BlockManager
+/** @brief 代码块信息与代码块管理器。 */
 // =============================================================================
 
 /**
@@ -168,6 +174,7 @@ struct BlockInfo {
         , isbreakable(breakable) {}
 };
 
+/** @brief 已编译子函数原型及其上值捕获信息。 */
 struct CompiledFunction {
     Proto* proto = nullptr;
     i32 protoIndex = -1;
@@ -177,9 +184,9 @@ struct CompiledFunction {
 /**
  * @brief 代码块与跳转管理器
  *
- * 从 CodeGenerator 中提取的代码块嵌套和跳转链管理子系统。
+ * 从代码生成器中提取的代码块嵌套和跳转链管理子系统。
  *
- * 迁移说明 (PR-7):
+ * @note 第 7 次拉取请求的迁移说明：
  * - currentBlock_ 现在由 CodegenState::blockManager.currentBlock_ 持有（公开字段）
  * - jpc_          现在由 CodegenState::blockManager.jpc_ 持有（公开字段）
  */
@@ -205,11 +212,13 @@ public:
         return block;
     }
 
-    /// 离开当前代码块，移除局部变量，修复 break 跳转
-    /// @param localScope 局部变量作用域
-    /// @param registers  寄存器分配器
-    /// @param currentPc 当前指令位置
-    /// @param patchToHere 修补跳转到当前位置的回调
+    /**
+     * @brief 离开当前代码块、移除局部变量并修复 break 跳转
+     * @param localScope 局部变量作用域
+     * @param registers 寄存器分配器
+     * @param currentPc 当前指令位置
+     * @param patchToHere 将跳转回填到当前位置的回调
+     */
     void leaveBlock(LocalVarScope& localScope, RegisterAllocator& registers,
                     i32 currentPc, const std::function<void(i32)>& patchToHere) {
         UPtr<BlockInfo> bl = takeCurrentBlock();

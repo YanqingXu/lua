@@ -2,7 +2,7 @@
 
 /**
  * @file resource_policy.hpp
- * @brief Canonical per-context limits for script-controlled resource growth.
+ * @brief 脚本控制资源增长所使用的统一上下文级限制
  */
 
 #include "common/types.hpp"
@@ -11,6 +11,7 @@
 
 namespace Lua {
 
+/** @brief 单个运行时上下文的资源上限。 */
 struct ResourcePolicy {
     static constexpr usize DefaultMaxBytes = static_cast<usize>(64) * 1024 * 1024;
 
@@ -28,6 +29,7 @@ struct ResourcePolicy {
     usize maxReaderPieces = 1'000'000;
 };
 
+/** @brief 运行时资源使用超过策略上限时抛出的异常。 */
 class ResourceLimitError final : public std::runtime_error {
 public:
     explicit ResourceLimitError(const char* message) : std::runtime_error(message) {}

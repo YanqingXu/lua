@@ -1,3 +1,8 @@
+/**
+ * @file testlib.cpp
+ * @brief Lua 测试辅助库函数与模块注册的实现
+ */
+
 #include "lib/testlib.hpp"
 
 #include "lauxlib.h"

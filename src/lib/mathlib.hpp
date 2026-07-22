@@ -18,7 +18,7 @@
  * 数学常量：
  * - math.pi: 圆周率π
  * - math.huge: 正无穷大（HUGE_VAL）
- * @author Lua C++ Project
+ * @author Lua C++ 项目
  * @date 2025-12-19
  */
 

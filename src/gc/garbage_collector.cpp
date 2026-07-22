@@ -102,9 +102,12 @@ GarbageCollector::GarbageCollector(LuaAllocator* allocator)
 GarbageCollector::~GarbageCollector() {
     clearAll();
 
-    // clearAll() intentionally preserves fixed roots for tests. Runtime
-    // destruction must release them as well so lua_close balances every
-    // allocator-backed object, including reserved strings and the registry.
+    /**
+     * @brief clearAll() 为测试有意保留固定根。
+     *
+     * 运行时析构也必须释放这些根，使 lua_close 对每个由分配器支撑的对象完成配对释放，
+     * 包括保留字符串与注册表。
+     */
     StringPool& stringPool = stringPoolForCollection(nullptr);
     while (allObjects_ != nullptr) {
         GCObject* object = allObjects_;
@@ -137,11 +140,12 @@ void GarbageCollector::registerObject(GCObject* obj) {
     allObjects_ = obj;
 
     if (incrementalPhase_ == IncrementalPhase::Sweep && incrementalSweepPrevious_ == nullptr) {
-        // The sweep cursor still points at the former list head.  Treat this
-        // allocation as its retained predecessor so removing that old head
-        // cannot overwrite allObjects_ and unlink the fresh object.  Objects
-        // allocated during Sweep stay black and are visited by the next
-        // cycle, matching the usual allocate-black invariant.
+        /**
+         * @brief 将清扫期间的新分配视为当前游标保留的前驱。
+         *
+         * 清扫游标仍指向原链表头；如此处理后，移除旧链表头不会覆盖 allObjects_ 并断开新对象。
+         * 清扫期间分配的对象保持黑色并由下一周期访问，符合通常的“分配即黑色”不变量。
+         */
         incrementalSweepPrevious_ = obj;
     }
 
@@ -155,25 +159,30 @@ void GarbageCollector::registerObject(GCObject* obj) {
 
     if (incrementalPhase_ != IncrementalPhase::Pause) {
         try {
-            // Objects are constructed before registration, so they may
-            // already own references (for example Function -> Proto or a
-            // closed Upvalue -> Value).  A black allocation must publish
-            // that complete initial graph just like a normal write barrier.
+        /**
+         * @brief 黑色新分配必须像普通写屏障一样发布完整初始对象图。
+         *
+         * 对象先构造后注册，因此可能已拥有引用，例如 Function 指向 Proto，或已关闭上值指向
+         * Value。
+         */
             const usize weakTableCountBeforeMark = weakTables_.size();
             obj->mark(*this);
             propagateMarks();
             if (incrementalPhase_ == IncrementalPhase::Sweep && weakTables_.size() > weakTableCountBeforeMark) {
-                // Atomic weak cleanup has already run.  A newly published,
-                // pre-populated weak table may still contain white entries;
-                // continuing this sweep would reclaim their targets without
-                // clearing the slots.  Restart only for this exceptional
-                // graph shape instead of restarting on every allocation.
+            /**
+             * @brief 原子弱引用清理后遇到预填充弱表时，仅针对该异常对象图重启周期。
+             *
+             * 新发布的预填充弱表可能仍含白色条目；继续清扫会回收其目标却不清除对应槽。无需在
+             * 每次分配时都重启。
+             */
                 resetIncrementalCycle();
             }
         } catch (const std::bad_alloc&) {
-            // Barrier bookkeeping is optional once the unfinished cycle is
-            // abandoned.  Keep the successfully allocated object and let the
-            // next cycle recolour and scan the whole heap.
+            /**
+             * @brief 放弃未完成周期后无需继续写屏障记账。
+             *
+             * 保留成功分配的对象，由下一周期重新着色并扫描整个堆。
+             */
             resetIncrementalCycle();
         } catch (...) {
             resetIncrementalCycle();
@@ -297,16 +306,15 @@ usize GarbageCollector::collect(StringPool& stringPool) {
     return collect(stringPool, nullptr);
 }
 
-// collect(LuaState*) phase contract:
-//
-// The order is mark roots -> schedule finalizers -> propagate the resurrection
-// graph -> clean weak tables -> sweep -> run finalizers. `prepareFinalizers()`
-// must happen before weak cleanup and sweep because unreachable userdata with
-// `__gc` is not freed immediately; it is queued, marked FINALIZED, and marked
-// again so metatables, closures, and objects reachable from the finalizer path
-// survive this cycle. `runFinalizers()` is intentionally after sweep: other
-// white garbage is already reclaimed, while finalized userdata can still be
-// resurrected without being queued for `__gc` a second time.
+/**
+ * @brief collect(LuaState*) 的阶段约定
+ *
+ * 顺序为：标记根 → 安排终结器 → 传播复活对象图 → 清理弱表 → 清扫 → 运行终结器。
+ * prepareFinalizers() 必须先于弱引用清理与清扫，因为带 __gc 的不可达用户数据不会立即释放；
+ * 它会入队、标记为 FINALIZED 并再次标记，使元表、闭包及终结器路径可达对象在本周期存活。
+ * runFinalizers() 有意置于清扫之后：其他白色垃圾已回收，而已终结用户数据仍可复活，且不会
+ * 第二次排入 __gc 队列。
+ */
 usize GarbageCollector::collect(LuaState* currentState) {
     return collect(stringPoolForCollection(currentState), currentState);
 }
@@ -367,26 +375,28 @@ usize GarbageCollector::maybeCollectAutomatic(LuaState* currentState) {
         return 0;
     }
 
-    // This is a VM hot path (SETTABLE/SETLIST/global writes). totalMemory_
-    // and gcDebtBytes_ are maintained incrementally as GC objects enter and
-    // leave the collector; traversing the entire object list here turns a
-    // growing table of strings/closures into quadratic runtime.
-    // Thresholds decide when to start a cycle, never whether to finish one.
-    // Sweep can lower both memory and debt below the threshold; pausing there
-    // would strand the cursor indefinitely and make objects allocated during
-    // that partial sweep black without ever reaching a fresh mark phase.
+    /**
+     * @brief 避免在 VM 热路径中遍历整个对象链表，并保证已开始的周期能够完成。
+     *
+     * 此处是 SETTABLE、SETLIST 与全局写入的 VM 热路径。垃圾回收对象进出收集器时会增量维护
+     * totalMemory_ 与 gcDebtBytes_；在此遍历整个对象链表会使不断增长的字符串或闭包表退化为
+     * 二次时间。阈值仅决定何时开始周期，而不决定是否完成周期。清扫可能让内存与债务同时
+     * 降到阈值以下；若此时暂停，游标会永久搁置，且局部清扫期间分配的对象会一直保持黑色，
+     * 无法进入新的标记阶段。
+     */
     if (incrementalPhase_ == IncrementalPhase::Pause && totalMemory_ < automaticThresholdBytes_ && gcDebtBytes_ <= 0) {
         return 0;
     }
 
     automaticCollectionRunning_ = true;
     try {
-        // Automatic checkpoints are charged in bytes, while the incremental
-        // core currently budgets whole objects.  A 1 KiB public step maps to
-        // only two objects and can lag hundreds of allocations behind a
-        // modest standard-library heap.  Use an 8 KiB minimum quantum for
-        // automatic work; explicit collectgarbage("step", 0) remains tiny and
-        // observable for callers that intentionally drive individual phases.
+    /**
+     * @brief 为自动工作使用 8 KiB 最小时间片。
+     *
+     * 自动检查点按字节计费，而增量核心当前按完整对象分配预算。公开的 1 KiB 步长仅映射为两个
+     * 对象，在普通标准库堆中可能落后数百次分配。显式 collectgarbage("step", 0) 仍保持极小且
+     * 可观察，供有意逐阶段驱动的调用者使用。
+     */
         constexpr i32 kAutomaticStepKilobytes = 8;
         bool finished = step(currentState, kAutomaticStepKilobytes - 1);
         automaticCollectionRunning_ = false;
@@ -414,9 +424,12 @@ bool GarbageCollector::step(LuaState* currentState, i32 size) {
     const i32 normalizedSize = std::max(0, size);
     const u64 requestedKilobytes = static_cast<u64>(normalizedSize) + 1;
     const u64 multiplier = static_cast<u64>(std::max(1, stepMultiplier_));
-    // Both factors are at most 2^31, so this product fits in u64. Convert
-    // percent-scaled work to bytes separately and saturate before size_t to
-    // keep INT_MAX public steps well-defined even with an extreme stepmul.
+    /**
+     * @brief 对百分比缩放后的工作量执行饱和字节转换。
+     *
+     * 两个因子最大均为 2^31，因此乘积可容纳于 u64。转换到 size_t 前先饱和，使极端 stepmul
+     * 下的 INT_MAX 公开步长仍有明确定义。
+     */
     const u64 scaledKilobytePercent = requestedKilobytes * multiplier;
     const u64 scaledKilobytes = scaledKilobytePercent / 100;
     const usize scaledBytes = saturatedStepBytes(scaledKilobytePercent);
@@ -495,10 +508,12 @@ bool GarbageCollector::canAccountManagedBytes(usize additionalBytes) const noexc
     if (managedMemoryBudgetBytes_ == std::numeric_limits<usize>::max()) {
         return true;
     }
-    // Memory-limited TestC workloads exercise this on every VM write. The
-    // collector maintains totalMemory_ incrementally and reconciles it at
-    // cycle boundaries; an object-list traversal here makes those workloads
-    // quadratic once a finite (but large) limit is installed.
+    /**
+     * @brief 避免受内存限制的 TestC 工作负载在每次 VM 写入时遍历对象链表。
+     *
+     * 收集器增量维护 totalMemory_ 并在周期边界对账；设置有限但较大的限制后，在此遍历对象
+     * 链表会使这些工作负载退化为二次时间。
+     */
     const usize liveBytes = totalMemory_;
     return liveBytes <= managedMemoryBudgetBytes_ && additionalBytes <= managedMemoryBudgetBytes_ - liveBytes;
 }
@@ -529,11 +544,12 @@ usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* curre
     resetIncrementalCycle();
 
     // 1. 标记阶段
-    // LocVar ranges are not complete liveness maps: anonymous expression
-    // temporaries can survive across a C call to collectgarbage(). Scan the
-    // complete active register windows until the VM has proper stack maps;
-    // retaining a dead weak value for one cycle is safer than sweeping a live
-    // temporary and later dereferencing it from SETLIST/RETURN.
+    /**
+     * @brief 在 VM 尚无完整栈映射时扫描全部活动寄存器窗口。
+     *
+     * LocVar 区间不是完整的存活映射：匿名表达式临时值可跨越对 collectgarbage() 的 C 调用存活。
+     * 让一个已死亡弱值多保留一周期，比清扫仍存活的临时值并随后由 SETLIST/RETURN 解引用更安全。
+     */
     const bool previousPreciseStackRoots = preciseStackRoots_;
     preciseStackRoots_ = false;
     try {
@@ -550,7 +566,7 @@ usize GarbageCollector::collectMarkSweep(StringPool& stringPool, LuaState* curre
         propagateMarks();
     }
 
-    // 3. 清理弱表条目。必须在 sweep 删除白色对象之前执行。
+    /** @brief 3. 清理弱表条目，必须在清扫阶段删除白色对象之前执行。 */
     clearWeakTableEntries();
 
     // 4. 清除阶段
@@ -617,9 +633,11 @@ void GarbageCollector::updateAutomaticThresholdAfterCycle() noexcept {
 }
 
 void GarbageCollector::beginIncrementalMark(LuaState* currentState) {
-    // Reserve before changing any colours.  Every local object can enter the
-    // gray queue at most once, so this also guarantees that the deferred
-    // noexcept write barrier never needs to allocate during this cycle.
+    /**
+     * @brief 改变任何颜色前预留队列容量。
+     *
+     * 每个本地对象最多进入灰色队列一次，这也保证延迟的无异常写屏障在本周期内无需分配。
+     */
     grayList_.reserve(objectCount_);
     weakTables_.reserve(objectCount_);
 
@@ -642,11 +660,12 @@ void GarbageCollector::beginIncrementalMark(LuaState* currentState) {
         markObject(root);
     }
 
-    // Automatic steps can run between any two VM instructions, including in
-    // the middle of a table constructor before its temporary register has a
-    // LocVar range. Use the complete active register windows for incremental
-    // root snapshots; precise roots remain useful for explicit collections
-    // that implement weak-table observability tests.
+    /**
+     * @brief 增量根快照使用完整活动寄存器窗口。
+     *
+     * 自动步进可在任意两条 VM 指令间运行，包括表构造器执行到一半且临时寄存器尚无 LocVar
+     * 区间时。精确根仍用于实现弱表可观察性测试的显式收集。
+     */
     const bool previousPreciseStackRoots = preciseStackRoots_;
     preciseStackRoots_ = false;
     try {
@@ -669,9 +688,11 @@ void GarbageCollector::beginIncrementalMark(LuaState* currentState) {
 }
 
 void GarbageCollector::performIncrementalAtomic(LuaState* currentState) {
-    // Stack roots do not have a write barrier. Rescan them at the atomic
-    // boundary so values installed after beginIncrementalMark cannot remain
-    // white when sweeping starts.
+    /**
+     * @brief 在原子边界重新扫描没有写屏障的栈根。
+     *
+     * 这样可防止 beginIncrementalMark 后安装的值在清扫开始时仍保持白色。
+     */
     const bool previousPreciseStackRoots = preciseStackRoots_;
     preciseStackRoots_ = false;
     try {
@@ -693,15 +714,19 @@ void GarbageCollector::performIncrementalAtomic(LuaState* currentState) {
     }
     preciseStackRoots_ = previousPreciseStackRoots;
 
-    // A weak table's metatable can change after it was first scanned.
-    // Re-evaluate __mode before clearing entries so weak-to-strong transitions
-    // mark their newly strong edges in this same collection.
+    /**
+     * @brief 清理条目前重新评估弱表元表的 __mode。
+     *
+     * 弱表首次扫描后元表仍可变化，因此弱到强的转换必须在同一轮收集中标记新近变强的边。
+     */
     reconcileWeakTableModes();
     propagateMarks();
 
-    // Finalizer reachability must be decided only after weak-mode changes have
-    // promoted newly strong edges.  Otherwise a userdata that became strongly
-    // reachable during this cycle could be finalized prematurely.
+    /**
+     * @brief 仅在弱模式变化提升新强边后判断终结器可达性。
+     *
+     * 否则，本周期内变为强可达的用户数据可能被过早终结。
+     */
     if (currentState != nullptr) {
         prepareFinalizers();
         propagateMarks();
@@ -739,9 +764,11 @@ usize GarbageCollector::sweepStep(StringPool& stringPool, usize budget) {
             destroyObject(obj, stringPool);
             ++collected;
             if (incrementalPhase_ != IncrementalPhase::Sweep) {
-                // Destruction can close upvalues and conservatively abort the
-                // cycle.  Do not resurrect the stale cursor or overwrite the
-                // reset phase after returning from that reentrant path.
+            /**
+             * @brief 析构可能关闭上值并保守地中止周期。
+             *
+             * 从该重入路径返回后，不得恢复陈旧游标或覆盖已重置的阶段。
+             */
                 return collected;
             }
         } else {
@@ -788,10 +815,12 @@ bool GarbageCollector::incrementalStep(StringPool& stringPool, LuaState* current
     }
 
     case IncrementalPhase::Finalize: {
-        // A finalizer may synchronously run a full collection, which resets
-        // the incremental bookkeeping.  Snapshot the completed sweep before
-        // invoking user code so the outer automatic checkpoint reports its
-        // own collection count.
+                /**
+                 * @brief 调用用户代码前记录已完成的清扫快照。
+                 *
+                 * 终结器可能同步运行完整收集并重置增量记账；预先记录可让外层自动检查点报告自身
+                 * 的收集数量。
+                 */
         const usize completedCollected = incrementalCollected_;
         if (currentState != nullptr) {
             runFinalizers(currentState);
@@ -942,9 +971,12 @@ void GarbageCollector::clearAll(StringPool& stringPool) {
         }
     };
 
-    // Threads own LuaState instances that may still reference open upvalues.
-    // Destroy them before the generic object pass so LuaState::~LuaState can
-    // close those upvalues while the Upvalue objects are still alive.
+    /**
+     * @brief 在通用对象遍历前销毁拥有 LuaState 的线程。
+     *
+     * LuaState 实例可能仍引用开放上值；先销毁线程可让 LuaState::~LuaState 在 Upvalue 对象仍
+     * 存活时关闭这些上值。
+     */
     deleteMatching([](GCObject* obj) { return obj->getType() == GCObjectType::Thread; });
     deleteMatching([](GCObject*) { return true; });
 

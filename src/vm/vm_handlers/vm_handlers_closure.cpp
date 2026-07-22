@@ -1,6 +1,6 @@
 /**
  * @file vm_handlers_closure.cpp
- * @brief Closure and vararg opcode handlers.
+ * @brief 闭包与可变参数操作码处理器
  */
 
 #include "vm/vm_handlers/vm_handler_utils.hpp"

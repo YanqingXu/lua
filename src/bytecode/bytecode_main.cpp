@@ -1,3 +1,8 @@
+/**
+ * @file bytecode_main.cpp
+ * @brief 字节码查看与差异比较命令行工具入口
+ */
+
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "bytecode_printer.hpp"

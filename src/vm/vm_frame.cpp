@@ -1,6 +1,6 @@
 /**
  * @file vm_frame.cpp
- * @brief VM closure and vararg frame helpers.
+ * @brief VM 闭包与可变参数调用帧辅助函数
  */
 
 #include "vm/vm_internal.hpp"

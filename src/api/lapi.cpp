@@ -1,3 +1,8 @@
+/**
+ * @file lapi.cpp
+ * @brief Lua 5.1 公共 C API 与运行时桥接的实现
+ */
+
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
@@ -282,9 +287,11 @@ int publishApiStatusError(Lua::LuaState* state, Lua::usize savedTop, const Lua::
         return LUA_ERRMEM;
     }
 
-    // Ordinary API pushes reserve one physical stack slot. If legacy/internal
-    // code violated that invariant, preserve the caller's prefix rather than
-    // overwriting its final value merely to publish an error object.
+    /**
+     * @brief 普通 API 压栈会预留一个物理栈槽。
+     *
+     * 若旧式或内部代码破坏此不变量，应保留调用者前缀，而不能只为发布错误对象就覆盖其末值。
+     */
     return LUA_ERRMEM;
 }
 
@@ -374,11 +381,13 @@ int prepareCFunctionCoroutineEntry(lua_State* L, int nargs) {
         return LUA_OK;
     }
 
-    // Thread::resume executes a Lua frame. A tiny vararg trampoline keeps the
-    // C callback inside that resumable frame, so both ordinary returns and a
-    // lua_yield from a C entry follow the same continuation path as a C call
-    // made by Lua code. Its private environment binds `f` without changing the
-    // entry closure's own environment or imposing a limit on argument count.
+    /**
+     * @brief Thread::resume 执行 Lua 调用帧。
+     *
+     * 轻量可变参数跳板将 C 回调保留在可恢复调用帧内，使普通返回与 C 入口的 lua_yield 均沿用
+     * Lua 代码发起 C 调用时的延续路径。其私有环境绑定 `f`，既不改变入口闭包自身环境，也不
+     * 限制参数数量。
+     */
     static constexpr char source[] = "return f(...)";
     const int status = luaL_loadbuffer(L, source, sizeof(source) - 1, "=(C coroutine entry)");
     if (status == LUA_OK) {
@@ -429,9 +438,11 @@ int lua_tryclose(lua_State* L) LUA_CXX_NOEXCEPT {
         return LUA_ERRBUSY;
     }
 
-    // Lua 5.1 closes the whole runtime even when the caller supplies a
-    // coroutine state.  Run every remaining __gc while the main state and
-    // native module registry are still alive, then release the root owner.
+    /**
+     * @brief 即使调用者传入协程状态，Lua 5.1 也会关闭整个运行时。
+     *
+     * 在主状态与原生模块注册表仍存活时运行所有剩余 __gc，再释放根所有者。
+     */
     globalState.getGC().finalizeAll(mainState);
     Lua::LuaState::destroyState(mainState);
     return LUA_OK;
@@ -472,8 +483,9 @@ int lua_checkstack(lua_State* L, int extra) LUA_CXX_NOEXCEPT {
 
     const Lua::usize top = state->getAbsoluteTop();
     const Lua::usize additional = static_cast<Lua::usize>(extra);
-    // One physical slot is reserved for allocation-free error publication.
-    // Consequently the largest ordinary logical top is MAX_STACK_SIZE - 1.
+    /**
+     * @brief 预留一个物理栈槽供免分配错误发布，因此普通逻辑栈顶最大为 MAX_STACK_SIZE - 1。
+     */
     if (top >= Lua::MAX_STACK_SIZE || additional >= Lua::MAX_STACK_SIZE - top) {
         return 0;
     }
@@ -684,9 +696,11 @@ const char* lua_tolstring(lua_State* L, int idx, size_t* len) LUA_CXX_MAY_THROW 
         return {};
     }
 
-    // Reading an existing string must remain allocation-free. In particular,
-    // protected loader failures may occupy the reserved emergency stack slot
-    // while the host allocator is still rejecting every request.
+    /**
+     * @brief 读取现有字符串必须保持免分配。
+     *
+     * 尤其是宿主分配器仍拒绝所有请求时，受保护的加载器失败可能占用预留应急栈槽。
+     */
     if (value->isString()) {
         if (len != nullptr) {
             *len = value->asString()->getLength();
@@ -1243,8 +1257,9 @@ int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT {
     Lua::Thread* thread = state->getThread();
 
     auto fail = [&](const Lua::Value& errorValue, int status) noexcept {
-        // A strong rollback can remove the suspended frame. Compute the base
-        // after that rollback instead of publishing above a stale frame base.
+        /**
+         * @brief 强回滚可能移除暂停调用帧，应在回滚后重新计算基址，避免发布到陈旧基址上方。
+         */
         const int result = publishApiStatusError(state, currentFrameBase(state), errorValue, status);
         state->setStatus(static_cast<Lua::ThreadStatus>(result));
         return result;
@@ -1285,8 +1300,11 @@ int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT {
                 return fail(errorValue, preparationStatus);
             }
             const int stateTop = apiTop(state);
-            // Thread::resume owns the VM transition and expects resume arguments
-            // on its caller stack. Keep the bridge's existing prefix untouched.
+        /**
+         * @brief Thread::resume 负责 VM 状态转换，并要求恢复参数位于调用者栈上。
+         *
+         * 保持桥接层已有前缀不变。
+         */
             for (int i = nargs; i > 0; --i) {
                 bridge->pushValue(state->at(-i));
             }
@@ -1330,9 +1348,10 @@ int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT {
                 return static_cast<int>(LUA_YIELD);
             }
 
-            // The internal coroutine runner copies results to its caller. A public
-            // lua_resume must additionally leave those results on the resumed
-            // state's own API stack.
+        /**
+         * @brief 内部协程运行器将结果复制给调用者；公开 lua_resume 还必须将结果留在被恢复状态
+         * 自身的 API 栈上。
+         */
             setApiTop(state, 0);
             for (const Lua::Value& value : outputValues) {
                 state->pushValue(value);

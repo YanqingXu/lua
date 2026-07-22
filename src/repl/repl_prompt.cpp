@@ -1,3 +1,8 @@
+/**
+ * @file repl_prompt.cpp
+ * @brief REPL 可配置提示符的生成实现
+ */
+
 #include "repl/repl_prompt.hpp"
 
 #include "core/gc_string.hpp"
@@ -22,7 +27,7 @@ Str getConfiguredPrompt(LuaState* L, bool firstLine) {
             }
         }
     } catch (...) {
-        // Fall back to the default prompt if user-provided globals misbehave.
+        /** @brief 用户提供的全局变量行为异常时回退到默认提示符。 */
     }
 
     return defaultPrompt;

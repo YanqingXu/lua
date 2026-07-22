@@ -1,3 +1,8 @@
+/**
+ * @file repl_comp.cpp
+ * @brief REPL 标识符与表成员补全的实现
+ */
+
 #include "repl/repl_comp.hpp"
 
 #include "core/gc_string.hpp"

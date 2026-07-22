@@ -83,68 +83,106 @@ constexpr i32 NO_REG = MAXARG_A;  // 255
  */
 enum class OpCode : u8 {
     // 数据移动指令
-    MOVE,       // R(A) := R(B)
-    LOADK,      // R(A) := K(Bx)
-    LOADBOOL,   // R(A) := (Bool)B; if (C) pc++
-    LOADNIL,    // R(A) := ... := R(B) := nil
+    /** @brief 将寄存器 R(B) 复制到 R(A)。 */
+    MOVE,
+    /** @brief 将常量 K(Bx) 加载到 R(A)。 */
+    LOADK,
+    /** @brief 将 B 转为布尔值写入 R(A)；C 非零时程序计数器递增。 */
+    LOADBOOL,
+    /** @brief 将 R(A) 到 R(B) 的寄存器设为 nil。 */
+    LOADNIL,
     
     // 变量访问指令
-    GETUPVAL,   // R(A) := UpValue[B]
-    GETGLOBAL,  // R(A) := Gbl[K(Bx)]
-    GETTABLE,   // R(A) := R(B)[RK(C)]
+    /** @brief 将上值 B 读取到 R(A)。 */
+    GETUPVAL,
+    /** @brief 将以 K(Bx) 为键的全局变量读取到 R(A)。 */
+    GETGLOBAL,
+    /** @brief 将 R(B)[RK(C)] 读取到 R(A)。 */
+    GETTABLE,
     
     // 变量赋值指令
-    SETGLOBAL,  // Gbl[K(Bx)] := R(A)
-    SETUPVAL,   // UpValue[B] := R(A)
-    SETTABLE,   // R(A)[RK(B)] := RK(C)
+    /** @brief 将 R(A) 写入以 K(Bx) 为键的全局变量。 */
+    SETGLOBAL,
+    /** @brief 将 R(A) 写入上值 B。 */
+    SETUPVAL,
+    /** @brief 将 RK(C) 写入 R(A)[RK(B)]。 */
+    SETTABLE,
     
     // 表操作指令
-    NEWTABLE,   // R(A) := {} (size = B,C)
-    SELF,       // R(A+1) := R(B); R(A) := R(B)[RK(C)]
+    /** @brief 创建预估数组和哈希大小为 B、C 的表并写入 R(A)。 */
+    NEWTABLE,
+    /** @brief 为方法调用保存接收者并读取方法：R(A+1) := R(B)，R(A) := R(B)[RK(C)]。 */
+    SELF,
     
     // 算术运算指令
-    ADD,        // R(A) := RK(B) + RK(C)
-    SUB,        // R(A) := RK(B) - RK(C)
-    MUL,        // R(A) := RK(B) * RK(C)
-    DIV,        // R(A) := RK(B) / RK(C)
-    MOD,        // R(A) := RK(B) % RK(C)
-    POW,        // R(A) := RK(B) ^ RK(C)
-    UNM,        // R(A) := -R(B)
-    NOT,        // R(A) := not R(B)
-    LEN,        // R(A) := length of R(B)
+    /** @brief 计算 RK(B) + RK(C) 并写入 R(A)。 */
+    ADD,
+    /** @brief 计算 RK(B) - RK(C) 并写入 R(A)。 */
+    SUB,
+    /** @brief 计算 RK(B) * RK(C) 并写入 R(A)。 */
+    MUL,
+    /** @brief 计算 RK(B) / RK(C) 并写入 R(A)。 */
+    DIV,
+    /** @brief 计算 RK(B) % RK(C) 并写入 R(A)。 */
+    MOD,
+    /** @brief 计算 RK(B) 的 RK(C) 次幂并写入 R(A)。 */
+    POW,
+    /** @brief 对 R(B) 取负并写入 R(A)。 */
+    UNM,
+    /** @brief 对 R(B) 执行逻辑非并写入 R(A)。 */
+    NOT,
+    /** @brief 计算 R(B) 的长度并写入 R(A)。 */
+    LEN,
     
     // 字符串操作指令
-    CONCAT,     // R(A) := R(B).. ... ..R(C)
+    /** @brief 拼接 R(B) 到 R(C) 并写入 R(A)。 */
+    CONCAT,
     
     // 控制流指令
-    JMP,        // pc += sBx
-    EQ,         // if ((RK(B) == RK(C)) ~= A) then pc++
-    LT,         // if ((RK(B) <  RK(C)) ~= A) then pc++
-    LE,         // if ((RK(B) <= RK(C)) ~= A) then pc++
-    TEST,       // if not (R(A) <=> C) then pc++
-    TESTSET,    // if (R(B) <=> C) then R(A) := R(B) else pc++
+    /** @brief 将程序计数器增加 sBx。 */
+    JMP,
+    /** @brief 当“RK(B) == RK(C)”与 A 不一致时跳过下一条指令。 */
+    EQ,
+    /** @brief 当“RK(B) < RK(C)”与 A 不一致时跳过下一条指令。 */
+    LT,
+    /** @brief 当“RK(B) <= RK(C)”与 A 不一致时跳过下一条指令。 */
+    LE,
+    /** @brief 当 R(A) 的真值性与 C 不一致时跳过下一条指令。 */
+    TEST,
+    /** @brief R(B) 的真值性与 C 一致时写入 R(A)，否则跳过下一条指令。 */
+    TESTSET,
     
     // 函数调用指令
-    CALL,       // R(A), ... ,R(A+C-2) := R(A)(R(A+1), ... ,R(A+B-1))
-    TAILCALL,   // return R(A)(R(A+1), ... ,R(A+B-1))
-    RETURN,     // return R(A), ... ,R(A+B-2)
+    /** @brief 以 R(A+1) 到 R(A+B-1) 为参数调用 R(A)，并保存 C-1 个结果。 */
+    CALL,
+    /** @brief 以 R(A+1) 到 R(A+B-1) 为参数尾调用 R(A)。 */
+    TAILCALL,
+    /** @brief 返回 R(A) 到 R(A+B-2)。 */
+    RETURN,
     
     // 循环控制指令
-    FORLOOP,    // R(A)+=R(A+2); if R(A) <?= R(A+1) then { pc+=sBx; R(A+3)=R(A) }
-    FORPREP,    // R(A)-=R(A+2); pc+=sBx
-    TFORLOOP,   // R(A+3), ... ,R(A+2+C) := R(A)(R(A+1), R(A+2)); if R(A+3) ~= nil then R(A+2)=R(A+3) else pc++
+    /** @brief 推进数值 for 循环索引，未越界时跳转并更新外部索引。 */
+    FORLOOP,
+    /** @brief 预调整数值 for 循环索引并跳转到循环检查。 */
+    FORPREP,
+    /** @brief 调用泛型 for 迭代器，结果非 nil 时更新控制变量，否则跳过下一条指令。 */
+    TFORLOOP,
     
     // 表初始化指令
-    SETLIST,    // R(A)[(C-1)*FPF+i] := R(A+i), 1 <= i <= B
+    /** @brief 将 R(A+1) 到 R(A+B) 批量写入表 R(A) 的指定区间。 */
+    SETLIST,
     
     // 栈管理指令
-    CLOSE,      // close all variables in the stack up to (>=) R(A)
+    /** @brief 关闭栈中位置不低于 R(A) 的全部开放变量。 */
+    CLOSE,
     
     // 闭包创建指令
-    CLOSURE,    // R(A) := closure(KPROTO[Bx], R(A), ... ,R(A+n))
+    /** @brief 根据子函数原型 KPROTO[Bx] 与后续上值绑定创建闭包并写入 R(A)。 */
+    CLOSURE,
     
     // 可变参数指令
-    VARARG      // R(A), R(A+1), ..., R(A+B-1) = vararg
+    /** @brief 将可变参数结果写入从 R(A) 开始的寄存器区间。 */
+    VARARG
 };
 
 constexpr i32 NUM_OPCODES = static_cast<i32>(OpCode::VARARG) + 1;  // 38
@@ -301,6 +339,7 @@ enum class OpArgMask {
 
 namespace VM {
 
+/** @brief 操作码的语义分组。 */
 enum class OpcodeGroup : u8 {
     Unknown,
     DataMove,
@@ -319,6 +358,7 @@ enum class OpcodeGroup : u8 {
 
 }  // namespace VM
 
+/** @brief 单个操作码的名称、格式与语义元数据。 */
 struct OpcodeMetadata {
     OpCode opcode;
     StrView name;

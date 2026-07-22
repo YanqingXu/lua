@@ -1,3 +1,8 @@
+/**
+ * @file bytecode_verifier.cpp
+ * @brief 字节码原型树验证器的实现
+ */
+
 #include "runtime/bytecode_verifier.hpp"
 
 #include "compiler/opcode.hpp"
@@ -304,10 +309,12 @@ private:
         case OpCode::CLOSURE:
             return regA() && static_cast<usize>(bx) < proto.getSubProtoCount();
         case OpCode::VARARG:
-            // Open VARARG results are allowed to begin exactly at maxStack.
-            // The VM grows the physical stack before copying those dynamic
-            // results, and SETLIST/CALL consume them through the open top.
-            // Fixed results must still fit in the declared register frame.
+            /**
+             * @brief 可变参数开放结果允许恰好从 maxStack 开始。
+             *
+             * VM 会在复制动态结果前扩大物理栈，SETLIST/CALL 再通过开放栈顶消费这些结果；
+             * 固定数量的结果仍必须位于声明的寄存器调用帧内。
+             */
             return proto.isVararg() &&
                    ((b == 0 || b == 1) ? verifyRange(a, 0, maxStack, pc) : verifyRange(a, b - 1, maxStack, pc));
         }
