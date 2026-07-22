@@ -167,6 +167,7 @@ REQUIRE_PUBLIC_MACRO(lua_upvalueindex);
 REQUIRE_PUBLIC_MACRO(lua_pop);
 REQUIRE_PUBLIC_MACRO(lua_newtable);
 REQUIRE_PUBLIC_MACRO(lua_tostring);
+REQUIRE_PUBLIC_MACRO(lua_pushliteral);
 REQUIRE_PUBLIC_MACRO(lua_isfunction);
 REQUIRE_PUBLIC_MACRO(lua_istable);
 REQUIRE_PUBLIC_MACRO(lua_isnil);
