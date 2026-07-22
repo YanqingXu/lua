@@ -32,6 +32,14 @@ $baseResults = @()
 $headResults = @()
 $runs = @()
 $previousSha = $env:GITHUB_SHA
+$taskset = if ($IsLinux) { Get-Command taskset -ErrorAction SilentlyContinue } else { $null }
+$benchmarkCpu = $null
+if ($null -ne $taskset) {
+    $affinity = (& $taskset.Source -pc $PID 2>&1 | Out-String)
+    if ($LASTEXITCODE -eq 0 -and $affinity -match ':\s*(\d+)') {
+        $benchmarkCpu = $Matches[1]
+    }
+}
 
 try {
     for ($pair = 0; $pair -lt [int]$policy.minimumRunsPerRevision; $pair++) {
@@ -43,7 +51,11 @@ try {
             $resultPath = Join-Path $resolvedOutput ("{0}-{1}.json" -f $revision, ($pair + 1))
             $env:GITHUB_SHA = $sha
             $startedAt = [DateTime]::UtcNow.ToString("o")
-            & $executable --profile ci --json $resultPath
+            if ($null -ne $benchmarkCpu) {
+                & $taskset.Source --cpu-list $benchmarkCpu $executable --profile ci --json $resultPath
+            } else {
+                & $executable --profile ci --json $resultPath
+            }
             if ($LASTEXITCODE -ne 0) {
                 throw "$revision benchmark pair $pair failed with exit code $LASTEXITCODE"
             }

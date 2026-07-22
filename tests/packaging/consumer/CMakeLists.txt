@@ -9,6 +9,7 @@ target_link_libraries(lua_cpp_package_consumer PRIVATE LuaCpp::Lua)
 
 if(TARGET LuaCpp::Shared)
     add_executable(lua_cpp_package_shared_consumer main.c)
+    set_property(TARGET lua_cpp_package_shared_consumer PROPERTY LINKER_LANGUAGE CXX)
     target_link_libraries(lua_cpp_package_shared_consumer PRIVATE LuaCpp::Shared)
     add_custom_command(TARGET lua_cpp_package_shared_consumer POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

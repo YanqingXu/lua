@@ -5004,8 +5004,7 @@ void testPublicPanicFormatEnvironmentAndCpcall(TestSuite& suite) {
     for (char& character : uppercasePointer) {
         character = static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
     }
-    const std::string uppercaseExpected =
-        std::string("text|Z|17|1.25|") + uppercasePointer + "|%|%q|(null)";
+    const std::string uppercaseExpected = std::string("text|Z|17|1.25|") + uppercasePointer + "|%|%q|(null)";
     const char* formatted = lua_pushfstring(L, "%s|%c|%d|%f|%p|%%|%q|%s", "text", 'Z', 17, 1.25,
                                             static_cast<void*>(&gApiErrorToken), static_cast<const char*>(nullptr));
     const std::string actual(formatted);
