@@ -5001,7 +5001,9 @@ void testPublicPanicFormatEnvironmentAndCpcall(TestSuite& suite) {
     const std::string expected = std::string("text|Z|17|1.25|") + pointerText + "|%|%q|(null)";
     const char* formatted = lua_pushfstring(L, "%s|%c|%d|%f|%p|%%|%q|%s", "text", 'Z', 17, 1.25,
                                             static_cast<void*>(&gApiErrorToken), static_cast<const char*>(nullptr));
-    ASSERT_EQ(suite, expected, std::string(formatted), "lua_pushfstring implements the Lua 5.1 formatting vocabulary");
+    const std::string actual(formatted);
+    suite.addResult(TestResult("lua_pushfstring implements the Lua 5.1 formatting vocabulary", expected == actual,
+                               expected == actual ? "" : "expected '" + expected + "', got '" + actual + "'"));
     ASSERT_TRUE(suite, formatted == lua_tostring(L, -1), "lua_pushfstring returns the pushed string pointer");
     const char* vformatted = pushPublicVFormat(L, "v=%d/%s", 29, "ok");
     ASSERT_EQ(suite, std::string("v=29/ok"), std::string(vformatted),

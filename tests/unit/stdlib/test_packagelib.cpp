@@ -33,10 +33,14 @@
 
 #include <fstream>
 #include <string>
+#include <vector>
 
 #ifdef _WIN32
 #include <windows.h>
 #else
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #include <unistd.h>
 #endif
 
@@ -156,6 +160,16 @@ std::string currentExecutablePath() {
         return "";
     }
     return std::string(buffer, len);
+#elif defined(__APPLE__)
+    uint32_t capacity = 4096;
+    std::vector<char> buffer(static_cast<std::size_t>(capacity) + 1, '\0');
+    if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
+        buffer.assign(static_cast<std::size_t>(capacity) + 1, '\0');
+        if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
+            return "";
+        }
+    }
+    return std::string(buffer.data());
 #else
     char buffer[4096];
     ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);

@@ -38,6 +38,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
 #include <limits.h>
 #include <unistd.h>
 #endif
@@ -192,6 +195,16 @@ static Str executablePath() {
         return "";
     }
     return Str(buffer.data(), len);
+#elif defined(__APPLE__)
+    uint32_t capacity = PATH_MAX;
+    Vec<char> buffer(static_cast<usize>(capacity) + 1, '\0');
+    if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
+        buffer.assign(static_cast<usize>(capacity) + 1, '\0');
+        if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
+            return "";
+        }
+    }
+    return Str(buffer.data());
 #else
     std::array<char, PATH_MAX> buffer{};
     ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);

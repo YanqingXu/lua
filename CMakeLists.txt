@@ -234,6 +234,14 @@ target_include_directories(lua_core PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+if(LUA_CPP_SANITIZER)
+    # Static-library consumers must link the same sanitizer runtime that
+    # instrumented lua_core. Keep this requirement on the exported target.
+    target_link_options(lua_core INTERFACE -fsanitize=${LUA_CPP_SANITIZER})
+endif()
+if(LUA_CPP_ENABLE_COVERAGE)
+    target_link_options(lua_core INTERFACE -fprofile-instr-generate -fcoverage-mapping)
+endif()
 set_target_properties(lua_core PROPERTIES EXPORT_NAME Lua)
 if(CMAKE_DL_LIBS)
     target_link_libraries(lua_core PUBLIC ${CMAKE_DL_LIBS})
@@ -250,6 +258,12 @@ if(LUA_CPP_BUILD_SHARED)
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     )
+    if(LUA_CPP_SANITIZER)
+        target_link_options(lua_public_api_shared INTERFACE -fsanitize=${LUA_CPP_SANITIZER})
+    endif()
+    if(LUA_CPP_ENABLE_COVERAGE)
+        target_link_options(lua_public_api_shared INTERFACE -fprofile-instr-generate -fcoverage-mapping)
+    endif()
     if(CMAKE_DL_LIBS)
         target_link_libraries(lua_public_api_shared PRIVATE ${CMAKE_DL_LIBS})
     endif()

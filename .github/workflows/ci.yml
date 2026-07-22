@@ -268,7 +268,6 @@ jobs:
     env:
       CC: clang-18
       CXX: clang++-18
-      CXXFLAGS: -stdlib=libc++
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
@@ -277,9 +276,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Clang
-        run: >-
-          sudo apt-get update && sudo apt-get install --yes
-          clang-18 libc++-18-dev libc++abi-18-dev
+        run: sudo apt-get update && sudo apt-get install --yes clang-18
 
       - name: Configure fuzzers
         run: >-
@@ -374,16 +371,16 @@ jobs:
           cmake -S . -B build/coverage
           -DCMAKE_BUILD_TYPE=Debug
           -DLUA_CPP_ENABLE_COVERAGE=ON
-          -DLUA_CPP_BUILD_TOOLS=OFF
 
       - name: Build coverage runner
-        run: cmake --build build/coverage --parallel 2 --target lua_test
+        run: cmake --build build/coverage --parallel 2 --target lua_test lua_app
 
       - name: Run coverage suites
         shell: bash
         run: |
           mkdir -p build/coverage/profiles
           export LLVM_PROFILE_FILE="$PWD/build/coverage/profiles/%p-%m.profraw"
+          export LUA_TEST_APP_PATH="$PWD/build/coverage/lua_app"
           build/coverage/lua_test --exclude-filter "Lua 5.1 Official"
           build/coverage/lua_test --filter "Lua 5.1 Official Smoke"
           build/coverage/lua_test --filter "Lua 5.1 Official TestC"
@@ -437,6 +434,12 @@ jobs:
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
           echo "head_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
           git worktree add --detach build/benchmark-base-source "$base_sha"
+          if grep -q 'TraceScope(lua_State\* state' build/benchmark-base-source/benchmarks/runtime_bench.cpp; then
+            echo "base_trace_context=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_trace_context=0" >> "$GITHUB_OUTPUT"
+          fi
+          cp benchmarks/runtime_bench.cpp build/benchmark-base-source/benchmarks/runtime_bench.cpp
 
       - name: Configure base Release benchmark
         run: >-
@@ -445,6 +448,7 @@ jobs:
           -DLUA_CPP_BUILD_BENCHMARKS=ON
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
+          -DCMAKE_CXX_FLAGS=-DLUA_RUNTIME_BENCH_CONTEXT_LOCAL_TRACE=${{ steps.revisions.outputs.base_trace_context }}
 
       - name: Configure head Release benchmark
         run: >-
@@ -453,6 +457,7 @@ jobs:
           -DLUA_CPP_BUILD_BENCHMARKS=ON
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
+          -DCMAKE_CXX_FLAGS=-DLUA_RUNTIME_BENCH_CONTEXT_LOCAL_TRACE=1
 
       - name: Build base and head benchmarks
         shell: bash

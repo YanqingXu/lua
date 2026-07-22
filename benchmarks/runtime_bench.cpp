@@ -29,6 +29,10 @@
 #include <utility>
 #include <vector>
 
+#ifndef LUA_RUNTIME_BENCH_CONTEXT_LOCAL_TRACE
+#define LUA_RUNTIME_BENCH_CONTEXT_LOCAL_TRACE 1
+#endif
+
 namespace {
 
 using Clock = std::chrono::steady_clock;
@@ -318,6 +322,7 @@ public:
 
 class TraceScope {
 public:
+#if LUA_RUNTIME_BENCH_CONTEXT_LOCAL_TRACE
     TraceScope(lua_State* state, Lua::ITraceSink* sink)
         : services_(reinterpret_cast<Lua::LuaState*>(state)->getGlobalState()) {
         Lua::VM::setTraceDiffEnabled(services_, false);
@@ -329,6 +334,15 @@ public:
 
 private:
     Lua::RuntimeServices services_;
+#else
+    TraceScope(lua_State*, Lua::ITraceSink* sink) {
+        Lua::VM::setTraceDiffEnabled(false);
+        Lua::VM::setTraceSink(sink);
+    }
+    ~TraceScope() {
+        Lua::VM::setTraceSink(nullptr);
+    }
+#endif
 };
 
 std::uint64_t countVmInstructions(lua_State* state, int reference, std::size_t iterations) {
