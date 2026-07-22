@@ -38,8 +38,8 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test");
         if (!proto) {
             return false;
@@ -49,7 +49,7 @@ bool runLua(LuaState* L, const char* code) {
         roots.protect(proto);
         Function* func = roots.create<Function>(proto);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;
@@ -466,7 +466,6 @@ void testTableSortConsumesNativeWorkBudget(TestSuite& suite) {
         values->set(Value(static_cast<LuaNumber>(i)), Value(static_cast<LuaNumber>(33 - i)));
     }
 
-
     L->getGlobalState().getResourcePolicy().maxSortElements = 8;
     bool elementLimitStopped = false;
     try {
@@ -526,8 +525,7 @@ void testTableResourcePolicyCoversLinearOperations(TestSuite& suite) {
     }
     L->getGlobalState().getExecutionPolicy().reset();
     ASSERT_TRUE(suite, insertStopped, "table.insert charges its complete shift before mutation");
-    ASSERT_EQ(suite, 10.0, values->get(Value(1.0)).asNumber(),
-              "budget rejection leaves table.insert input unchanged");
+    ASSERT_EQ(suite, 10.0, values->get(Value(1.0)).asNumber(), "budget rejection leaves table.insert input unchanged");
     ASSERT_TRUE(suite, values->get(Value(9.0)).isNil(),
                 "budget rejection does not append a partial table.insert result");
 
@@ -829,8 +827,7 @@ void registerTableLibTests() {
     registry.registerTest(kSuiteName, "table.sort default __lt", testTableSortUsesLtMetamethodByDefault);
     registry.registerTest(kSuiteName, "table.sort rejects hostile comparators",
                           testTableSortRejectsHostileComparatorsSafely);
-    registry.registerTest(kSuiteName, "table.sort consumes native work budget",
-                          testTableSortConsumesNativeWorkBudget);
+    registry.registerTest(kSuiteName, "table.sort consumes native work budget", testTableSortConsumesNativeWorkBudget);
     registry.registerTest(kSuiteName, "resource policy covers linear operations",
                           testTableResourcePolicyCoversLinearOperations);
     registry.registerTest(kSuiteName, "table.maxn", testTableMaxn);

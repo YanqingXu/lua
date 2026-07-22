@@ -181,6 +181,10 @@ size_t gStringReverseFailureOffset = 0;
 size_t gStringReverseAllocationStart = 0;
 size_t gStringReverseHardLimit = 0;
 bool gStringReverseUseHardLimit = false;
+size_t gIoReadAllFailureOffset = 0;
+size_t gIoReadAllAllocationStart = 0;
+size_t gIoReadAllHardLimit = 0;
+bool gIoReadAllUseHardLimit = false;
 size_t gTableConcatFailureOffset = 0;
 size_t gTableConcatAllocationStart = 0;
 size_t gTableConcatHardLimit = 0;
@@ -1692,17 +1696,18 @@ void testCloseFinalizerSemantics(TestSuite& suite) {
 
     {
         lua_State* L = lua_open();
-        lua_pushcclosure(L, [](lua_State* active) -> int {
-            lua_pushnumber(active, static_cast<lua_Number>(lua_tryclose(active)));
-            return 1;
-        }, 0);
-        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
-                  "lua_tryclose busy probe returns through the active callback");
+        lua_pushcclosure(
+            L,
+            [](lua_State* active) -> int {
+                lua_pushnumber(active, static_cast<lua_Number>(lua_tryclose(active)));
+                return 1;
+            },
+            0);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "lua_tryclose busy probe returns through the active callback");
         ASSERT_EQ(suite, static_cast<lua_Number>(LUA_ERRBUSY), lua_tonumber(L, -1),
                   "lua_tryclose reports an active runtime as busy");
         lua_pop(L, 1);
-        ASSERT_EQ(suite, LUA_OK, lua_tryclose(L),
-                  "lua_tryclose succeeds after the active call unwinds");
+        ASSERT_EQ(suite, LUA_OK, lua_tryclose(L), "lua_tryclose succeeds after the active call unwinds");
     }
 }
 
@@ -1710,13 +1715,27 @@ int armStringReverseAllocatorFailure(lua_State*) {
     AllocatorProbe* probe = gAllocatorFailureProbe;
     gStringReverseAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
     if (probe != nullptr) {
-        probe->failOnAllocation = gStringReverseFailureOffset == 0
-                                      ? 0
-                                      : probe->allocationAttempts + gStringReverseFailureOffset;
+        probe->failOnAllocation =
+            gStringReverseFailureOffset == 0 ? 0 : probe->allocationAttempts + gStringReverseFailureOffset;
         if (gStringReverseUseHardLimit) {
             probe->ledger->hardLimit = probe->ledger->liveBytes;
             probe->ledger->peakBytes = probe->ledger->liveBytes;
             gStringReverseHardLimit = probe->ledger->hardLimit;
+        }
+    }
+    return 0;
+}
+
+int armIoReadAllAllocatorFailure(lua_State*) {
+    AllocatorProbe* probe = gAllocatorFailureProbe;
+    gIoReadAllAllocationStart = probe != nullptr ? probe->allocationAttempts : 0;
+    if (probe != nullptr) {
+        probe->failOnAllocation =
+            gIoReadAllFailureOffset == 0 ? 0 : probe->allocationAttempts + gIoReadAllFailureOffset;
+        if (gIoReadAllUseHardLimit) {
+            probe->ledger->hardLimit = probe->ledger->liveBytes;
+            probe->ledger->peakBytes = probe->ledger->liveBytes;
+            gIoReadAllHardLimit = probe->ledger->hardLimit;
         }
     }
     return 0;
@@ -3395,15 +3414,15 @@ void testStringReverseAllocatorTransactions(TestSuite& suite) {
 
         ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "string.reverse allocator baseline executes");
         allocationAttempts = probe.allocationAttempts - gStringReverseAllocationStart;
-        ASSERT_TRUE(suite, allocationAttempts > 0,
-                    "string.reverse temporary storage uses the callback allocator");
+        ASSERT_TRUE(suite, allocationAttempts > 0, "string.reverse temporary storage uses the callback allocator");
         ASSERT_TRUE(suite, stringReverseAllocatorResultMatches(L),
                     "string.reverse allocator baseline preserves content");
 
         gAllocatorFailureProbe = nullptr;
         lua_close(L);
-        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
-                               ledger.unknownFrees == 0,
+        ASSERT_TRUE(suite,
+                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                        ledger.unknownFrees == 0,
                     "string.reverse allocator baseline closes with valid ownership");
     }
 
@@ -3427,14 +3446,13 @@ void testStringReverseAllocatorTransactions(TestSuite& suite) {
         gAllocatorFailureProbe = nullptr;
         lua_settop(L, 0);
         prepareStringReverseAllocatorFixture(L);
-        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
-                  "string.reverse succeeds after disarming fail-on-N");
-        ASSERT_TRUE(suite, stringReverseAllocatorResultMatches(L),
-                    "string.reverse retry preserves exact content");
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "string.reverse succeeds after disarming fail-on-N");
+        ASSERT_TRUE(suite, stringReverseAllocatorResultMatches(L), "string.reverse retry preserves exact content");
 
         lua_close(L);
-        ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
-                               ledger.unknownFrees == 0,
+        ASSERT_TRUE(suite,
+                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                        ledger.unknownFrees == 0,
                     "string.reverse fail-on-N rollback closes with valid ownership");
     }
 
@@ -3457,20 +3475,129 @@ void testStringReverseAllocatorTransactions(TestSuite& suite) {
     gAllocatorFailureProbe = nullptr;
     lua_settop(L, 0);
     prepareStringReverseAllocatorFixture(L);
-    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
-              "string.reverse succeeds after lifting the allocator hard limit");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "string.reverse succeeds after lifting the allocator hard limit");
     ASSERT_TRUE(suite, stringReverseAllocatorResultMatches(L),
                 "string.reverse hard-limit retry preserves exact content");
 
     lua_close(L);
-    ASSERT_TRUE(suite, ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
-                           ledger.unknownFrees == 0,
-                "string.reverse hard-limit rollback closes with valid ownership");
+    ASSERT_TRUE(
+        suite, ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+        "string.reverse hard-limit rollback closes with valid ownership");
 
     gAllocatorFailureProbe = nullptr;
     gStringReverseFailureOffset = 0;
     gStringReverseUseHardLimit = false;
     gStringReverseHardLimit = 0;
+}
+
+constexpr const char* kIoReadAllAllocatorSource = "local f = io.tmpfile(); "
+                                                  "f:write('RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR"
+                                                  "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR'); "
+                                                  "f:seek('set', 0); "
+                                                  "__arm_io_read_all_allocator(); "
+                                                  "return f:read('*a')";
+
+void prepareIoReadAllAllocatorFixture(lua_State* L) {
+    lua_settop(L, 0);
+    (void)luaopen_io(L);
+    lua_pop(L, 1);
+    lua_pushcclosure(L, armIoReadAllAllocatorFailure, 0);
+    lua_setglobal(L, "__arm_io_read_all_allocator");
+    if (luaL_loadstring(L, kIoReadAllAllocatorSource) != LUA_OK) {
+        throw std::runtime_error("failed to compile io read-all allocator fixture");
+    }
+}
+
+bool ioReadAllAllocatorResultMatches(lua_State* L) {
+    size_t length = 0;
+    const char* text = lua_tolstring(L, -1, &length);
+    return text != nullptr && length == 96 && std::string_view(text, length) == std::string(96, 'R');
+}
+
+void testIoReadAllAllocatorTransactions(TestSuite& suite) {
+    size_t allocationAttempts = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "io read-all allocator baseline creates a state");
+        prepareIoReadAllAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gIoReadAllFailureOffset = 0;
+        gIoReadAllUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "io read-all allocator baseline executes");
+        allocationAttempts = probe.allocationAttempts - gIoReadAllAllocationStart;
+        ASSERT_TRUE(suite, allocationAttempts >= 3, "io read-all growing buffer uses the callback allocator");
+        ASSERT_TRUE(suite, ioReadAllAllocatorResultMatches(L), "io read-all allocator baseline preserves content");
+
+        gAllocatorFailureProbe = nullptr;
+        lua_close(L);
+        ASSERT_TRUE(suite,
+                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                        ledger.unknownFrees == 0,
+                    "io read-all allocator baseline closes with valid ownership");
+    }
+
+    for (size_t offset = 1; offset <= allocationAttempts; ++offset) {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "io read-all fail-on-N test creates a state");
+        prepareIoReadAllAllocatorFixture(L);
+        gAllocatorFailureProbe = &probe;
+        gIoReadAllFailureOffset = offset;
+        gIoReadAllUseHardLimit = false;
+
+        ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "io read-all allocation failure becomes LUA_ERRMEM");
+        ASSERT_EQ(suite, gIoReadAllAllocationStart + offset, probe.allocationAttempts,
+                  "io read-all fail-on-N reaches the selected allocator attempt");
+
+        probe.failOnAllocation = 0;
+        gIoReadAllFailureOffset = 0;
+        gAllocatorFailureProbe = nullptr;
+        lua_settop(L, 0);
+        prepareIoReadAllAllocatorFixture(L);
+        ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "io read-all succeeds after disarming fail-on-N");
+        ASSERT_TRUE(suite, ioReadAllAllocatorResultMatches(L), "io read-all retry preserves exact content");
+
+        lua_close(L);
+        ASSERT_TRUE(suite,
+                    ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 &&
+                        ledger.unknownFrees == 0,
+                    "io read-all fail-on-N rollback closes with valid ownership");
+    }
+
+    AllocatorLedger ledger;
+    AllocatorProbe probe{&ledger};
+    lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+    ASSERT_TRUE(suite, L != nullptr, "io read-all hard-limit test creates a state");
+    prepareIoReadAllAllocatorFixture(L);
+    gAllocatorFailureProbe = &probe;
+    gIoReadAllFailureOffset = 0;
+    gIoReadAllUseHardLimit = true;
+
+    ASSERT_EQ(suite, LUA_ERRMEM, lua_pcall(L, 0, 1, 0), "zero-headroom hard limit rejects io read-all buffer growth");
+    ASSERT_TRUE(suite, ledger.liveBytes <= gIoReadAllHardLimit && ledger.peakBytes <= gIoReadAllHardLimit,
+                "io read-all growth never exceeds the allocator hard limit");
+
+    ledger.hardLimit = std::numeric_limits<size_t>::max();
+    gIoReadAllUseHardLimit = false;
+    gAllocatorFailureProbe = nullptr;
+    lua_settop(L, 0);
+    prepareIoReadAllAllocatorFixture(L);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "io read-all succeeds after lifting the allocator hard limit");
+    ASSERT_TRUE(suite, ioReadAllAllocatorResultMatches(L), "io read-all hard-limit retry preserves exact content");
+
+    lua_close(L);
+    ASSERT_TRUE(
+        suite, ledger.blocks.empty() && ledger.liveBytes == 0 && ledger.sizeMismatches == 0 && ledger.unknownFrees == 0,
+        "io read-all hard-limit rollback closes with valid ownership");
+
+    gAllocatorFailureProbe = nullptr;
+    gIoReadAllFailureOffset = 0;
+    gIoReadAllUseHardLimit = false;
+    gIoReadAllHardLimit = 0;
 }
 
 bool concatAllocatorResultMatches(lua_State* L) {
@@ -5083,8 +5210,8 @@ void registerLuaCApiTests() {
                           testStateStackAndCallInfoAllocatorTransactions);
     registry.registerTest(kSuiteName, "__call argument allocator transactions",
                           testMetacallArgumentAllocatorTransactions);
-    registry.registerTest(kSuiteName, "string.reverse allocator transactions",
-                          testStringReverseAllocatorTransactions);
+    registry.registerTest(kSuiteName, "string.reverse allocator transactions", testStringReverseAllocatorTransactions);
+    registry.registerTest(kSuiteName, "io read-all allocator transactions", testIoReadAllAllocatorTransactions);
     registry.registerTest(kSuiteName, "concat allocator transactions", testConcatAllocatorTransactions);
     registry.registerTest(kSuiteName, "table.concat allocator transactions", testTableConcatAllocatorTransactions);
     registry.registerTest(kSuiteName, "table.sort allocator transactions", testTableSortAllocatorTransactions);

@@ -268,6 +268,7 @@ jobs:
     env:
       CC: clang-18
       CXX: clang++-18
+      CXXFLAGS: -stdlib=libc++
       ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
 
@@ -276,7 +277,9 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Clang
-        run: sudo apt-get update && sudo apt-get install --yes clang-18
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          clang-18 libc++-18-dev libc++abi-18-dev
 
       - name: Configure fuzzers
         run: >-
@@ -325,8 +328,15 @@ jobs:
         include:
           - name: Linux ARM64
             runner: ubuntu-24.04-arm
+            disable_memory_limit: 0
           - name: macOS ARM64
             runner: macos-15
+            disable_memory_limit: 1
+
+    env:
+      # Darwin does not implement RLIMIT_AS as a usable process cap. The
+      # allocator contract jobs retain the hard-cap evidence on Linux/Windows.
+      LUA_TEST_DISABLE_MEMORY_LIMIT: ${{ matrix.disable_memory_limit }}
 
     steps:
       - name: Checkout
@@ -348,13 +358,16 @@ jobs:
     env:
       CC: clang-18
       CXX: clang++-18
+      CXXFLAGS: -stdlib=libc++
 
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install LLVM coverage tools
-        run: sudo apt-get update && sudo apt-get install --yes clang-18 llvm-18
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          clang-18 llvm-18 libc++-18-dev libc++abi-18-dev
 
       - name: Configure coverage
         run: >-

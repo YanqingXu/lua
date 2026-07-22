@@ -35,8 +35,8 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test_call_pipeline");
         if (proto == nullptr) {
             return false;
@@ -45,7 +45,7 @@ bool runLua(LuaState* L, const char* code) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (const std::exception& e) {
         std::cout << "  [ERROR] Call pipeline chunk exception: " << e.what() << std::endl;
@@ -568,8 +568,8 @@ void testTailReturnCallEmitsTailcall(TestSuite& suite) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test_tailcall_codegen");
 
         ASSERT_TRUE(suite, proto != nullptr, "tail call proto generated");

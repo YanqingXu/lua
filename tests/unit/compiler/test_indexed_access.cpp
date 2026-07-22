@@ -1,7 +1,7 @@
 /**
  * @file test_indexed_access.cpp
  * @brief 测试表索引访问和成员访问的代码生成
- * 
+ *
  * 测试 luaK_indexed 函数以及 IndexExpr 和 MemberExpr 的处理
  * 验证第一阶段第一项的实现：表索引访问支持
  */
@@ -27,27 +27,22 @@ void printInstructions(Proto* proto) {
         Instruction inst = proto->getInstruction(i);
         OpCode op = GET_OPCODE(inst);
         std::cout << "    [" << i << "] " << getOpName(op);
-        
+
         switch (op) {
-            case OpCode::GETTABLE:
-                std::cout << " A=" << GETARG_A(inst) 
-                         << " B=" << GETARG_B(inst) 
-                         << " C=" << GETARG_C(inst);
-                break;
-            case OpCode::GETGLOBAL:
-                std::cout << " A=" << GETARG_A(inst) 
-                         << " Bx=" << GETARG_Bx(inst);
-                break;
-            case OpCode::LOADK:
-                std::cout << " A=" << GETARG_A(inst) 
-                         << " Bx=" << GETARG_Bx(inst);
-                break;
-            case OpCode::MOVE:
-                std::cout << " A=" << GETARG_A(inst) 
-                         << " B=" << GETARG_B(inst);
-                break;
-            default:
-                break;
+        case OpCode::GETTABLE:
+            std::cout << " A=" << GETARG_A(inst) << " B=" << GETARG_B(inst) << " C=" << GETARG_C(inst);
+            break;
+        case OpCode::GETGLOBAL:
+            std::cout << " A=" << GETARG_A(inst) << " Bx=" << GETARG_Bx(inst);
+            break;
+        case OpCode::LOADK:
+            std::cout << " A=" << GETARG_A(inst) << " Bx=" << GETARG_Bx(inst);
+            break;
+        case OpCode::MOVE:
+            std::cout << " A=" << GETARG_A(inst) << " B=" << GETARG_B(inst);
+            break;
+        default:
+            break;
         }
         std::cout << std::endl;
     }
@@ -59,7 +54,7 @@ void printInstructions(Proto* proto) {
  * 注意：假设 t 是全局变量
  */
 void testSimpleIndexAccessStringKey(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = t[\"key\"]";
     Parser parser(code);
@@ -69,7 +64,7 @@ void testSimpleIndexAccessStringKey(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -84,7 +79,6 @@ void testSimpleIndexAccessStringKey(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasGetTable, "Generated GETTABLE instruction");
-
 }
 
 /**
@@ -93,7 +87,7 @@ void testSimpleIndexAccessStringKey(TestSuite& suite) {
  * 注意：假设 t 是全局变量
  */
 void testMemberAccess(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = t.member";
     Parser parser(code);
@@ -103,7 +97,7 @@ void testMemberAccess(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -117,7 +111,6 @@ void testMemberAccess(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasGetTable, "Member access generates GETTABLE");
-
 }
 
 /**
@@ -126,7 +119,7 @@ void testMemberAccess(TestSuite& suite) {
  * 注意：假设 t 是全局变量
  */
 void testIndexAccessNumberKey(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = t[1]";
     Parser parser(code);
@@ -136,7 +129,7 @@ void testIndexAccessNumberKey(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -149,7 +142,6 @@ void testIndexAccessNumberKey(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasGetTable, "Number index generates GETTABLE");
-
 }
 
 /**
@@ -158,7 +150,7 @@ void testIndexAccessNumberKey(TestSuite& suite) {
  * 注意：假设 t 是全局变量
  */
 void testNestedMemberAccess(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = t.a.b";
     Parser parser(code);
@@ -168,7 +160,7 @@ void testNestedMemberAccess(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -181,7 +173,6 @@ void testNestedMemberAccess(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, getTableCount >= 2, "Nested access generates multiple GETTABLE");
-
 }
 
 /**
@@ -189,7 +180,7 @@ void testNestedMemberAccess(TestSuite& suite) {
  * 代码: local x = print
  */
 void testGlobalVariableAccess(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = print";
     Parser parser(code);
@@ -199,7 +190,7 @@ void testGlobalVariableAccess(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -213,7 +204,6 @@ void testGlobalVariableAccess(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasGetGlobal, "Global variable generates GETGLOBAL");
-
 }
 
 /**
@@ -222,7 +212,7 @@ void testGlobalVariableAccess(TestSuite& suite) {
  * 注意：假设 t 和 key 都是全局变量
  */
 void testDynamicIndex(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = t[key]";
     Parser parser(code);
@@ -232,7 +222,7 @@ void testDynamicIndex(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -245,7 +235,6 @@ void testDynamicIndex(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasGetTable, "Dynamic index generates GETTABLE");
-
 }
 
 /**
@@ -254,7 +243,7 @@ void testDynamicIndex(TestSuite& suite) {
  * 注意：假设 t 是全局变量
  */
 void testMixedAccess(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = t[\"a\"].b[1]";
     Parser parser(code);
@@ -264,7 +253,7 @@ void testMixedAccess(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -277,7 +266,6 @@ void testMixedAccess(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, getTableCount >= 3, "Mixed access generates multiple GETTABLE");
-
 }
 
 /**
@@ -286,7 +274,7 @@ void testMixedAccess(TestSuite& suite) {
  * 注意：假设 t 是全局变量，测试局部变量接收结果
  */
 void testLocalTableAccess(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local x = t.a";
     Parser parser(code);
@@ -296,7 +284,7 @@ void testLocalTableAccess(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -306,12 +294,13 @@ void testLocalTableAccess(TestSuite& suite) {
     bool hasGetTable = false;
     for (size_t i = 0; i < proto->getInstructionCount(); i++) {
         OpCode op = GET_OPCODE(proto->getInstruction(i));
-        if (op == OpCode::GETGLOBAL) hasGetGlobal = true;
-        if (op == OpCode::GETTABLE) hasGetTable = true;
+        if (op == OpCode::GETGLOBAL)
+            hasGetGlobal = true;
+        if (op == OpCode::GETTABLE)
+            hasGetTable = true;
     }
     ASSERT_TRUE(suite, hasGetGlobal, "Global variable generates GETGLOBAL");
     ASSERT_TRUE(suite, hasGetTable, "Table access generates GETTABLE");
-
 }
 
 /**
@@ -329,5 +318,3 @@ void registerIndexedAccessTests() {
     registry.registerTest("Table Indexed Access", "Mixed Access", testMixedAccess);
     registry.registerTest("Table Indexed Access", "Local Table Access", testLocalTableAccess);
 }
-
-

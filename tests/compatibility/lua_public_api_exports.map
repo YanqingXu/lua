@@ -118,6 +118,7 @@ LUA_5_1 {
         lua_topointer;
         lua_tothread;
         lua_touserdata;
+        lua_tryclose;
         lua_trynewthread;
         lua_type;
         lua_typename;

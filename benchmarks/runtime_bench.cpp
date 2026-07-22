@@ -318,19 +318,23 @@ public:
 
 class TraceScope {
 public:
-    explicit TraceScope(Lua::ITraceSink* sink) {
-        Lua::VM::setTraceDiffEnabled(false);
-        Lua::VM::setTraceSink(sink);
+    TraceScope(lua_State* state, Lua::ITraceSink* sink)
+        : services_(reinterpret_cast<Lua::LuaState*>(state)->getGlobalState()) {
+        Lua::VM::setTraceDiffEnabled(services_, false);
+        Lua::VM::setTraceSink(services_, sink);
     }
     ~TraceScope() {
-        Lua::VM::setTraceSink(nullptr);
+        Lua::VM::setTraceSink(services_, nullptr);
     }
+
+private:
+    Lua::RuntimeServices services_;
 };
 
 std::uint64_t countVmInstructions(lua_State* state, int reference, std::size_t iterations) {
     CountingTraceSink sink;
     {
-        TraceScope trace(&sink);
+        TraceScope trace(state, &sink);
         const double result =
             invokeNumberFunction(state, reference, static_cast<double>(iterations), "VM instruction calibration");
         require(result == expectedVmChecksum(iterations), "VM instruction calibration checksum mismatch");

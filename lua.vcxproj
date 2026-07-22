@@ -147,6 +147,7 @@
     <ClInclude Include="src\common\number_conversion.hpp" />
     <ClInclude Include="src\common\types.hpp" />
     <ClInclude Include="src\lua.h" />
+    <ClInclude Include="src\lua_cpp_version.h" />
     <ClInclude Include="src\lauxlib.h" />
     <ClInclude Include="src\lualib.h" />
     <ClInclude Include="src\compiler\ast.hpp" />

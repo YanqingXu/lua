@@ -28,9 +28,20 @@ private:
     usize constantCount_ = 0;
     usize debugEntryCount_ = 0;
     Str error_;
+    std::vector<const Proto*> protoStack_;
 
     bool fail(const char* message, usize pc = std::numeric_limits<usize>::max()) {
         error_ = "bytecode verification failed: ";
+        if (!protoStack_.empty()) {
+            const Proto& proto = *protoStack_.back();
+            error_ += "proto ";
+            if (proto.getSource() != nullptr) {
+                error_ += proto.getSource()->c_str();
+            } else {
+                error_ += "?";
+            }
+            error_ += ":" + std::to_string(proto.getLineDefined()) + ": ";
+        }
         if (pc != std::numeric_limits<usize>::max()) {
             error_ += "pc " + std::to_string(pc) + ": ";
         }
@@ -91,6 +102,7 @@ private:
     }
 
     bool verifyProto(const Proto& proto, usize depth) {
+        protoStack_.push_back(&proto);
         if (depth > limits_.maxProtoDepth) {
             return fail("Proto nesting limit exceeded");
         }
@@ -101,12 +113,9 @@ private:
         const usize codeCount = proto.getInstructionCount();
         const usize constantCount = proto.getConstantCount();
         const usize debugCount = proto.getLineInfo().size() + proto.getLocVarCount() + proto.getUpvalueNameCount();
-        if (!addWithin(codeCount, instructionCount_, limits_.maxInstructionCount,
-                       "instruction count limit exceeded") ||
-            !addWithin(constantCount, constantCount_, limits_.maxConstantCount,
-                       "constant count limit exceeded") ||
-            !addWithin(debugCount, debugEntryCount_, limits_.maxDebugEntries,
-                       "debug entry limit exceeded")) {
+        if (!addWithin(codeCount, instructionCount_, limits_.maxInstructionCount, "instruction count limit exceeded") ||
+            !addWithin(constantCount, constantCount_, limits_.maxConstantCount, "constant count limit exceeded") ||
+            !addWithin(debugCount, debugEntryCount_, limits_.maxDebugEntries, "debug entry limit exceeded")) {
             return false;
         }
 
@@ -134,8 +143,7 @@ private:
         }
         for (usize index = 0; index < proto.getLocVarCount(); ++index) {
             const LocVar& local = proto.getLocVar(index);
-            if (local.startpc < 0 || local.endpc < local.startpc ||
-                static_cast<usize>(local.endpc) > codeCount ||
+            if (local.startpc < 0 || local.endpc < local.startpc || static_cast<usize>(local.endpc) > codeCount ||
                 (local.reg != -1 && !verifyRegister(local.reg, maxStack, 0))) {
                 return fail("invalid local-variable metadata");
             }
@@ -179,8 +187,7 @@ private:
                             return false;
                         }
                     } else if (pseudoOpcode == OpCode::GETUPVAL) {
-                        if (GETARG_B(pseudo) < 0 ||
-                            static_cast<usize>(GETARG_B(pseudo)) >= proto.getNumUpvalues()) {
+                        if (GETARG_B(pseudo) < 0 || static_cast<usize>(GETARG_B(pseudo)) >= proto.getNumUpvalues()) {
                             return fail("CLOSURE parent upvalue index out of range", pc + offset);
                         }
                     } else {
@@ -207,6 +214,7 @@ private:
                 return child != nullptr ? false : fail("null child Proto");
             }
         }
+        protoStack_.pop_back();
         return true;
     }
 
@@ -230,7 +238,8 @@ private:
         case OpCode::MOVE:
             return regA() && regB();
         case OpCode::LOADK:
-            return regA() && (static_cast<usize>(bx) < proto.getConstantCount() || fail("constant index out of range", pc));
+            return regA() &&
+                   (static_cast<usize>(bx) < proto.getConstantCount() || fail("constant index out of range", pc));
         case OpCode::LOADBOOL:
             return regA() && (c == 0 || verifyTarget(static_cast<i64>(pc) + 2, dataWords, pc));
         case OpCode::LOADNIL:
@@ -238,11 +247,13 @@ private:
         case OpCode::GETUPVAL:
             return regA() && (static_cast<usize>(b) < proto.getNumUpvalues() || fail("upvalue index out of range", pc));
         case OpCode::GETGLOBAL:
-            return regA() && (static_cast<usize>(bx) < proto.getConstantCount() || fail("constant index out of range", pc));
+            return regA() &&
+                   (static_cast<usize>(bx) < proto.getConstantCount() || fail("constant index out of range", pc));
         case OpCode::GETTABLE:
             return regA() && regB() && rkC();
         case OpCode::SETGLOBAL:
-            return regA() && (static_cast<usize>(bx) < proto.getConstantCount() || fail("constant index out of range", pc));
+            return regA() &&
+                   (static_cast<usize>(bx) < proto.getConstantCount() || fail("constant index out of range", pc));
         case OpCode::SETUPVAL:
             return regA() && (static_cast<usize>(b) < proto.getNumUpvalues() || fail("upvalue index out of range", pc));
         case OpCode::SETTABLE:
@@ -293,7 +304,12 @@ private:
         case OpCode::CLOSURE:
             return regA() && static_cast<usize>(bx) < proto.getSubProtoCount();
         case OpCode::VARARG:
-            return proto.isVararg() && regA() && (b == 0 || b == 1 || verifyRange(a, b - 1, maxStack, pc));
+            // Open VARARG results are allowed to begin exactly at maxStack.
+            // The VM grows the physical stack before copying those dynamic
+            // results, and SETLIST/CALL consume them through the open top.
+            // Fixed results must still fit in the declared register frame.
+            return proto.isVararg() &&
+                   ((b == 0 || b == 1) ? verifyRange(a, 0, maxStack, pc) : verifyRange(a, b - 1, maxStack, pc));
         }
         return fail("unknown opcode", pc);
     }

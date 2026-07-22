@@ -53,8 +53,8 @@ bool runLuaChunk(LuaState* L, const char* source, const char* chunkName) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, chunkName);
         if (!proto) {
             return false;
@@ -63,7 +63,7 @@ bool runLuaChunk(LuaState* L, const char* source, const char* chunkName) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;

@@ -24,6 +24,7 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_newstate);
     REQUIRE_SYMBOL(lua_open);
     REQUIRE_SYMBOL(lua_close);
+    REQUIRE_SYMBOL(lua_tryclose);
     REQUIRE_SYMBOL(lua_newthread);
     REQUIRE_SYMBOL(lua_trynewthread);
     REQUIRE_SYMBOL(lua_atpanic);

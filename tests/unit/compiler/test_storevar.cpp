@@ -1,7 +1,7 @@
 /**
  * @file test_storevar.cpp
  * @brief 测试变量存储统一接口（luaK_storevar）
- * 
+ *
  * 测试 luaK_storevar 函数以及各种类型变量的赋值
  * 验证第一阶段第三项的实现：变量存储统一接口
  */
@@ -31,8 +31,8 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test_storevar_runtime");
         if (proto == nullptr) {
             return false;
@@ -41,7 +41,7 @@ bool runLua(LuaState* L, const char* code) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;
@@ -61,8 +61,8 @@ LuaState* createFullState() {
  * 代码: local x = 10
  */
 void testLocalVarAssignment(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
-    
+    RuntimeServices services = RuntimeServices::fromSingletons();
+
     const char* code = "local x = 10";
     Parser parser(code);
     auto parsed = parser.parse();
@@ -70,13 +70,13 @@ void testLocalVarAssignment(TestSuite& suite) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
-    
-    CodeGenerator codegen(&pool);
+
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
-    
+
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
-    
+
     // 局部变量赋值应该生成 LOADK 指令（将常量加载到寄存器）
     bool hasLoadK = false;
     for (size_t i = 0; i < proto->getInstructionCount(); i++) {
@@ -86,7 +86,6 @@ void testLocalVarAssignment(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasLoadK, "Generated LOADK instruction");
-    
 }
 
 /**
@@ -94,8 +93,8 @@ void testLocalVarAssignment(TestSuite& suite) {
  * 代码: g = 20
  */
 void testGlobalVarAssignment(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
-    
+    RuntimeServices services = RuntimeServices::fromSingletons();
+
     const char* code = "g = 20";
     Parser parser(code);
     auto parsed = parser.parse();
@@ -103,12 +102,12 @@ void testGlobalVarAssignment(TestSuite& suite) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
-    
-    CodeGenerator codegen(&pool);
+
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
-    
+
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
-    
+
     // 全局变量赋值应该生成 SETGLOBAL 指令
     bool hasSetGlobal = false;
     for (size_t i = 0; i < proto->getInstructionCount(); i++) {
@@ -118,7 +117,6 @@ void testGlobalVarAssignment(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasSetGlobal, "Generated SETGLOBAL instruction");
-    
 }
 
 /**
@@ -126,8 +124,8 @@ void testGlobalVarAssignment(TestSuite& suite) {
  * 代码: t["key"] = 30
  */
 void testTableIndexAssignment(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
-    
+    RuntimeServices services = RuntimeServices::fromSingletons();
+
     const char* code = "t[\"key\"] = 30";
     Parser parser(code);
     auto parsed = parser.parse();
@@ -135,12 +133,12 @@ void testTableIndexAssignment(TestSuite& suite) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
-    
-    CodeGenerator codegen(&pool);
+
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
-    
+
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
-    
+
     // 表索引赋值应该生成 SETTABLE 指令
     bool hasSetTable = false;
     for (size_t i = 0; i < proto->getInstructionCount(); i++) {
@@ -150,7 +148,6 @@ void testTableIndexAssignment(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasSetTable, "Generated SETTABLE instruction");
-    
 }
 
 /**
@@ -158,8 +155,8 @@ void testTableIndexAssignment(TestSuite& suite) {
  * 代码: t.field = 40
  */
 void testTableMemberAssignment(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
-    
+    RuntimeServices services = RuntimeServices::fromSingletons();
+
     const char* code = "t.field = 40";
     Parser parser(code);
     auto parsed = parser.parse();
@@ -167,12 +164,12 @@ void testTableMemberAssignment(TestSuite& suite) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
-    
-    CodeGenerator codegen(&pool);
+
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
-    
+
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
-    
+
     // 表成员赋值应该生成 SETTABLE 指令
     bool hasSetTable = false;
     for (size_t i = 0; i < proto->getInstructionCount(); i++) {
@@ -182,7 +179,6 @@ void testTableMemberAssignment(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasSetTable, "Generated SETTABLE instruction");
-    
 }
 
 /**
@@ -190,8 +186,8 @@ void testTableMemberAssignment(TestSuite& suite) {
  * 代码: a, b = 1, 2
  */
 void testMultipleAssignment(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
-    
+    RuntimeServices services = RuntimeServices::fromSingletons();
+
     const char* code = "a, b = 1, 2";
     Parser parser(code);
     auto parsed = parser.parse();
@@ -199,12 +195,12 @@ void testMultipleAssignment(TestSuite& suite) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
-    
-    CodeGenerator codegen(&pool);
+
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
-    
+
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
-    
+
     // 多重赋值应该生成两个 SETGLOBAL 指令
     int setGlobalCount = 0;
     for (size_t i = 0; i < proto->getInstructionCount(); i++) {
@@ -213,7 +209,6 @@ void testMultipleAssignment(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, setGlobalCount >= 2, "Generated two SETGLOBAL instructions");
-    
 }
 
 /**
@@ -297,7 +292,7 @@ void testMultiReturnMixedTargetsRuntime(TestSuite& suite) {
  */
 void registerStorevarTests() {
     auto& registry = TestRegistry::getInstance();
-    
+
     registry.registerTest("Variable Storage", "Local Variable Assignment", testLocalVarAssignment);
     registry.registerTest("Variable Storage", "Global Variable Assignment", testGlobalVarAssignment);
     registry.registerTest("Variable Storage", "Table Index Assignment", testTableIndexAssignment);
@@ -307,5 +302,3 @@ void registerStorevarTests() {
     registry.registerTest("Variable Storage", "Nested Table Store Runtime", testNestedTableStoreRuntime);
     registry.registerTest("Variable Storage", "Multi Return Mixed Targets Runtime", testMultiReturnMixedTargetsRuntime);
 }
-
-

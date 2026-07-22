@@ -27,8 +27,8 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test_codegen_multret");
         if (proto == nullptr) {
             return false;
@@ -37,7 +37,7 @@ bool runLua(LuaState* L, const char* code) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;
@@ -127,8 +127,8 @@ void testTableConstructorLastFieldMultret(TestSuite& suite) {
 void registerCodegenMultiRetTests() {
     auto& registry = TestRegistry::getInstance();
 
-    registry.registerTest(kSuiteName, "Parenthesized Call Collapses To Single Value", testParenthesizedCallCollapsesToSingleValue);
+    registry.registerTest(kSuiteName, "Parenthesized Call Collapses To Single Value",
+                          testParenthesizedCallCollapsesToSingleValue);
     registry.registerTest(kSuiteName, "Open MultiRet Propagation", testOpenMultretPropagation);
     registry.registerTest(kSuiteName, "Table Constructor Last Field MultiRet", testTableConstructorLastFieldMultret);
 }
-

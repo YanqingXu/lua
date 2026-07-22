@@ -113,15 +113,6 @@ void installCloseFinalizer(lua_State* state, const char* modulePath, const std::
     lua_settop(state, 0);
 }
 
-std::string moduleSearchName(const char* modulePath) {
-    const std::string filename = std::filesystem::path(modulePath).filename().string();
-#ifdef __APPLE__
-    return "@executable_path/" + filename;
-#else
-    return filename;
-#endif
-}
-
 long currentProcessId() noexcept {
 #ifdef _WIN32
     return static_cast<long>(_getpid());
@@ -139,7 +130,7 @@ int main(int argc, char** argv) {
     }
 
     try {
-        const std::string searchName = moduleSearchName(argv[1]);
+        const std::string modulePath = std::filesystem::canonical(argv[1]).string();
         {
             Lua::EngineContext survivorContext;
             Lua::UPtr<Lua::LuaState> survivor = Lua::LuaState::create(survivorContext);
@@ -150,8 +141,8 @@ int main(int argc, char** argv) {
                 Lua::UPtr<Lua::LuaState> first = Lua::LuaState::create(firstContext);
                 luaL_openlibs(apiState(first.get()));
 
-                const FixtureResult firstCall = callFixture(apiState(first.get()), searchName.c_str());
-                const FixtureResult firstAgain = callFixture(apiState(first.get()), argv[1]);
+                const FixtureResult firstCall = callFixture(apiState(first.get()), modulePath.c_str());
+                const FixtureResult firstAgain = callFixture(apiState(first.get()), modulePath.c_str());
                 if (firstCall.stateCalls != 1 || firstCall.moduleCalls != 1 || firstAgain.stateCalls != 2 ||
                     firstAgain.moduleCalls != 2) {
                     throw std::runtime_error("first EngineContext did not keep isolated module state");
@@ -162,14 +153,13 @@ int main(int argc, char** argv) {
                     throw std::runtime_error("second EngineContext did not start with isolated Lua state");
                 }
                 if (firstContext.nativeModules().loadedCount() != 1 ||
-                    !firstContext.nativeModules().contains(searchName) ||
-                    !firstContext.nativeModules().contains(argv[1]) ||
+                    !firstContext.nativeModules().contains(modulePath) ||
                     survivorContext.nativeModules().loadedCount() != 1) {
-                    throw std::runtime_error("module search-name alias created a second context lease");
+                    throw std::runtime_error("repeated canonical module path created a second context lease");
                 }
             }
 
-            const FixtureResult afterFirstClose = callFixture(apiState(survivor.get()), argv[1]);
+            const FixtureResult afterFirstClose = callFixture(apiState(survivor.get()), modulePath.c_str());
             if (afterFirstClose.stateCalls != 2 || afterFirstClose.moduleCalls != 4 ||
                 survivorContext.nativeModules().loadedCount() != 1) {
                 throw std::runtime_error("surviving EngineContext lost its module lease or state");
@@ -180,7 +170,7 @@ int main(int argc, char** argv) {
             Lua::EngineContext reloadedContext;
             Lua::UPtr<Lua::LuaState> reloaded = Lua::LuaState::create(reloadedContext);
             luaL_openlibs(apiState(reloaded.get()));
-            const FixtureResult afterLastClose = callFixture(apiState(reloaded.get()), argv[1]);
+            const FixtureResult afterLastClose = callFixture(apiState(reloaded.get()), modulePath.c_str());
             if (afterLastClose.stateCalls != 1 || afterLastClose.moduleCalls != 1 ||
                 reloadedContext.nativeModules().loadedCount() != 1) {
                 throw std::runtime_error("last EngineContext close did not unload and reset the native module");
@@ -198,7 +188,7 @@ int main(int argc, char** argv) {
             throw std::runtime_error("failed to create native close-finalizer state");
         }
         luaL_openlibs(closeState);
-        installCloseFinalizer(closeState, argv[1], markerPath);
+        installCloseFinalizer(closeState, modulePath.c_str(), markerPath);
         lua_close(closeState);
 
         std::ifstream marker(markerPath, std::ios::binary);

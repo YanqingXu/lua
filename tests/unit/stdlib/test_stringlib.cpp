@@ -41,8 +41,8 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test");
         if (!proto)
             return false;
@@ -50,7 +50,7 @@ bool runLua(LuaState* L, const char* code) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;
@@ -1022,6 +1022,24 @@ void testStringDump(TestSuite& suite) {
               "string.dump writes the project-local LC++ marker for locvar register metadata");
 
     ok = runLua(L, R"lua(
+        local original = function(t, ...)
+            return t, {...}
+        end
+        local restored = assert(loadstring(string.dump(original)))
+        local marker, values = restored("head", 10, 20, 30)
+        gDumpOpenVarargMarker = marker
+        gDumpOpenVarargCount = #values
+        gDumpOpenVarargLast = values[3]
+    )lua");
+    ASSERT_TRUE(suite, ok, "string.dump open-vararg function round-trips through the verifier");
+    ASSERT_EQ(suite, std::string("head"), getGlobalStr(L, "gDumpOpenVarargMarker"),
+              "dumped open-vararg function preserves its fixed result");
+    ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gDumpOpenVarargCount"),
+              "dumped open-vararg function preserves every dynamic result");
+    ASSERT_EQ(suite, 30.0, getGlobalNumber(L, "gDumpOpenVarargLast"),
+              "dumped open-vararg function preserves the final dynamic result");
+
+    ok = runLua(L, R"lua(
         local ok = pcall(function() return string.dump(print) end)
         gDumpCFunctionFailed = ok and 0 or 1
     )lua");
@@ -1136,33 +1154,35 @@ void testStringResourceAndIntegerBoundaries(TestSuite& suite) {
     };
 
     ASSERT_TRUE(suite,
-                rejects("sub", [](LuaState* state) {
-                    state->pushString(state->getGlobalState().getStringPool().intern("abc"));
-                    state->pushNumber(std::numeric_limits<LuaNumber>::quiet_NaN());
-                }),
+                rejects("sub",
+                        [](LuaState* state) {
+                            state->pushString(state->getGlobalState().getStringPool().intern("abc"));
+                            state->pushNumber(std::numeric_limits<LuaNumber>::quiet_NaN());
+                        }),
                 "string.sub rejects NaN indices before conversion");
     ASSERT_TRUE(suite,
-                rejects("rep", [](LuaState* state) {
-                    state->pushString(state->getGlobalState().getStringPool().intern("a"));
-                    state->pushNumber(std::numeric_limits<LuaNumber>::infinity());
-                }),
+                rejects("rep",
+                        [](LuaState* state) {
+                            state->pushString(state->getGlobalState().getStringPool().intern("a"));
+                            state->pushNumber(std::numeric_limits<LuaNumber>::infinity());
+                        }),
                 "string.rep rejects infinite counts before conversion");
     ASSERT_TRUE(suite,
-                rejects("byte", [](LuaState* state) {
-                    state->pushString(state->getGlobalState().getStringPool().intern("a"));
-                    state->pushNumber(std::numeric_limits<LuaNumber>::max());
-                }),
+                rejects("byte",
+                        [](LuaState* state) {
+                            state->pushString(state->getGlobalState().getStringPool().intern("a"));
+                            state->pushNumber(std::numeric_limits<LuaNumber>::max());
+                        }),
                 "string.byte rejects out-of-range indices before conversion");
+    ASSERT_TRUE(
+        suite, rejects("char", [](LuaState* state) { state->pushNumber(-std::numeric_limits<LuaNumber>::infinity()); }),
+        "string.char rejects infinite values before conversion");
     ASSERT_TRUE(suite,
-                rejects("char", [](LuaState* state) {
-                    state->pushNumber(-std::numeric_limits<LuaNumber>::infinity());
-                }),
-                "string.char rejects infinite values before conversion");
-    ASSERT_TRUE(suite,
-                rejects("format", [](LuaState* state) {
-                    state->pushString(state->getGlobalState().getStringPool().intern("%d"));
-                    state->pushNumber(std::numeric_limits<LuaNumber>::quiet_NaN());
-                }),
+                rejects("format",
+                        [](LuaState* state) {
+                            state->pushString(state->getGlobalState().getStringPool().intern("%d"));
+                            state->pushNumber(std::numeric_limits<LuaNumber>::quiet_NaN());
+                        }),
                 "string.format integer specifiers reject NaN before conversion");
 }
 

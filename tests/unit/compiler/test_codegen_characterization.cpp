@@ -20,7 +20,7 @@ namespace {
 constexpr const char* kSuiteName = "Codegen Characterization";
 
 Proto* generateProto(const char* code) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -28,7 +28,7 @@ Proto* generateProto(const char* code) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     return codegen.generate(chunk, "test_codegen_characterization");
 }
 
@@ -39,10 +39,11 @@ LuaState* executeChunk(const char* code) {
     }
 
     LuaState* L = LuaState::newState();
+    RuntimeServices services(L->getGlobalState());
     Function* func = new Function(proto);
     L->getGlobalState().getGC().registerObject(func);
     func->setEnv(L->getGlobalTable());
-    VM::execute(L, func);
+    VM::execute(services, L, func);
     return L;
 }
 
@@ -69,8 +70,7 @@ usize countOpcode(const Proto* proto, OpCode op) {
 bool hasABC(const Proto* proto, OpCode op, i32 a, i32 b, i32 c) {
     for (usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
-        if (GET_OPCODE(inst) == op && GETARG_A(inst) == a && GETARG_B(inst) == b &&
-            GETARG_C(inst) == c) {
+        if (GET_OPCODE(inst) == op && GETARG_A(inst) == a && GETARG_B(inst) == b && GETARG_C(inst) == c) {
             return true;
         }
     }
@@ -90,8 +90,7 @@ bool hasReturn(const Proto* proto, i32 a, i32 b) {
 bool hasSetTableFromValueRegister(const Proto* proto, i32 tableReg, i32 valueReg) {
     for (usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
-        if (GET_OPCODE(inst) == OpCode::SETTABLE && GETARG_A(inst) == tableReg &&
-            GETARG_C(inst) == valueReg) {
+        if (GET_OPCODE(inst) == OpCode::SETTABLE && GETARG_A(inst) == tableReg && GETARG_C(inst) == valueReg) {
             return true;
         }
     }
@@ -225,7 +224,6 @@ void testStructuredStatementsLeaveNoPendingJumps(TestSuite& suite) {
     ASSERT_TRUE(suite, hasBackwardJump(proto), "Structured statements include a resolved backward JMP");
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::FORPREP) == 1, "Numeric for emits FORPREP");
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::FORLOOP) == 1, "Numeric for emits FORLOOP");
-
 }
 
 void testGenericForBytecodeShapeIsStable(TestSuite& suite) {
@@ -244,7 +242,6 @@ void testGenericForBytecodeShapeIsStable(TestSuite& suite) {
     ASSERT_FALSE(suite, hasPendingJump(proto), "Generic for leaves no pending JMP");
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::TFORLOOP) == 1, "Generic for emits one TFORLOOP");
     ASSERT_TRUE(suite, hasTForLoopBackEdge(proto), "Generic for keeps TFORLOOP back edge");
-
 }
 
 void testLua51LoadNilMergeAndDirectReturnParityGapIsCharacterized(TestSuite& suite) {
@@ -258,9 +255,7 @@ void testLua51LoadNilMergeAndDirectReturnParityGapIsCharacterized(TestSuite& sui
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::MOVE) == 0,
                 "Direct local return reuses contiguous local registers without MOVE");
     ASSERT_FALSE(suite, hasReturn(proto, 3, 4), "Multi-return no longer starts at temporary register 3");
-    ASSERT_TRUE(suite, hasReturn(proto, 0, 4),
-                "Lua 5.1-style direct local multi-return starts at register 0");
-
+    ASSERT_TRUE(suite, hasReturn(proto, 0, 4), "Lua 5.1-style direct local multi-return starts at register 0");
 
     Proto* elided = generateProto(R"lua(
         local a,b,c
@@ -286,8 +281,7 @@ void testLua51LoadNilMergeAndDirectReturnParityGapIsCharacterized(TestSuite& sui
     ASSERT_TRUE(suite, preserved != nullptr, "Nil assignment proto generated");
     ASSERT_TRUE(suite, countOpcode(preserved, OpCode::LOADNIL) >= 1,
                 "Ordinary nil assignments are preserved instead of path-insensitive dead-store elided");
-    ASSERT_TRUE(suite, countOpcode(preserved, OpCode::RETURN) == 1,
-                "Nil assignment chunk still has one final RETURN");
+    ASSERT_TRUE(suite, countOpcode(preserved, OpCode::RETURN) == 1, "Nil assignment chunk still has one final RETURN");
 
     delete preserved;
 
@@ -368,17 +362,14 @@ void testLua51ConcatMergeParityGapIsCharacterized(TestSuite& suite) {
                 "Merged concat uses a scratch operand range so source locals stay intact");
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::MOVE) == 3,
                 "Merged concat copies active locals before VM CONCAT mutates the operand range");
-
 }
 
 void testLua51NotNotBooleanNormalizationShapeIsCharacterized(TestSuite& suite) {
     Proto* nilProto = generateProto("return not not nil");
 
     ASSERT_TRUE(suite, nilProto != nullptr, "constant not-not nil proto generated");
-    ASSERT_TRUE(suite, countOpcode(nilProto, OpCode::LOADBOOL) == 1,
-                "Lua 5.1-style not-not nil folds to one LOADBOOL");
-    ASSERT_TRUE(suite, countOpcode(nilProto, OpCode::JMP) == 0,
-                "Lua 5.1-style not-not nil emits no JMP");
+    ASSERT_TRUE(suite, countOpcode(nilProto, OpCode::LOADBOOL) == 1, "Lua 5.1-style not-not nil folds to one LOADBOOL");
+    ASSERT_TRUE(suite, countOpcode(nilProto, OpCode::JMP) == 0, "Lua 5.1-style not-not nil emits no JMP");
 
     delete nilProto;
 
@@ -387,8 +378,7 @@ void testLua51NotNotBooleanNormalizationShapeIsCharacterized(TestSuite& suite) {
     ASSERT_TRUE(suite, falseProto != nullptr, "constant not-not false proto generated");
     ASSERT_TRUE(suite, countOpcode(falseProto, OpCode::LOADBOOL) == 1,
                 "Lua 5.1-style not-not false folds to one LOADBOOL");
-    ASSERT_TRUE(suite, countOpcode(falseProto, OpCode::JMP) == 0,
-                "Lua 5.1-style not-not false emits no JMP");
+    ASSERT_TRUE(suite, countOpcode(falseProto, OpCode::JMP) == 0, "Lua 5.1-style not-not false emits no JMP");
 
     delete falseProto;
 
@@ -397,8 +387,7 @@ void testLua51NotNotBooleanNormalizationShapeIsCharacterized(TestSuite& suite) {
     ASSERT_TRUE(suite, trueProto != nullptr, "constant not-not true proto generated");
     ASSERT_TRUE(suite, countOpcode(trueProto, OpCode::LOADBOOL) == 1,
                 "Lua 5.1-style not-not true folds to one LOADBOOL");
-    ASSERT_TRUE(suite, countOpcode(trueProto, OpCode::JMP) == 0,
-                "Lua 5.1-style not-not true emits no JMP");
+    ASSERT_TRUE(suite, countOpcode(trueProto, OpCode::JMP) == 0, "Lua 5.1-style not-not true emits no JMP");
 
     delete trueProto;
 
@@ -407,23 +396,18 @@ void testLua51NotNotBooleanNormalizationShapeIsCharacterized(TestSuite& suite) {
     ASSERT_TRUE(suite, numberProto != nullptr, "constant not-not number proto generated");
     ASSERT_TRUE(suite, countOpcode(numberProto, OpCode::LOADBOOL) == 1,
                 "Lua 5.1-style not-not number folds to one LOADBOOL");
-    ASSERT_TRUE(suite, countOpcode(numberProto, OpCode::JMP) == 0,
-                "Lua 5.1-style not-not number emits no JMP");
+    ASSERT_TRUE(suite, countOpcode(numberProto, OpCode::JMP) == 0, "Lua 5.1-style not-not number emits no JMP");
 
     delete numberProto;
 
     Proto* proto = generateProto("local a = ...; return not not a");
 
     ASSERT_TRUE(suite, proto != nullptr, "not-not proto generated");
-    ASSERT_TRUE(suite, countOpcode(proto, OpCode::TEST) == 1,
-                "Current not-not lowering uses one TEST instruction");
-    ASSERT_TRUE(suite, countOpcode(proto, OpCode::JMP) == 1,
-                "Current not-not lowering uses one JMP instruction");
+    ASSERT_TRUE(suite, countOpcode(proto, OpCode::TEST) == 1, "Current not-not lowering uses one TEST instruction");
+    ASSERT_TRUE(suite, countOpcode(proto, OpCode::JMP) == 1, "Current not-not lowering uses one JMP instruction");
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::LOADBOOL) == 2,
                 "Current not-not lowering materializes a LOADBOOL pair");
-    ASSERT_TRUE(suite, countOpcode(proto, OpCode::NOT) == 0,
-                "Current not-not lowering avoids direct NOT opcodes");
-
+    ASSERT_TRUE(suite, countOpcode(proto, OpCode::NOT) == 0, "Current not-not lowering avoids direct NOT opcodes");
 }
 
 void testLua51AssignmentRegisterReuseGapsAreCharacterized(TestSuite& suite) {
@@ -454,8 +438,7 @@ void testLua51ArithmeticConstantFoldingIsCharacterized(TestSuite& suite) {
     Proto* proto = generateProto("return 1 + 2 * 3");
 
     ASSERT_TRUE(suite, proto != nullptr, "Constant expression proto generated");
-    ASSERT_TRUE(suite, proto->getConstantCount() == 1,
-                "Constant expression folds to one numeric constant");
+    ASSERT_TRUE(suite, proto->getConstantCount() == 1, "Constant expression folds to one numeric constant");
     if (proto->getConstantCount() == 1) {
         Value folded = proto->getConstant(0);
         ASSERT_TRUE(suite, folded.isNumber(), "Folded constant is numeric");
@@ -463,13 +446,10 @@ void testLua51ArithmeticConstantFoldingIsCharacterized(TestSuite& suite) {
             ASSERT_EQ(suite, 7.0, folded.asNumber(), "Folded constant value is 7");
         }
     }
-    ASSERT_TRUE(suite, countOpcode(proto, OpCode::MUL) == 0,
-                "Folded constant expression emits no MUL");
-    ASSERT_TRUE(suite, countOpcode(proto, OpCode::ADD) == 0,
-                "Folded constant expression emits no ADD");
+    ASSERT_TRUE(suite, countOpcode(proto, OpCode::MUL) == 0, "Folded constant expression emits no MUL");
+    ASSERT_TRUE(suite, countOpcode(proto, OpCode::ADD) == 0, "Folded constant expression emits no ADD");
     ASSERT_TRUE(suite, countOpcode(proto, OpCode::LOADK) == 1,
                 "Folded constant expression materializes with one LOADK");
-
 }
 
 void testLua51SelfAssignmentElisionGapIsCharacterized(TestSuite& suite) {
@@ -480,11 +460,8 @@ void testLua51SelfAssignmentElisionGapIsCharacterized(TestSuite& suite) {
                 "Self-assignment elision plus direct local return leaves no MOVE");
     ASSERT_FALSE(suite, hasABC(proto, OpCode::MOVE, 1, 0, 0),
                  "Direct local return does not copy the local to a temporary");
-    ASSERT_FALSE(suite, hasABC(proto, OpCode::MOVE, 0, 1, 0),
-                 "Self-assignment does not write the copied value back");
-    ASSERT_TRUE(suite, hasReturn(proto, 0, 2),
-                "Self-assignment chunk returns directly from local register 0");
-
+    ASSERT_FALSE(suite, hasABC(proto, OpCode::MOVE, 0, 1, 0), "Self-assignment does not write the copied value back");
+    ASSERT_TRUE(suite, hasReturn(proto, 0, 2), "Self-assignment chunk returns directly from local register 0");
 }
 
 void registerCodegenCharacterizationTests() {
@@ -494,8 +471,7 @@ void registerCodegenCharacterizationTests() {
                           testStatementLoweringRuntimeKeepsLoopAndScopeSemantics);
     registry.registerTest(kSuiteName, "Structured Statements Leave No Pending Jumps",
                           testStructuredStatementsLeaveNoPendingJumps);
-    registry.registerTest(kSuiteName, "Generic For Bytecode Shape Is Stable",
-                          testGenericForBytecodeShapeIsStable);
+    registry.registerTest(kSuiteName, "Generic For Bytecode Shape Is Stable", testGenericForBytecodeShapeIsStable);
     registry.registerTest(kSuiteName, "Lua51 LOADNIL Merge And Direct Return Parity Gap Is Characterized",
                           testLua51LoadNilMergeAndDirectReturnParityGapIsCharacterized);
     registry.registerTest(kSuiteName, "Lua51 Nil Assignment In Loop Remains Observable",
@@ -511,4 +487,3 @@ void registerCodegenCharacterizationTests() {
     registry.registerTest(kSuiteName, "Lua51 Self Assignment Elision Gap Is Characterized",
                           testLua51SelfAssignmentElisionGapIsCharacterized);
 }
-

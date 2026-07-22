@@ -21,7 +21,7 @@ namespace {
 constexpr const char* kSuiteName = "Codegen Conditions";
 
 Proto* generateProto(const char* code) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -29,7 +29,7 @@ Proto* generateProto(const char* code) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     return codegen.generate(chunk, "test_codegen_conditions");
 }
 
@@ -41,8 +41,8 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test_codegen_conditions");
         if (proto == nullptr) {
             return false;
@@ -51,7 +51,7 @@ bool runLua(LuaState* L, const char* code) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;

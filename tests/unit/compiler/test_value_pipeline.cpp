@@ -39,15 +39,16 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test_value_pipeline");
-        if (proto == nullptr) return false;
+        if (proto == nullptr)
+            return false;
 
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;
@@ -55,14 +56,14 @@ bool runLua(LuaState* L, const char* code) {
 }
 
 Proto* generateProto(const char* code) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     return codegen.generate(chunk);
 }
 
@@ -80,7 +81,7 @@ bool hasOpcode(const char* code, OpCode op) {
     return countOpcode(code, op) > 0;
 }
 
-}  // namespace
+} // namespace
 
 // =====================================================================
 // Bytecode-level tests for literal ValueResult
@@ -88,28 +89,23 @@ bool hasOpcode(const char* code, OpCode op) {
 
 void testValueNilBytecode(TestSuite& suite) {
     // local x = nil -> LOADNIL
-    ASSERT_TRUE(suite, hasOpcode("local x = nil", OpCode::LOADNIL),
-                "nil literal generates LOADNIL");
+    ASSERT_TRUE(suite, hasOpcode("local x = nil", OpCode::LOADNIL), "nil literal generates LOADNIL");
 }
 
 void testValueBoolBytecode(TestSuite& suite) {
     // local x = true -> LOADBOOL
-    ASSERT_TRUE(suite, hasOpcode("local x = true", OpCode::LOADBOOL),
-                "true literal generates LOADBOOL");
-    ASSERT_TRUE(suite, hasOpcode("local x = false", OpCode::LOADBOOL),
-                "false literal generates LOADBOOL");
+    ASSERT_TRUE(suite, hasOpcode("local x = true", OpCode::LOADBOOL), "true literal generates LOADBOOL");
+    ASSERT_TRUE(suite, hasOpcode("local x = false", OpCode::LOADBOOL), "false literal generates LOADBOOL");
 }
 
 void testValueNumberBytecode(TestSuite& suite) {
     // local x = 42 -> LOADK
-    ASSERT_TRUE(suite, hasOpcode("local x = 42", OpCode::LOADK),
-                "number literal generates LOADK");
+    ASSERT_TRUE(suite, hasOpcode("local x = 42", OpCode::LOADK), "number literal generates LOADK");
 }
 
 void testValueStringBytecode(TestSuite& suite) {
     // local x = "hello" -> LOADK
-    ASSERT_TRUE(suite, hasOpcode("local x = \"hello\"", OpCode::LOADK),
-                "string literal generates LOADK");
+    ASSERT_TRUE(suite, hasOpcode("local x = \"hello\"", OpCode::LOADK), "string literal generates LOADK");
 }
 
 void testValueLocalReadBytecode(TestSuite& suite) {
@@ -128,8 +124,7 @@ void testValueLocalReadBytecode(TestSuite& suite) {
 
 void testValueGlobalReadBytecode(TestSuite& suite) {
     // local x = foo -> GETGLOBAL
-    ASSERT_TRUE(suite, hasOpcode("local x = foo", OpCode::GETGLOBAL),
-                "global read generates GETGLOBAL");
+    ASSERT_TRUE(suite, hasOpcode("local x = foo", OpCode::GETGLOBAL), "global read generates GETGLOBAL");
 }
 
 void testValueUpvalueReadBytecode(TestSuite& suite) {
@@ -140,8 +135,7 @@ void testValueUpvalueReadBytecode(TestSuite& suite) {
     )";
     Proto* outerProto = generateProto(code);
     // Inner function should have GETUPVAL
-    ASSERT_TRUE(suite, outerProto->getSubProtoCount() > 0,
-                "inner function proto exists");
+    ASSERT_TRUE(suite, outerProto->getSubProtoCount() > 0, "inner function proto exists");
     Proto* innerProto = outerProto->getSubProto(0);
     bool found = false;
     for (size_t i = 0; i < innerProto->getInstructionCount(); i++) {
@@ -168,8 +162,7 @@ void testValueRKConstantEncoding(TestSuite& suite) {
             // Either B or C should be an RK constant (bit 8 set)
             i32 b = GETARG_B(inst);
             i32 c = GETARG_C(inst);
-            ASSERT_TRUE(suite, ISK(b) || ISK(c),
-                        "ADD uses RK constant for literal operand");
+            ASSERT_TRUE(suite, ISK(b) || ISK(c), "ADD uses RK constant for literal operand");
             break;
         }
     }
@@ -183,8 +176,7 @@ void testValueRKConstantEncoding(TestSuite& suite) {
 void testValueParenSingleBytecode(TestSuite& suite) {
     // (a) should be same as a
     const char* code = "local a = 10\nlocal b = (a)";
-    ASSERT_TRUE(suite, hasOpcode(code, OpCode::MOVE),
-                "parenthesized local generates MOVE");
+    ASSERT_TRUE(suite, hasOpcode(code, OpCode::MOVE), "parenthesized local generates MOVE");
 }
 
 void testValueParenCallSingle(TestSuite& suite) {
@@ -214,8 +206,7 @@ void testValueParenCallSingle(TestSuite& suite) {
 
 void testValueFunctionExprBytecode(TestSuite& suite) {
     const char* code = "local f = function(x) return x end";
-    ASSERT_TRUE(suite, hasOpcode(code, OpCode::CLOSURE),
-                "function expression generates CLOSURE");
+    ASSERT_TRUE(suite, hasOpcode(code, OpCode::CLOSURE), "function expression generates CLOSURE");
 }
 
 // =====================================================================
@@ -390,10 +381,8 @@ void testValueBlockLocalShadowEndsRuntime(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "block local shadow does not leak after do-end");
 
     Value result = L->getGlobal("block_shadow_result");
-    ASSERT_TRUE(
-        suite,
-        result.isString() && std::string(result.asString()->c_str()) == "global",
-        "name after do-end resolves to global function");
+    ASSERT_TRUE(suite, result.isString() && std::string(result.asString()->c_str()) == "global",
+                "name after do-end resolves to global function");
     delete L;
 }
 
@@ -460,10 +449,7 @@ void testFunctionStatementBindsLocalRuntime(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "function statement assigns existing local binding");
 
     Value result = L->getGlobal("local_result");
-    ASSERT_TRUE(
-        suite,
-        result.isNumber() && result.asNumber() == 3,
-        "local function statement result is callable");
+    ASSERT_TRUE(suite, result.isNumber() && result.asNumber() == 3, "local function statement result is callable");
     delete L;
 }
 
@@ -541,10 +527,13 @@ void registerValuePipelineTests() {
     registry.registerTest(kSuiteName, "Table Index Runtime", testValueTableIndexRuntime);
     registry.registerTest(kSuiteName, "Call Result Runtime", testValueCallResultRuntime);
     registry.registerTest(kSuiteName, "Block Local Shadow Ends Runtime", testValueBlockLocalShadowEndsRuntime);
-    registry.registerTest(kSuiteName, "Mixed LValue Call Assignment Runtime", testValueMixedLValueCallAssignmentRuntime);
-    registry.registerTest(kSuiteName, "Multiple Assignment Freezes References Runtime", testValueMultipleAssignmentFreezesReferencesRuntime);
+    registry.registerTest(kSuiteName, "Mixed LValue Call Assignment Runtime",
+                          testValueMixedLValueCallAssignmentRuntime);
+    registry.registerTest(kSuiteName, "Multiple Assignment Freezes References Runtime",
+                          testValueMultipleAssignmentFreezesReferencesRuntime);
     registry.registerTest(kSuiteName, "Function Statement Binds Local Runtime", testFunctionStatementBindsLocalRuntime);
-    registry.registerTest(kSuiteName, "Nested Numeric For Uses Outer Control Runtime", testNestedNumericForUsesOuterControlRuntime);
-    registry.registerTest(kSuiteName, "While Break Patches Before Following Jump Bytecode", testWhileBreakPatchesBeforeFollowingJumpBytecode);
+    registry.registerTest(kSuiteName, "Nested Numeric For Uses Outer Control Runtime",
+                          testNestedNumericForUsesOuterControlRuntime);
+    registry.registerTest(kSuiteName, "While Break Patches Before Following Jump Bytecode",
+                          testWhileBreakPatchesBeforeFollowingJumpBytecode);
 }
-

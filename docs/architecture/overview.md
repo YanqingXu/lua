@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/architecture/patterns.md; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp; src/runtime/; tests/lua/regressions/; tests/lua/integration/
-last_checked: 2026-07-11
+verified_against: docs/architecture/patterns.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; src/common/; src/core/; src/compiler/; src/vm/; src/gc/; src/lib/; src/runtime/runtime_services.hpp; src/runtime/; tests/packaging/; tests/lua/regressions/; tests/lua/integration/
+last_checked: 2026-07-22
 applies_to: current high-level architecture and source layout
 ---
 
@@ -108,7 +108,7 @@ Visual Studio 解决方案包含四个活跃项目：
 - `lua_test.vcxproj`：单元测试可执行文件
 - `lua_bytecode.vcxproj`：字节码检查可执行文件
 
-CMake/CTest 作为辅助验证路径存在，构建 `lua_core`、`lua_app`、`lua_test` 和 `lua_bytecode`。
+CMake/CTest 构建 `lua_core`、`lua_public_api_shared`、`lua_app`、`lua_test` 和 `lua_bytecode`，并安装带版本合同的 `LuaCpp::Lua` / `LuaCpp::Shared` 导出目标、公开 C 头文件与 PackageConfig。`cmake_package_consumer` 使用全新纯 C 源码 consumer 验证安装后的静态及共享消费路径；因静态库由 C++ 实现，consumer 工程同时启用 C++ linker language。
 
 ## 阅读地图
 

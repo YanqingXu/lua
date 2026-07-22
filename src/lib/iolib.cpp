@@ -18,6 +18,7 @@
 #include "core/table.hpp"
 #include "core/upvalue.hpp"
 #include "core/userdata.hpp"
+#include "runtime/lua_allocator.hpp"
 #include "vm/state/global_state.hpp"
 #include <cstdio>
 #include <expected>
@@ -489,7 +490,7 @@ void setDefaultOutput(LuaState* L, FILE* fp) {
  * @brief 读取一行（不包括换行符）
  */
 static bool readLine(LuaState* L, FILE* fp) {
-    std::string line;
+    LuaString line(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     i32 c;
 
     while ((c = std::fgetc(fp)) != EOF && c != '\n') {
@@ -520,7 +521,7 @@ static bool readChars(LuaState* L, FILE* fp, usize count) {
         return true;
     }
 
-    std::string buffer;
+    LuaString buffer(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     buffer.reserve(count);
 
     for (usize i = 0; i < count; i++) {
@@ -543,7 +544,7 @@ static bool readChars(LuaState* L, FILE* fp, usize count) {
  * @brief 读取整个文件
  */
 static bool readAll(LuaState* L, FILE* fp) {
-    std::string content;
+    LuaString content(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     i32 c;
 
     while ((c = std::fgetc(fp)) != EOF) {
@@ -559,7 +560,7 @@ static bool readAll(LuaState* L, FILE* fp) {
  * @brief 读取一个数字
  */
 static bool readNumber(LuaState* L, FILE* fp) {
-    std::string token;
+    LuaString token(LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
 
     int c = std::fgetc(fp);
     while (c != EOF && std::isspace(static_cast<unsigned char>(c))) {

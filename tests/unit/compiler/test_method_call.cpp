@@ -26,7 +26,7 @@ using namespace LuaTest;
  * 注意：假设 obj 是全局变量
  */
 void testSimpleMethodCall(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local result = obj:method()";
     Parser parser(code);
@@ -36,7 +36,7 @@ void testSimpleMethodCall(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -61,7 +61,6 @@ void testSimpleMethodCall(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasCall, "Generated CALL instruction");
-
 }
 
 /**
@@ -70,7 +69,7 @@ void testSimpleMethodCall(TestSuite& suite) {
  * 注意：假设 obj, a, b 都是全局变量
  */
 void testMethodCallWithArgs(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local result = obj:method(a, b)";
     Parser parser(code);
@@ -80,7 +79,7 @@ void testMethodCallWithArgs(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -104,7 +103,6 @@ void testMethodCallWithArgs(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasCall, "Generated CALL instruction");
-
 }
 
 /**
@@ -113,7 +111,7 @@ void testMethodCallWithArgs(TestSuite& suite) {
  * 注意：假设 obj 是全局变量
  */
 void testChainedMethodCall(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local result = obj:method1():method2()";
     Parser parser(code);
@@ -123,7 +121,7 @@ void testChainedMethodCall(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -145,7 +143,6 @@ void testChainedMethodCall(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, callCount >= 2, "Generated two CALL instructions");
-
 }
 
 /**
@@ -154,7 +151,7 @@ void testChainedMethodCall(TestSuite& suite) {
  * 注意：假设 obj 和 func 都是全局变量
  */
 void testMethodCallWithFunctionArg(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local result = obj:method(func())";
     Parser parser(code);
@@ -164,7 +161,7 @@ void testMethodCallWithFunctionArg(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -187,7 +184,6 @@ void testMethodCallWithFunctionArg(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, callCount >= 2, "Generated two CALL instructions");
-
 }
 
 /**
@@ -196,7 +192,7 @@ void testMethodCallWithFunctionArg(TestSuite& suite) {
  * 注意：假设 obj 是全局变量
  */
 void testSelfInstructionFormat(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local result = obj:method()";
     Parser parser(code);
@@ -206,7 +202,7 @@ void testSelfInstructionFormat(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -238,7 +234,6 @@ void testSelfInstructionFormat(TestSuite& suite) {
         // C 应该是方法名（可能是常量索引）
         ASSERT_TRUE(suite, C >= 0, "SELF C operand is valid");
     }
-
 }
 
 /**
@@ -247,7 +242,7 @@ void testSelfInstructionFormat(TestSuite& suite) {
  * 注意：假设 obj 是全局变量
  */
 void testMethodNameInConstants(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local result = obj:method()";
     Parser parser(code);
@@ -257,7 +252,7 @@ void testMethodNameInConstants(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -273,7 +268,6 @@ void testMethodNameInConstants(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasStringConstant, "Constants include string");
-
 }
 
 /**
@@ -282,7 +276,7 @@ void testMethodNameInConstants(TestSuite& suite) {
  * 注意：假设 obj 是全局变量
  */
 void testMethodCallMultipleArgs(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     const char* code = "local result = obj:method(1, 2, 3)";
     Parser parser(code);
@@ -292,7 +286,7 @@ void testMethodCallMultipleArgs(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -306,14 +300,13 @@ void testMethodCallMultipleArgs(TestSuite& suite) {
         }
     }
     ASSERT_TRUE(suite, hasSelf, "Generated SELF instruction");
-
 }
 
 /**
  * @brief 测试方法名常量超过 RK 直接编码范围时会先落到寄存器
  */
 void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     std::string code = "local obj = {}\nlocal sink = {\n";
     for (int i = 0; i < 270; ++i) {
@@ -328,7 +321,7 @@ void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -362,23 +355,20 @@ void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
         bool loadedTargetKey = false;
         for (int i = 0; i < selfIdx; ++i) {
             Instruction inst = proto->getInstruction(static_cast<usize>(i));
-            if (GET_OPCODE(inst) == OpCode::LOADK &&
-                GETARG_A(inst) == keyReg &&
-                GETARG_Bx(inst) == targetConst) {
+            if (GET_OPCODE(inst) == OpCode::LOADK && GETARG_A(inst) == keyReg && GETARG_Bx(inst) == targetConst) {
                 loadedTargetKey = true;
                 break;
             }
         }
         ASSERT_TRUE(suite, loadedTargetKey, "Method name is loaded before SELF");
     }
-
 }
 
 /**
  * @brief 测试方法定义写回字段超过 RK 范围时会先落到寄存器
  */
 void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
 
     std::string code = "local obj = {}\nlocal sink = {\n";
     for (int i = 0; i < 270; ++i) {
@@ -393,7 +383,7 @@ void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
     }
     Chunk chunk = std::move(*parsed);
 
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -423,9 +413,7 @@ void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
 
         for (size_t j = 0; j < i; ++j) {
             Instruction before = proto->getInstruction(j);
-            if (GET_OPCODE(before) == OpCode::LOADK &&
-                GETARG_A(before) == keyReg &&
-                GETARG_Bx(before) == targetConst) {
+            if (GET_OPCODE(before) == OpCode::LOADK && GETARG_A(before) == keyReg && GETARG_Bx(before) == targetConst) {
                 storesWithLoadedKey = true;
                 break;
             }
@@ -433,7 +421,6 @@ void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
     }
 
     ASSERT_TRUE(suite, storesWithLoadedKey, "Method definition key is loaded before SETTABLE");
-
 }
 
 /**
@@ -449,8 +436,8 @@ void registerMethodCallTests() {
     registry.registerTest("Method Call", "SELF Instruction Format", testSelfInstructionFormat);
     registry.registerTest("Method Call", "Method Name In Constants", testMethodNameInConstants);
     registry.registerTest("Method Call", "Multiple Args", testMethodCallMultipleArgs);
-    registry.registerTest("Method Call", "Wide Method Name Constant Uses Register", testWideMethodNameConstantUsesRegister);
-    registry.registerTest("Method Call", "Wide Method Definition Key Uses Register", testWideMethodDefinitionKeyUsesRegister);
+    registry.registerTest("Method Call", "Wide Method Name Constant Uses Register",
+                          testWideMethodNameConstantUsesRegister);
+    registry.registerTest("Method Call", "Wide Method Definition Key Uses Register",
+                          testWideMethodDefinitionKeyUsesRegister);
 }
-
-

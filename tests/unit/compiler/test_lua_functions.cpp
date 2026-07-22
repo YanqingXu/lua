@@ -36,7 +36,7 @@ void testLuaFunctionFile(TestSuite& suite) {
         ASSERT_TRUE(suite, code.size() > 0, "File loaded");
 
         // 编译
-        StringPool& pool = StringPool::getInstance();
+        RuntimeServices services = RuntimeServices::fromSingletons();
         Parser parser(code.c_str());
         auto parsed = parser.parse();
         if (!parsed) {
@@ -44,7 +44,7 @@ void testLuaFunctionFile(TestSuite& suite) {
         }
         Chunk chunk = std::move(*parsed);
 
-        CodeGenerator codegen(&pool);
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk);
 
         ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -64,5 +64,3 @@ void registerLuaFunctionTests() {
 
     registry.registerTest("Lua File Compilation", "test_functions.lua", testLuaFunctionFile);
 }
-
-

@@ -64,8 +64,8 @@ bool runLua(LuaState* L, const char* code) {
             throw parsed.error();
         }
         Chunk chunk = std::move(*parsed);
-        StringPool& pool = StringPool::getInstance();
-        CodeGenerator codegen(&pool);
+        RuntimeServices services = RuntimeServices::fromSingletons();
+        CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, "test_symbol_binding");
         if (proto == nullptr)
             return false;
@@ -73,7 +73,7 @@ bool runLua(LuaState* L, const char* code) {
         Function* func = new Function(proto);
         L->getGlobalState().getGC().registerObject(func);
         func->setEnv(L->getGlobalTable());
-        VM::execute(L, func);
+        VM::execute(services, L, func);
         return true;
     } catch (...) {
         return false;
@@ -81,14 +81,14 @@ bool runLua(LuaState* L, const char* code) {
 }
 
 int countOpcode(const char* code, OpCode op) {
-    StringPool& pool = StringPool::getInstance();
+    RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
         throw parsed.error();
     }
     Chunk chunk = std::move(*parsed);
-    CodeGenerator codegen(&pool);
+    CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk, "test_symbol_binding");
     if (proto == nullptr)
         return 0;
@@ -130,8 +130,8 @@ void testSymbolToValueLocal(TestSuite& suite) {
     sym.kind = SymbolRef::Kind::Local;
     sym.index = 3;
     sym.name = "x";
-    StringPool& pool = StringPool::getInstance();
-    CodeGenerator codegen(&pool);
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
     ValueResult vr = codegen.symbolToValue(sym);
     ValuePayloadSnapshot value = snapshotValuePayload(vr);
     ASSERT_TRUE(suite, value.payloadKind == ValueResult::Kind::Register, "Local → Register payload");
@@ -145,8 +145,8 @@ void testSymbolToValueUpvalue(TestSuite& suite) {
     sym.kind = SymbolRef::Kind::Upvalue;
     sym.index = 0;
     sym.name = "x";
-    StringPool& pool = StringPool::getInstance();
-    CodeGenerator codegen(&pool);
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
     ValueResult vr = codegen.symbolToValue(sym);
     ValuePayloadSnapshot value = snapshotValuePayload(vr);
     ASSERT_TRUE(suite, value.payloadKind == ValueResult::Kind::PendingLoad, "Upvalue → PendingLoad payload");
@@ -159,8 +159,8 @@ void testSymbolToValueGlobal(TestSuite& suite) {
     sym.kind = SymbolRef::Kind::Global;
     sym.index = 5;
     sym.name = "print";
-    StringPool& pool = StringPool::getInstance();
-    CodeGenerator codegen(&pool);
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
     ValueResult vr = codegen.symbolToValue(sym);
     ValuePayloadSnapshot value = snapshotValuePayload(vr);
     ASSERT_TRUE(suite, value.payloadKind == ValueResult::Kind::PendingLoad, "Global → PendingLoad payload");
@@ -172,8 +172,8 @@ void testSymbolToLValueLocal(TestSuite& suite) {
     SymbolRef sym;
     sym.kind = SymbolRef::Kind::Local;
     sym.index = 2;
-    StringPool& pool = StringPool::getInstance();
-    CodeGenerator codegen(&pool);
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
     LValueRef lv = codegen.symbolToLValue(sym);
     ASSERT_TRUE(suite, lv.kind == LValueRef::Kind::Local, "LValue Local kind");
     ASSERT_EQ(suite, 2, lv.slot, "LValue Local slot is 2");
@@ -183,8 +183,8 @@ void testSymbolToLValueUpvalue(TestSuite& suite) {
     SymbolRef sym;
     sym.kind = SymbolRef::Kind::Upvalue;
     sym.index = 1;
-    StringPool& pool = StringPool::getInstance();
-    CodeGenerator codegen(&pool);
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
     LValueRef lv = codegen.symbolToLValue(sym);
     ASSERT_TRUE(suite, lv.kind == LValueRef::Kind::Upvalue, "LValue Upvalue kind");
     ASSERT_EQ(suite, 1, lv.slot, "LValue Upvalue slot is 1");
@@ -194,8 +194,8 @@ void testSymbolToLValueGlobal(TestSuite& suite) {
     SymbolRef sym;
     sym.kind = SymbolRef::Kind::Global;
     sym.index = 3;
-    StringPool& pool = StringPool::getInstance();
-    CodeGenerator codegen(&pool);
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    CodeGenerator codegen(services);
     LValueRef lv = codegen.symbolToLValue(sym);
     ASSERT_TRUE(suite, lv.kind == LValueRef::Kind::Global, "LValue Global kind");
     ASSERT_EQ(suite, 3, lv.slot, "LValue Global slot is 3");
