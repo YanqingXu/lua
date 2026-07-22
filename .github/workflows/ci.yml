@@ -279,13 +279,14 @@ jobs:
       - name: Install Clang
         run: >-
           sudo apt-get update && sudo apt-get install --yes
-          clang-18 libc++-18-dev libc++abi-18-dev
+          clang-18 libfuzzer-18-dev libc++-18-dev libc++abi-18-dev
 
       - name: Configure fuzzers
         run: >-
           cmake -S . -B build/fuzz
           -DCMAKE_BUILD_TYPE=Debug
           -DLUA_CPP_BUILD_FUZZERS=ON
+          -DLUA_CPP_LIBFUZZER_LIBRARY=/usr/lib/llvm-18/lib/libFuzzer.a
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
 
