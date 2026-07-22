@@ -350,9 +350,15 @@ if(LUA_CPP_BUILD_FUZZERS)
         add_executable(fuzz_${fuzzer_name} tests/fuzz/fuzz_${fuzzer_name}.cpp)
         target_link_libraries(fuzz_${fuzzer_name} PRIVATE lua_core)
         if(LUA_CPP_LIBFUZZER_LIBRARY)
-            target_link_libraries(fuzz_${fuzzer_name} PRIVATE "${LUA_CPP_LIBFUZZER_LIBRARY}")
             if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-                target_link_libraries(fuzz_${fuzzer_name} PRIVATE stdc++)
+                target_link_libraries(fuzz_${fuzzer_name} PRIVATE
+                    "-Wl,--start-group"
+                    "${LUA_CPP_LIBFUZZER_LIBRARY}"
+                    stdc++
+                    "-Wl,--end-group"
+                )
+            else()
+                target_link_libraries(fuzz_${fuzzer_name} PRIVATE "${LUA_CPP_LIBFUZZER_LIBRARY}")
             endif()
             target_link_options(fuzz_${fuzzer_name} PRIVATE -fsanitize=address,undefined)
         else()
