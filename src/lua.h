@@ -199,6 +199,7 @@ int lua_gethookcount(lua_State* L) LUA_CXX_MAY_THROW;
 #define lua_pop(L, n) lua_settop((L), -(n) - 1)
 #define lua_newtable(L) lua_createtable((L), 0, 0)
 #define lua_tostring(L, i) lua_tolstring((L), (i), 0)
+#define lua_pushliteral(L, s) lua_pushlstring((L), "" s, (sizeof(s) / sizeof(char)) - 1)
 #define lua_isfunction(L, n) (lua_type((L), (n)) == LUA_TFUNCTION)
 #define lua_istable(L, n) (lua_type((L), (n)) == LUA_TTABLE)
 #define lua_isnil(L, n) (lua_type((L), (n)) == LUA_TNIL)
