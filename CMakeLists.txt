@@ -23,7 +23,6 @@ option(LUA_CPP_BUILD_FUZZERS "Build libFuzzer security-boundary targets" OFF)
 option(LUA_CPP_BUILD_SHARED "Build the public C API shared library" ON)
 option(LUA_CPP_ENABLE_COVERAGE "Enable Clang source-based coverage instrumentation" OFF)
 set(LUA_CPP_SANITIZER "" CACHE STRING "Enable a runtime sanitizer: address, undefined, or thread")
-set(LUA_CPP_LIBFUZZER_LIBRARY "" CACHE FILEPATH "Optional explicit libFuzzer runtime archive")
 set_property(CACHE LUA_CPP_SANITIZER PROPERTY STRINGS "" address undefined thread)
 
 if(LUA_CPP_SANITIZER)
@@ -349,22 +348,8 @@ if(LUA_CPP_BUILD_FUZZERS)
     foreach(fuzzer_name IN ITEMS undump bytecode_verifier parser stdlib_numeric_arguments)
         add_executable(fuzz_${fuzzer_name} tests/fuzz/fuzz_${fuzzer_name}.cpp)
         target_link_libraries(fuzz_${fuzzer_name} PRIVATE lua_core)
-        if(LUA_CPP_LIBFUZZER_LIBRARY)
-            if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-                target_link_libraries(fuzz_${fuzzer_name} PRIVATE
-                    "-Wl,--start-group"
-                    "${LUA_CPP_LIBFUZZER_LIBRARY}"
-                    stdc++
-                    "-Wl,--end-group"
-                )
-            else()
-                target_link_libraries(fuzz_${fuzzer_name} PRIVATE "${LUA_CPP_LIBFUZZER_LIBRARY}")
-            endif()
-            target_link_options(fuzz_${fuzzer_name} PRIVATE -fsanitize=address,undefined)
-        else()
-            target_link_options(fuzz_${fuzzer_name} PRIVATE -fsanitize=fuzzer,address,undefined)
-        endif()
         target_include_directories(fuzz_${fuzzer_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_link_options(fuzz_${fuzzer_name} PRIVATE -fsanitize=fuzzer,address,undefined)
         lua_configure_target_warnings(fuzz_${fuzzer_name})
     endforeach()
 endif()
