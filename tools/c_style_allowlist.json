@@ -2209,6 +2209,13 @@
     },
     {
       "rule": "bare new",
+      "path": "src\\runtime\\lua_allocator.hpp",
+      "line": 33,
+      "textHash": "5d2eca4185ed56afa1a575cc0ce985906012d5092a5b0633df9cacfebaf8aefe",
+      "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
+    },
+    {
+      "rule": "bare new",
       "path": "tests\\unit\\compiler\\test_call_pipeline.cpp",
       "line": 45,
       "textHash": "76d2ddabacee36fe3775de33790ef603c6b8f7ade9d648c83d5fde9f6bae6c65",
@@ -2924,63 +2931,63 @@
     {
       "rule": "bare new",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 126,
+      "line": 130,
       "textHash": "76d2ddabacee36fe3775de33790ef603c6b8f7ade9d648c83d5fde9f6bae6c65",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "bare new",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 297,
+      "line": 311,
       "textHash": "e85c310ae4ee52c83a08ac42f0cd00cb4220615f8b341e2d9b53385623392e84",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "bare new",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 308,
+      "line": 322,
       "textHash": "12f6f86219a95dd21b45290cc55cfc55a83e21fc7187332e6dfe8573a42ea887",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "bare new",
-      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 345,
-      "textHash": "e85c310ae4ee52c83a08ac42f0cd00cb4220615f8b341e2d9b53385623392e84",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "bare new",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
       "line": 359,
-      "textHash": "12f6f86219a95dd21b45290cc55cfc55a83e21fc7187332e6dfe8573a42ea887",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "bare new",
-      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 403,
-      "textHash": "1b7f5f77c34b2974b03aba9eba60855162749574f7d3edc956c8252d1635db99",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "bare new",
-      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 491,
-      "textHash": "5f7f370d97a96ac8e3a5923b1b365718eab5b7b7b21188385589edb9c594553c",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "bare new",
-      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 844,
       "textHash": "e85c310ae4ee52c83a08ac42f0cd00cb4220615f8b341e2d9b53385623392e84",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "bare new",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 947,
+      "line": 373,
+      "textHash": "12f6f86219a95dd21b45290cc55cfc55a83e21fc7187332e6dfe8573a42ea887",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "bare new",
+      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
+      "line": 417,
+      "textHash": "1b7f5f77c34b2974b03aba9eba60855162749574f7d3edc956c8252d1635db99",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "bare new",
+      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
+      "line": 505,
+      "textHash": "5f7f370d97a96ac8e3a5923b1b365718eab5b7b7b21188385589edb9c594553c",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "bare new",
+      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
+      "line": 858,
+      "textHash": "e85c310ae4ee52c83a08ac42f0cd00cb4220615f8b341e2d9b53385623392e84",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "bare new",
+      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
+      "line": 961,
       "textHash": "12f6f86219a95dd21b45290cc55cfc55a83e21fc7187332e6dfe8573a42ea887",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -3155,21 +3162,21 @@
     {
       "rule": "C allocator free",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 733,
+      "line": 746,
       "textHash": "d7690a05ce7d7b2fd6880195c277c98936008b9c22524adc26e2053427993f21",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "C allocator free",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 247,
+      "line": 248,
       "textHash": "c0812857a5efa003b7ee7efa98fa9355040bb5039f010b39fe415bdf8dc53696",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "C allocator free",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 990,
+      "line": 991,
       "textHash": "c0812857a5efa003b7ee7efa98fa9355040bb5039f010b39fe415bdf8dc53696",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -3274,14 +3281,14 @@
     {
       "rule": "const char pointer array",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 731,
+      "line": 732,
       "textHash": "ae85cdb09a60929c94237cbf8e6678457a605c166e1cb908f3ce11001e019616",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "const char pointer array",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 4771,
+      "line": 4772,
       "textHash": "ae85cdb09a60929c94237cbf8e6678457a605c166e1cb908f3ce11001e019616",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -3344,7 +3351,7 @@
     {
       "rule": "native fixed-size array declaration",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 4999,
+      "line": 5000,
       "textHash": "1ca46ca8e706b9f40dc178beb220357587a99ac848758e688a68b3e70c0d4dd8",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -3561,14 +3568,14 @@
     {
       "rule": "native fixed-size array declaration",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 153,
+      "line": 157,
       "textHash": "049f04acceb360966eacb93ea70810655118525b833d5c9e0620b086bb6d6a8b",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "native fixed-size array declaration",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 160,
+      "line": 174,
       "textHash": "e862ce752c6e947059f92e7f2da7967b04ed55d2990713362a8d0f76d8596970",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -3876,49 +3883,49 @@
     {
       "rule": "return nullptr",
       "path": "src\\lib\\packagelib.cpp",
-      "line": 108,
+      "line": 111,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\packagelib.cpp",
-      "line": 118,
+      "line": 121,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\packagelib.cpp",
-      "line": 125,
+      "line": 128,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\packagelib.cpp",
-      "line": 416,
+      "line": 429,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\packagelib.cpp",
-      "line": 425,
+      "line": 438,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\packagelib.cpp",
-      "line": 441,
+      "line": 454,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\lib\\packagelib.cpp",
-      "line": 449,
+      "line": 462,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -4065,28 +4072,28 @@
     {
       "rule": "return nullptr",
       "path": "src\\main.cpp",
-      "line": 141,
+      "line": 145,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\main.cpp",
-      "line": 151,
+      "line": 155,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\main.cpp",
-      "line": 154,
+      "line": 158,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\main.cpp",
-      "line": 404,
+      "line": 419,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -4114,14 +4121,14 @@
     {
       "rule": "return nullptr",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 71,
+      "line": 84,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "return nullptr",
       "path": "src\\runtime\\lua_allocator.hpp",
-      "line": 79,
+      "line": 92,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -4191,56 +4198,56 @@
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 250,
+      "line": 251,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 260,
+      "line": 261,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 263,
+      "line": 264,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 267,
+      "line": 268,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 285,
+      "line": 286,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 290,
+      "line": 291,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 906,
+      "line": 907,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "return nullptr",
       "path": "tests\\unit\\api\\test_lua_c_api.cpp",
-      "line": 991,
+      "line": 992,
       "textHash": "0e4bce8ffb90a54f87dd1e313212d256102e9e3c73e8525feeb9faddd27faf05",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -4941,48 +4948,55 @@
       "rule": "simple #define",
       "path": "src\\lua.h",
       "line": 202,
-      "textHash": "3ecd0cfb67a503929d1d9d9a0b68ea8e18770e590b75b9d9e2bdb52294c810d7",
+      "textHash": "9f15a5851d9e6981a6da22d8992d31f98371adc8b919fc9b2cdf0b383db2f9eb",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
       "line": 203,
-      "textHash": "44a2659b82b1855601421ce08dbaa28ac5aedf63d5c4d2edd47f27552d3b26b6",
+      "textHash": "3ecd0cfb67a503929d1d9d9a0b68ea8e18770e590b75b9d9e2bdb52294c810d7",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
       "line": 204,
-      "textHash": "e685fb48551ec9ef8404f1dc7ce8788a3b2f5456f5cfeb268fb85f69fb5f9107",
+      "textHash": "44a2659b82b1855601421ce08dbaa28ac5aedf63d5c4d2edd47f27552d3b26b6",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
       "line": 205,
-      "textHash": "6e931bde509f6e94dc1c7a1b4312ad23f553980ae8163037c6636f6eb81fcc7c",
+      "textHash": "e685fb48551ec9ef8404f1dc7ce8788a3b2f5456f5cfeb268fb85f69fb5f9107",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
       "line": 206,
-      "textHash": "9bfb70f2770245307bdc27fb0c270524080c32f4c9614a2f5e80f7eab3174f28",
+      "textHash": "6e931bde509f6e94dc1c7a1b4312ad23f553980ae8163037c6636f6eb81fcc7c",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
       "line": 207,
-      "textHash": "8299431d73092a3c667e85634931cbaf0e71f483940b25ee0b8ee7aa761a6ebc",
+      "textHash": "9bfb70f2770245307bdc27fb0c270524080c32f4c9614a2f5e80f7eab3174f28",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\lua.h",
       "line": 208,
+      "textHash": "8299431d73092a3c667e85634931cbaf0e71f483940b25ee0b8ee7aa761a6ebc",
+      "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
+    },
+    {
+      "rule": "simple #define",
+      "path": "src\\lua.h",
+      "line": 209,
       "textHash": "d4fe626e50518947174db8a90e39b9d7b80a059e29a5eab37da75884522f948c",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -5066,14 +5080,14 @@
     {
       "rule": "simple #define",
       "path": "src\\main.cpp",
-      "line": 69,
+      "line": 73,
       "textHash": "870c5d504742d1ef4c5d4e0de843f2fc6999c801b6679c1f27642c5132e45401",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
     {
       "rule": "simple #define",
       "path": "src\\main.cpp",
-      "line": 77,
+      "line": 81,
       "textHash": "49ab12a51399f8eae6ca00cd8787841f6ef04aa08e7dd59149b6eb84bcc7c0d8",
       "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     },
@@ -5346,14 +5360,14 @@
     {
       "rule": "simple #define",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 61,
+      "line": 65,
       "textHash": "66f91020a17db8cc2d177db72817ccb505af9ca21ca6cb5c1b5a3c7c7ae4d935",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "simple #define",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 63,
+      "line": 67,
       "textHash": "045f4007000d0b97a703644b505149f9b4e809b9afb2b9582602f5bb6a9e9ce2",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -5369,6 +5383,13 @@
       "path": "src\\lib\\iolib.cpp",
       "line": 138,
       "textHash": "c99b5e111ed9375d78d741ec4291a242a9913e1e677a6ea8bbfa419423a915d1",
+      "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
+    },
+    {
+      "rule": "test manual ownership",
+      "path": "src\\runtime\\lua_allocator.hpp",
+      "line": 33,
+      "textHash": "5d2eca4185ed56afa1a575cc0ce985906012d5092a5b0633df9cacfebaf8aefe",
       "rationale": "Existing product advisory; modernize when the surrounding compatibility boundary is touched."
     },
     {
@@ -7740,63 +7761,63 @@
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 126,
+      "line": 130,
       "textHash": "76d2ddabacee36fe3775de33790ef603c6b8f7ade9d648c83d5fde9f6bae6c65",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 297,
+      "line": 311,
       "textHash": "e85c310ae4ee52c83a08ac42f0cd00cb4220615f8b341e2d9b53385623392e84",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 308,
+      "line": 322,
       "textHash": "12f6f86219a95dd21b45290cc55cfc55a83e21fc7187332e6dfe8573a42ea887",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "test manual ownership",
-      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 345,
-      "textHash": "e85c310ae4ee52c83a08ac42f0cd00cb4220615f8b341e2d9b53385623392e84",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
       "line": 359,
-      "textHash": "12f6f86219a95dd21b45290cc55cfc55a83e21fc7187332e6dfe8573a42ea887",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "test manual ownership",
-      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 403,
-      "textHash": "1b7f5f77c34b2974b03aba9eba60855162749574f7d3edc956c8252d1635db99",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "test manual ownership",
-      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 491,
-      "textHash": "5f7f370d97a96ac8e3a5923b1b365718eab5b7b7b21188385589edb9c594553c",
-      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
-    },
-    {
-      "rule": "test manual ownership",
-      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 844,
       "textHash": "e85c310ae4ee52c83a08ac42f0cd00cb4220615f8b341e2d9b53385623392e84",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
     {
       "rule": "test manual ownership",
       "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
-      "line": 947,
+      "line": 373,
+      "textHash": "12f6f86219a95dd21b45290cc55cfc55a83e21fc7187332e6dfe8573a42ea887",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "test manual ownership",
+      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
+      "line": 417,
+      "textHash": "1b7f5f77c34b2974b03aba9eba60855162749574f7d3edc956c8252d1635db99",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "test manual ownership",
+      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
+      "line": 505,
+      "textHash": "5f7f370d97a96ac8e3a5923b1b365718eab5b7b7b21188385589edb9c594553c",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "test manual ownership",
+      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
+      "line": 858,
+      "textHash": "e85c310ae4ee52c83a08ac42f0cd00cb4220615f8b341e2d9b53385623392e84",
+      "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "test manual ownership",
+      "path": "tests\\unit\\stdlib\\test_packagelib.cpp",
+      "line": 961,
       "textHash": "12f6f86219a95dd21b45290cc55cfc55a83e21fc7187332e6dfe8573a42ea887",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     },
@@ -8485,6 +8506,13 @@
       "line": 411,
       "textHash": "1761a2490d6984a59ec46e270bfd37d4a0a95de2bc2806548e6708fe288c65db",
       "rationale": "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
+    },
+    {
+      "rule": "void pointer C-style cast",
+      "path": "src\\runtime\\lua_allocator.hpp",
+      "line": 61,
+      "textHash": "646a50bc5a20d06e893802572158ed1412476ebcdec4321f5c8610ff631f1244",
+      "rationale": "Existing product compatibility baseline; remove or modernize when the location is touched."
     }
   ]
 }
