@@ -10,9 +10,7 @@
 
 namespace Lua {
 
-ScopeManager::ScopeManager(CodegenState& state, JumpPatcher& jumps) noexcept
-    : state_(state)
-    , jumps_(jumps) {}
+ScopeManager::ScopeManager(CodegenState& state, JumpPatcher& jumps) noexcept : state_(state), jumps_(jumps) {}
 
 i32 ScopeManager::addLocalVar(const Str& name) {
     i32 reg = state_.registers.current();
@@ -135,4 +133,4 @@ void ScopeManager::emitClose(i32 level) {
     state_.bytecode.emitABC(state_.currentLine, OpCode::CLOSE, level, 0, 0);
 }
 
-}  // namespace Lua
+} // namespace Lua

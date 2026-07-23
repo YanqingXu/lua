@@ -17,12 +17,9 @@ namespace Lua {
 
 namespace detail {
 
-template <typename Visitor, typename Node, typename R>
-consteval bool canVisitNode() {
+template <typename Visitor, typename Node, typename R> consteval bool canVisitNode() {
     if constexpr (std::is_void_v<R>) {
-        return requires(Visitor& visitor, const Node& node) {
-            visitor.visitNode(node);
-        };
+        return requires(Visitor& visitor, const Node& node) { visitor.visitNode(node); };
     } else {
         return requires(Visitor& visitor, const Node& node) {
             { visitor.visitNode(node) } -> std::convertible_to<R>;
@@ -48,12 +45,12 @@ consteval bool visitsVariantNodes(std::index_sequence<I...>) {
 } // namespace detail
 
 template <typename Visitor, typename R = void>
-concept VisitsExprNodes = detail::visitsVariantNodes<Visitor, ExprVariant, R>(
-    std::make_index_sequence<std::variant_size_v<ExprVariant>>{});
+concept VisitsExprNodes =
+    detail::visitsVariantNodes<Visitor, ExprVariant, R>(std::make_index_sequence<std::variant_size_v<ExprVariant>>{});
 
 template <typename Visitor, typename R = void>
-concept VisitsStmtNodes = detail::visitsVariantNodes<Visitor, StmtVariant, R>(
-    std::make_index_sequence<std::variant_size_v<StmtVariant>>{});
+concept VisitsStmtNodes =
+    detail::visitsVariantNodes<Visitor, StmtVariant, R>(std::make_index_sequence<std::variant_size_v<StmtVariant>>{});
 
 template <typename Visitor, typename R = void>
 concept VisitsAstNodes = VisitsExprNodes<Visitor, R> && VisitsStmtNodes<Visitor, R>;

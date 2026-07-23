@@ -38,6 +38,6 @@ inline bool startsWith(std::string_view text, std::string_view prefix) {
     return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
 }
 
-}  // namespace Lua::REPL::detail
+} // namespace Lua::REPL::detail
 
-#endif  // LUA_REPL_TXT_HPP
+#endif // LUA_REPL_TXT_HPP

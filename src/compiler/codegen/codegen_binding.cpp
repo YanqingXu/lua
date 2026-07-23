@@ -23,5 +23,4 @@ LValueRef CodeGenerator::symbolToLValue(const SymbolRef& sym) {
     return binder_.symbolToLValue(sym);
 }
 
-
-}  // namespace Lua
+} // namespace Lua

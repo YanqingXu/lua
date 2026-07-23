@@ -25,8 +25,7 @@ struct BytecodeVerifierLimits {
 /** @brief 在执行前验证函数原型及其字节码不变量。 */
 class BytecodeVerifier {
 public:
-    [[nodiscard]] static std::expected<void, Str>
-    verify(const Proto& root, const BytecodeVerifierLimits& limits = {});
+    [[nodiscard]] static std::expected<void, Str> verify(const Proto& root, const BytecodeVerifierLimits& limits = {});
 };
 
 } // namespace Lua

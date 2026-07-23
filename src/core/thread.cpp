@@ -310,7 +310,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
             firstResume_ = false;
             savedNexeccalls_ = 1;
         } else {
-/** @brief 恢复参数替换暂停的挂起调用结果。 */
+            /** @brief 恢复参数替换暂停的挂起调用结果。 */
             CallInfo& yieldCallInfo = state_->getCurrentCallInfo();
             const usize functionPosition = yieldCallInfo.func;
             const i32 wantedResults = yieldCallInfo.nresults;
@@ -424,7 +424,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
     } catch (const LuaError& error) {
         if (error.hasErrorObject()) {
             /**
- * @brief Lua 5.1 在恢复报告错误后仍保留失败协程的调用帧，供调试回溯函数使用。
+             * @brief Lua 5.1 在恢复报告错误后仍保留失败协程的调用帧，供调试回溯函数使用。
              */
             return failRuntimeValue(error.getErrorObject(), false);
         }
@@ -445,7 +445,7 @@ void Thread::abortResume(ThreadStatus status) noexcept {
         try {
             state_->closeUpvalues(frameBase);
         } catch (...) {
-/** @brief 关闭失败时不得暴露构造不完整的调用信息。 */
+            /** @brief 关闭失败时不得暴露构造不完整的调用信息。 */
         }
         try {
             state_->popCallInfo();

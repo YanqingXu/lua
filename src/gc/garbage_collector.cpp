@@ -159,22 +159,22 @@ void GarbageCollector::registerObject(GCObject* obj) {
 
     if (incrementalPhase_ != IncrementalPhase::Pause) {
         try {
-        /**
-         * @brief 黑色新分配必须像普通写屏障一样发布完整初始对象图。
-         *
-         * 对象先构造后注册，因此可能已拥有引用，例如 Function 指向 Proto，或已关闭上值指向
-         * Value。
-         */
+            /**
+             * @brief 黑色新分配必须像普通写屏障一样发布完整初始对象图。
+             *
+             * 对象先构造后注册，因此可能已拥有引用，例如 Function 指向 Proto，或已关闭上值指向
+             * Value。
+             */
             const usize weakTableCountBeforeMark = weakTables_.size();
             obj->mark(*this);
             propagateMarks();
             if (incrementalPhase_ == IncrementalPhase::Sweep && weakTables_.size() > weakTableCountBeforeMark) {
-            /**
-             * @brief 原子弱引用清理后遇到预填充弱表时，仅针对该异常对象图重启周期。
-             *
-             * 新发布的预填充弱表可能仍含白色条目；继续清扫会回收其目标却不清除对应槽。无需在
-             * 每次分配时都重启。
-             */
+                /**
+                 * @brief 原子弱引用清理后遇到预填充弱表时，仅针对该异常对象图重启周期。
+                 *
+                 * 新发布的预填充弱表可能仍含白色条目；继续清扫会回收其目标却不清除对应槽。无需在
+                 * 每次分配时都重启。
+                 */
                 resetIncrementalCycle();
             }
         } catch (const std::bad_alloc&) {
@@ -390,13 +390,13 @@ usize GarbageCollector::maybeCollectAutomatic(LuaState* currentState) {
 
     automaticCollectionRunning_ = true;
     try {
-    /**
-     * @brief 为自动工作使用 8 KiB 最小时间片。
-     *
-     * 自动检查点按字节计费，而增量核心当前按完整对象分配预算。公开的 1 KiB 步长仅映射为两个
-     * 对象，在普通标准库堆中可能落后数百次分配。显式 collectgarbage("step", 0) 仍保持极小且
-     * 可观察，供有意逐阶段驱动的调用者使用。
-     */
+        /**
+         * @brief 为自动工作使用 8 KiB 最小时间片。
+         *
+         * 自动检查点按字节计费，而增量核心当前按完整对象分配预算。公开的 1 KiB 步长仅映射为两个
+         * 对象，在普通标准库堆中可能落后数百次分配。显式 collectgarbage("step", 0) 仍保持极小且
+         * 可观察，供有意逐阶段驱动的调用者使用。
+         */
         constexpr i32 kAutomaticStepKilobytes = 8;
         bool finished = step(currentState, kAutomaticStepKilobytes - 1);
         automaticCollectionRunning_ = false;
@@ -764,11 +764,11 @@ usize GarbageCollector::sweepStep(StringPool& stringPool, usize budget) {
             destroyObject(obj, stringPool);
             ++collected;
             if (incrementalPhase_ != IncrementalPhase::Sweep) {
-            /**
-             * @brief 析构可能关闭上值并保守地中止周期。
-             *
-             * 从该重入路径返回后，不得恢复陈旧游标或覆盖已重置的阶段。
-             */
+                /**
+                 * @brief 析构可能关闭上值并保守地中止周期。
+                 *
+                 * 从该重入路径返回后，不得恢复陈旧游标或覆盖已重置的阶段。
+                 */
                 return collected;
             }
         } else {
@@ -815,12 +815,12 @@ bool GarbageCollector::incrementalStep(StringPool& stringPool, LuaState* current
     }
 
     case IncrementalPhase::Finalize: {
-                /**
-                 * @brief 调用用户代码前记录已完成的清扫快照。
-                 *
-                 * 终结器可能同步运行完整收集并重置增量记账；预先记录可让外层自动检查点报告自身
-                 * 的收集数量。
-                 */
+        /**
+         * @brief 调用用户代码前记录已完成的清扫快照。
+         *
+         * 终结器可能同步运行完整收集并重置增量记账；预先记录可让外层自动检查点报告自身
+         * 的收集数量。
+         */
         const usize completedCollected = incrementalCollected_;
         if (currentState != nullptr) {
             runFinalizers(currentState);

@@ -7,9 +7,7 @@
 
 namespace Lua {
 
-NameBinder::NameBinder(CodegenState& state, ScopeManager& scopes) noexcept
-    : state_(state)
-    , scopes_(scopes) {}
+NameBinder::NameBinder(CodegenState& state, ScopeManager& scopes) noexcept : state_(state), scopes_(scopes) {}
 
 SymbolRef NameBinder::resolve(const Str& name) {
     SymbolRef result;
@@ -36,17 +34,17 @@ SymbolRef NameBinder::resolve(const Str& name) {
 
 ValueResult NameBinder::symbolToValue(const SymbolRef& sym) const {
     switch (sym.kind) {
-        case SymbolRef::Kind::Local:
-            return ValueResult::makeRegister(sym.index, false, ValueResult::AccessKind::Local);
+    case SymbolRef::Kind::Local:
+        return ValueResult::makeRegister(sym.index, false, ValueResult::AccessKind::Local);
 
-        case SymbolRef::Kind::Upvalue:
-            return ValueResult::makePendingLoad(ValueResult::AccessKind::Upvalue, -1, -1, sym.index);
+    case SymbolRef::Kind::Upvalue:
+        return ValueResult::makePendingLoad(ValueResult::AccessKind::Upvalue, -1, -1, sym.index);
 
-        case SymbolRef::Kind::Global:
-            return ValueResult::makePendingLoad(ValueResult::AccessKind::Global, -1, sym.index, -1);
+    case SymbolRef::Kind::Global:
+        return ValueResult::makePendingLoad(ValueResult::AccessKind::Global, -1, sym.index, -1);
 
-        default:
-            return {};
+    default:
+        return {};
     }
 }
 
@@ -54,26 +52,26 @@ LValueRef NameBinder::symbolToLValue(const SymbolRef& sym) const {
     LValueRef result;
 
     switch (sym.kind) {
-        case SymbolRef::Kind::Local:
-            result.kind = LValueRef::Kind::Local;
-            result.slot = sym.index;
-            break;
+    case SymbolRef::Kind::Local:
+        result.kind = LValueRef::Kind::Local;
+        result.slot = sym.index;
+        break;
 
-        case SymbolRef::Kind::Upvalue:
-            result.kind = LValueRef::Kind::Upvalue;
-            result.slot = sym.index;
-            break;
+    case SymbolRef::Kind::Upvalue:
+        result.kind = LValueRef::Kind::Upvalue;
+        result.slot = sym.index;
+        break;
 
-        case SymbolRef::Kind::Global:
-            result.kind = LValueRef::Kind::Global;
-            result.slot = sym.index;
-            break;
+    case SymbolRef::Kind::Global:
+        result.kind = LValueRef::Kind::Global;
+        result.slot = sym.index;
+        break;
 
-        default:
-            break;
+    default:
+        break;
     }
 
     return result;
 }
 
-}  // namespace Lua
+} // namespace Lua

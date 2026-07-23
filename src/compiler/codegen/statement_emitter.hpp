@@ -28,8 +28,7 @@ class CodeGenerator;
  */
 class StatementEmitter : private StmtVisitor<StatementEmitter, void> {
     friend struct StmtVisitor<StatementEmitter, void>;
-    template <typename Visitor, typename Node, typename R>
-    friend consteval bool detail::canVisitNode();
+    template <typename Visitor, typename Node, typename R> friend consteval bool detail::canVisitNode();
 
 public:
     explicit StatementEmitter(CodeGenerator& owner) noexcept;
@@ -111,8 +110,8 @@ private:
     void leaveBlock();
     void closeScopeUpvalues(i32 level);
 
-    CompiledFunction compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                                     i32 linedefined, i32 lastlinedefined);
+    CompiledFunction compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body, i32 linedefined,
+                                     i32 lastlinedefined);
     void emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues);
 
     CodeGenerator& owner_;
@@ -126,4 +125,4 @@ private:
     bool forceNilLocalInitialization_ = false;
 };
 
-}  // namespace Lua
+} // namespace Lua

@@ -53,4 +53,4 @@ Opt<std::reference_wrapper<const GCStrategy>> findGCStrategy(StrView name) noexc
     return std::nullopt;
 }
 
-}  // namespace Lua
+} // namespace Lua

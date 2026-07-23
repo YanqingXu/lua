@@ -1,7 +1,7 @@
 /**
  * @file stringlib.hpp
  * @brief Lua 字符串库：字符串操作函数
- * 
+ *
  * 详细说明：
  * 本模块实现 Lua 字符串库，提供完整的字符串操作能力，包括：
  * - 基本操作：len、sub、reverse、rep
@@ -12,7 +12,7 @@
  * - 高级功能：dump
  *
  * API 行为遵循 Lua 5.1 参考手册。
- * 
+ *
  * @author Lua C++ 项目
  * @date 2026-01-23
  */
@@ -28,17 +28,19 @@ namespace Lua {
 /** @brief Lua 字符串库模块。 */
 class StringLibModule : public LibModule {
 public:
-    const char* getName() const override { return "string"; }
-    
+    const char* getName() const override {
+        return "string";
+    }
+
     void registerFunctions(LuaState* L) override;
-    
+
     void initialize(LuaState* L) override;
 };
 
 /**
  * @brief 将字符串库注册到全局环境
  * @param L Lua 状态指针
- * 
+ *
  * 将全部字符串库函数注册到全局 `string` 表。
  */
 void openStringLib(LuaState* L);
@@ -146,4 +148,3 @@ i32 str_format(LuaState* L);
 i32 str_dump(LuaState* L);
 
 } // namespace Lua
-

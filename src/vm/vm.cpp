@@ -53,7 +53,7 @@ static inline Value* refreshBase(LuaState* L) {
     return &L->getStack()[L->getCurrentCallInfo().base];
 }
 
-} // 匿名命名空间
+} // namespace
 
 // =====================================================================
 // 公共 API：namespace VM
@@ -390,8 +390,8 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             case HandlerStatus::Returned:
                 return ExecResult::Returned;
             }
-} // while 循环
-} // 代码引用作用域
+        } // while 循环
+    } // 代码引用作用域
 
     return ExecResult::Returned;
 }

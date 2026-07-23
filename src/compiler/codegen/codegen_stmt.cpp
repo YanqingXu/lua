@@ -20,4 +20,4 @@ void CodeGenerator::attachDebugMetadata() {
     functions_.attachDebugMetadata();
 }
 
-}  // namespace Lua
+} // namespace Lua

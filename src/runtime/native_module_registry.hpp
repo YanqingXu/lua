@@ -53,8 +53,12 @@ public:
      */
     [[nodiscard]] std::expected<void*, Str> findSymbol(Handle handle, const Str& symbolName) const;
 
-    NativeModulePolicy& policy() noexcept { return policy_; }
-    const NativeModulePolicy& policy() const noexcept { return policy_; }
+    NativeModulePolicy& policy() noexcept {
+        return policy_;
+    }
+    const NativeModulePolicy& policy() const noexcept {
+        return policy_;
+    }
 
     /**
      * @brief 向允许列表添加一条规范路径

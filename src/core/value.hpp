@@ -3,11 +3,11 @@
 /**
  * @file value.hpp
  * @brief Lua动态类型系统的核心实现 - Value类
- * 
+ *
  * 设计说明：
  * Value类是Lua解释器中所有值的统一表示。
  * 使用C++17的std::variant替代C的union，提供类型安全的动态类型系统。
- * 
+ *
  * 核心特性：
  * - 类型安全：使用std::variant避免未定义行为
  * - 高效表示：依赖std::variant进行类型分派
@@ -34,11 +34,11 @@ class Thread;
 
 /**
  * @brief Value类 - Lua动态类型系统的核心
- * 
+ *
  * 详细说明：
  * Value类使用std::variant实现tagged union，每个Value对象可以存储
  * Lua支持的任意一种类型的值。variant会自动管理类型标签和值的生命周期。
- * 
+ *
  * 支持的类型：
  * 1. Nil         - 空值（使用std::monostate表示）
  * 2. Boolean     - 布尔值（bool）
@@ -49,7 +49,7 @@ class Thread;
  * 7. Function    - 函数（Function*，受GC管理）
  * 8. Userdata    - 完整用户数据（Userdata*，受GC管理）
  * 9. Thread      - 线程/协程（Thread*，受GC管理）
- * 
+ *
  * 内存布局：
  * std::variant会选择最大类型的大小，并添加一个类型标签（通常1字节）。
  * 在64位系统上，大小约为16字节（8字节指针 + 8字节double + 类型标签）。
@@ -59,91 +59,90 @@ public:
     // =====================================================================
     // 类型定义
     // =====================================================================
-    
+
     /**
      * @brief 值的内部表示类型
-     * 
+     *
      * 使用std::variant实现类型安全的tagged union。
      * variant的索引顺序对应ValueType枚举的值。
      */
-    using ValueVariant = std::variant<
-        std::monostate,     // 0: Nil - 空值类型
-        bool,               // 1: Boolean - 布尔值
-        void*,              // 2: LightUserdata - 轻量级用户数据（C指针）
-        LuaNumber,          // 3: Number - 数值（double）
-        GCString*,          // 4: String - 字符串（GC对象）
-        Table*,             // 5: Table - 表（GC对象）
-        Function*,          // 6: Function - 函数（GC对象）
-        Userdata*,          // 7: Userdata - 完整用户数据（GC对象）
-        Thread*             // 8: Thread - 线程/协程（GC对象）
-    >;
+    using ValueVariant = std::variant<std::monostate, // 0: Nil - 空值类型
+                                      bool,           // 1: Boolean - 布尔值
+                                      void*,          // 2: LightUserdata - 轻量级用户数据（C指针）
+                                      LuaNumber,      // 3: Number - 数值（double）
+                                      GCString*,      // 4: String - 字符串（GC对象）
+                                      Table*,         // 5: Table - 表（GC对象）
+                                      Function*,      // 6: Function - 函数（GC对象）
+                                      Userdata*,      // 7: Userdata - 完整用户数据（GC对象）
+                                      Thread*         // 8: Thread - 线程/协程（GC对象）
+                                      >;
 
     // =====================================================================
     // 构造函数和析构函数
     // =====================================================================
-    
+
     /**
      * @brief 默认构造函数 - 创建Nil值
      */
     Value() : value_(std::monostate{}) {}
-    
+
     /**
      * @brief 布尔值构造函数
      */
     explicit Value(bool b) : value_(b) {}
-    
+
     /**
      * @brief 数值构造函数
      */
     explicit Value(LuaNumber n) : value_(n) {}
-    
+
     /**
      * @brief 整数构造函数（转换为LuaNumber）
      */
     explicit Value(LuaInteger i) : value_(static_cast<LuaNumber>(i)) {}
-    
+
     /**
      * @brief 轻量级用户数据构造函数
      */
     explicit Value(void* p) : value_(p) {}
-    
+
     /**
      * @brief GC对象构造函数（字符串）
      */
     explicit Value(GCString* s) : value_(s) {}
-    
+
     /**
      * @brief GC对象构造函数（表）
      */
     explicit Value(Table* t) : value_(t) {}
-    
+
     /**
      * @brief GC对象构造函数（函数）
      */
     explicit Value(Function* f) : value_(f) {}
-    
+
     /**
      * @brief GC对象构造函数（用户数据）
      */
     explicit Value(Userdata* u) : value_(u) {}
-    
+
     /**
      * @brief GC对象构造函数（线程）
      */
     explicit Value(Thread* th) : value_(th) {}
-    
+
     // 使用默认的拷贝和移动构造/赋值
     Value(const Value&) = default;
     Value(Value&&) noexcept = default;
     Value& operator=(const Value&) = default;
     Value& operator=(Value&&) noexcept = default;
-    
+
     ~Value() = default;
 
     // =====================================================================
     // 类型检查方法
     // =====================================================================
-    
+
     /**
      * @brief 获取值的类型
      * @return ValueType枚举值
@@ -151,82 +150,81 @@ public:
     ValueType getType() const {
         return static_cast<ValueType>(value_.index());
     }
-    
+
     /**
      * @brief 检查是否为Nil
      */
     bool isNil() const {
         return std::holds_alternative<std::monostate>(value_);
     }
-    
+
     /**
      * @brief 检查是否为布尔值
      */
     bool isBoolean() const {
         return std::holds_alternative<bool>(value_);
     }
-    
+
     /**
      * @brief 检查是否为数值
      */
     bool isNumber() const {
         return std::holds_alternative<LuaNumber>(value_);
     }
-    
+
     /**
      * @brief 检查是否为轻量级用户数据
      */
     bool isLightUserdata() const {
         return std::holds_alternative<void*>(value_);
     }
-    
+
     /**
      * @brief 检查是否为字符串
      */
     bool isString() const {
         return std::holds_alternative<GCString*>(value_);
     }
-    
+
     /**
      * @brief 检查是否为表
      */
     bool isTable() const {
         return std::holds_alternative<Table*>(value_);
     }
-    
+
     /**
      * @brief 检查是否为函数
      */
     bool isFunction() const {
         return std::holds_alternative<Function*>(value_);
     }
-    
+
     /**
      * @brief 检查是否为用户数据
      */
     bool isUserdata() const {
         return std::holds_alternative<Userdata*>(value_);
     }
-    
+
     /**
      * @brief 检查是否为线程
      */
     bool isThread() const {
         return std::holds_alternative<Thread*>(value_);
     }
-    
+
     /**
      * @brief 检查是否为GC对象（需要垃圾回收的对象）
      */
     bool isCollectable() const {
-        return isString() || isTable() || isFunction() || 
-               isUserdata() || isThread();
+        return isString() || isTable() || isFunction() || isUserdata() || isThread();
     }
 
     // =====================================================================
     // 值访问方法（带类型检查）
     // =====================================================================
-    
+
     /**
      * @brief 获取布尔值
      * @return 布尔值
@@ -235,7 +233,7 @@ public:
     bool asBoolean() const {
         return std::get<bool>(value_);
     }
-    
+
     /**
      * @brief 获取数值
      * @return LuaNumber（double）
@@ -244,7 +242,7 @@ public:
     LuaNumber asNumber() const {
         return std::get<LuaNumber>(value_);
     }
-    
+
     /**
      * @brief 获取整数值（从数值转换）
      * @return LuaInteger（int64_t）
@@ -253,7 +251,7 @@ public:
     LuaInteger asInteger() const {
         return static_cast<LuaInteger>(std::get<LuaNumber>(value_));
     }
-    
+
     /**
      * @brief 获取轻量级用户数据指针
      * @return void*
@@ -262,7 +260,7 @@ public:
     void* asLightUserdata() const {
         return std::get<void*>(value_);
     }
-    
+
     /**
      * @brief 获取字符串对象指针
      * @return GCString*
@@ -271,7 +269,7 @@ public:
     GCString* asString() const {
         return std::get<GCString*>(value_);
     }
-    
+
     /**
      * @brief 获取表对象指针
      * @return Table*
@@ -280,7 +278,7 @@ public:
     Table* asTable() const {
         return std::get<Table*>(value_);
     }
-    
+
     /**
      * @brief 获取函数对象指针
      * @return Function*
@@ -422,11 +420,9 @@ namespace detail {
 
 template <ValueType Type, typename Alternative>
 inline constexpr bool kValueAlternativeMatches =
-    std::is_same_v<
-        std::variant_alternative_t<static_cast<usize>(Type), Value::ValueVariant>,
-        Alternative>;
+    std::is_same_v<std::variant_alternative_t<static_cast<usize>(Type), Value::ValueVariant>, Alternative>;
 
-}  // namespace detail
+} // namespace detail
 
 static_assert(std::variant_size_v<Value::ValueVariant> == 9,
               "ValueVariant must stay aligned with ValueType and Lua 5.1 visible value tags");

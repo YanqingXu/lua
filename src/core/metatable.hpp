@@ -1,18 +1,18 @@
 ﻿/**
  * @file metatable.hpp
  * @brief Lua元方法系统：元表和元方法管理接口
- * 
+ *
  * 详细说明：
  * 这个文件实现了Lua的元方法（metamethods）系统，也称为标签方法（tag methods）。
  * 元方法是Lua面向对象编程和操作符重载的核心机制，允许用户自定义表、用户数据
  * 和其他类型的行为。
- * 
+ *
  * 系统架构：
  * - 元方法类型定义：17种标准元方法（TMS枚举）
  * - 元方法查找机制：从元表中查找指定的元方法
  * - 元方法调用机制：提供统一的元方法调用接口
  * - 缓存优化：通过标志位避免重复查找
- * 
+ *
  * 支持的元方法：
  * - 索引操作：__index, __newindex
  * - 算术运算：__add, __sub, __mul, __div, __mod, __pow, __unm
@@ -40,104 +40,104 @@ class GlobalState;
 
 /**
  * @brief 元方法类型枚举（标签方法系统）
- * 
+ *
  * 定义所有支持的元方法类型。枚举顺序与Lua 5.1.5保持一致，
  * 前5个（TM_INDEX到TM_EQ）是"快速"元方法，有特殊优化。
- * 
+ *
  * 注意：修改此枚举的顺序需要同步更新 kMetamethodNames 表，static_assert 会阻止静默漂移。
  */
 enum class TMS : u8 {
     // ===== 快速访问元方法（有缓存优化） =====
-    
+
     /**
      * @brief __index: 控制表的索引访问行为（table[key]）
      */
     TM_INDEX = 0,
-    
+
     /**
      * @brief __newindex: 控制表的索引赋值行为（table[key] = value）
      */
     TM_NEWINDEX,
-    
+
     /**
      * @brief __gc: 垃圾回收终结器
      */
     TM_GC,
-    
+
     /**
      * @brief __mode: 弱引用模式（"k", "v", "kv"）
      */
     TM_MODE,
-    
+
     /**
      * @brief __eq: 相等比较运算符（==, ~=）
      */
-    TM_EQ,  // 最后一个快速访问元方法
-    
+    TM_EQ, // 最后一个快速访问元方法
+
     // ===== 算术运算元方法 =====
-    
+
     /**
      * @brief __add: 加法运算符（+）
      */
     TM_ADD,
-    
+
     /**
      * @brief __sub: 减法运算符（-）
      */
     TM_SUB,
-    
+
     /**
      * @brief __mul: 乘法运算符（*）
      */
     TM_MUL,
-    
+
     /**
      * @brief __div: 除法运算符（/）
      */
     TM_DIV,
-    
+
     /**
      * @brief __mod: 取模运算符（%）
      */
     TM_MOD,
-    
+
     /**
      * @brief __pow: 幂运算符（^）
      */
     TM_POW,
-    
+
     /**
      * @brief __unm: 一元负号运算符（-x）
      */
     TM_UNM,
-    
+
     // ===== 其他操作元方法 =====
-    
+
     /**
      * @brief __len: 长度运算符（#）
      */
     TM_LEN,
-    
+
     /**
      * @brief __lt: 小于比较运算符（<）
      */
     TM_LT,
-    
+
     /**
      * @brief __le: 小于等于比较运算符（<=）
      */
     TM_LE,
-    
+
     /**
      * @brief __concat: 字符串连接运算符（..）
      */
     TM_CONCAT,
-    
+
     /**
      * @brief __call: 函数调用运算符（obj(...)）
      */
     TM_CALL,
-    
+
     /**
      * @brief 元方法总数
      */
@@ -146,31 +146,30 @@ enum class TMS : u8 {
 
 /**
  * @brief 元方法名称字符串数组
- * 
+ *
  * 按照TMS枚举顺序定义的元方法名称，用于元表查找。
  */
 inline constexpr std::array<StrView, static_cast<usize>(TMS::TM_N)> kMetamethodNames = {{
-    "__index",     // TM_INDEX
-    "__newindex",  // TM_NEWINDEX
-    "__gc",        // TM_GC
-    "__mode",      // TM_MODE
-    "__eq",        // TM_EQ
-    "__add",       // TM_ADD
-    "__sub",       // TM_SUB
-    "__mul",       // TM_MUL
-    "__div",       // TM_DIV
-    "__mod",       // TM_MOD
-    "__pow",       // TM_POW
-    "__unm",       // TM_UNM
-    "__len",       // TM_LEN
-    "__lt",        // TM_LT
-    "__le",        // TM_LE
-    "__concat",    // TM_CONCAT
-    "__call"       // TM_CALL
+    "__index",    // TM_INDEX
+    "__newindex", // TM_NEWINDEX
+    "__gc",       // TM_GC
+    "__mode",     // TM_MODE
+    "__eq",       // TM_EQ
+    "__add",      // TM_ADD
+    "__sub",      // TM_SUB
+    "__mul",      // TM_MUL
+    "__div",      // TM_DIV
+    "__mod",      // TM_MOD
+    "__pow",      // TM_POW
+    "__unm",      // TM_UNM
+    "__len",      // TM_LEN
+    "__lt",       // TM_LT
+    "__le",       // TM_LE
+    "__concat",   // TM_CONCAT
+    "__call"      // TM_CALL
 }};
 
-static_assert(kMetamethodNames.size() == static_cast<usize>(TMS::TM_N),
-              "TMS and kMetamethodNames must grow together");
+static_assert(kMetamethodNames.size() == static_cast<usize>(TMS::TM_N), "TMS and kMetamethodNames must grow together");
 static_assert(kMetamethodNames[static_cast<usize>(TMS::TM_INDEX)] == "__index");
 static_assert(kMetamethodNames[static_cast<usize>(TMS::TM_CALL)] == "__call");
 
@@ -180,16 +179,16 @@ static_assert(kMetamethodNames[static_cast<usize>(TMS::TM_CALL)] == "__call");
 
 /**
  * @brief 从元表中查找指定的元方法
- * 
+ *
  * 这是元方法系统的核心查找函数，从给定的元表中查找指定类型的元方法。
  * 实现了标志位缓存机制，避免重复查找不存在的元方法。
- * 
+ *
  * 查找过程：
  * 1. 检查元表是否为nullptr
  * 2. 检查元表的flags标志位（对于快速元方法）
  * 3. 在元表中查找元方法名称对应的值
  * 4. 如果未找到，更新flags标志位
- * 
+ *
  * @param metatable 元表指针，可以为nullptr
  * @param event 元方法类型
  * @return 找到的元方法值，如果不存在返回nil
@@ -203,15 +202,15 @@ Value getMetamethod(GlobalState& globalState, Table* metatable, TMS event);
 
 /**
  * @brief 根据对象类型查找元方法
- * 
+ *
  * 根据给定对象的类型，在相应的元表中查找指定的元方法。
  * 自动处理不同对象类型的元表获取逻辑。
- * 
+ *
  * 支持的对象类型：
  * - 表：使用对象自身的元表
  * - 用户数据：使用对象自身的元表
  * - 其他类型：使用 GlobalState 中的全局基础类型元表
- * 
+ *
  * @param L Lua状态指针
  * @param obj 要查找元方法的对象
  * @param event 元方法类型
@@ -241,8 +240,7 @@ Value getMetamethodByObject(LuaState* L, const Value& obj, TMS event);
  * @param arg1 第一个参数
  * @param arg2 第二个参数
  */
-void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
-                      const Value& arg1, const Value& arg2);
+void callTMWithResult(LuaState* L, Value& result, const Value& metamethod, const Value& arg1, const Value& arg2);
 
 /**
  * @brief 调用元方法（无返回值）
@@ -261,8 +259,7 @@ void callTMWithResult(LuaState* L, Value& result, const Value& metamethod,
  * @param arg2 第二个参数
  * @param arg3 第三个参数
  */
-void callTM(LuaState* L, const Value& metamethod, const Value& arg1,
-            const Value& arg2, const Value& arg3);
+void callTM(LuaState* L, const Value& metamethod, const Value& arg1, const Value& arg2, const Value& arg3);
 
 /**
  * @brief 调用二元运算元方法
@@ -283,8 +280,7 @@ void callTM(LuaState* L, const Value& metamethod, const Value& arg1,
  * @param event 元方法类型（TM_ADD, TM_SUB等）
  * @return true 如果成功调用元方法，false 如果没有找到元方法
  */
-bool callBinaryTM(LuaState* L, const Value& p1, const Value& p2,
-                  Value& result, TMS event);
+bool callBinaryTM(LuaState* L, const Value& p1, const Value& p2, Value& result, TMS event);
 
 /**
  * @brief 调用比较运算元方法
@@ -363,4 +359,3 @@ inline const char* getMetamethodName(TMS event) {
 }
 
 } // namespace Lua
-

@@ -180,6 +180,65 @@ function Assert-DocHasCurrentTestCounts {
     }
 }
 
+function Get-PublicApiContractSummary {
+    param([System.Collections.Generic.List[string]]$Failures)
+
+    $checkerPath = Join-RepoPath "tools\check_lua51_public_api_contract.py"
+    $python = Get-Command py -ErrorAction SilentlyContinue
+    if ($null -eq $python) {
+        $python = Get-Command python -ErrorAction SilentlyContinue
+    }
+    if ($null -eq $python) {
+        Add-Failure $Failures "Python launcher is required for the public API documentation drift check"
+        return $null
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $python.Source $checkerPath 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    $text = Convert-CommandOutputToText $output
+
+    if ($exitCode -ne 0) {
+        Add-Failure $Failures "Public API contract check failed while validating documentation facts:`n   $text"
+        return $null
+    }
+
+    $summary = [regex]::Match(
+        $text,
+        "project surface\s+(\d+)\s+functions,\s+(\d+)\s+macros,\s+(\d+)\s+enum constants,\s+(\d+)\s+typedefs"
+    )
+    if (-not $summary.Success) {
+        Add-Failure $Failures "Could not parse the project public API surface from checker output: $text"
+        return $null
+    }
+
+    return [pscustomobject]@{
+        Functions = [int]$summary.Groups[1].Value
+        Macros = [int]$summary.Groups[2].Value
+        EnumConstants = [int]$summary.Groups[3].Value
+        Typedefs = [int]$summary.Groups[4].Value
+    }
+}
+
+function Assert-DocHasCurrentPublicApiCounts {
+    param(
+        [System.Collections.Generic.List[string]]$Failures,
+        [string]$RelativePath,
+        [pscustomobject]$Summary
+    )
+
+    $text = Read-Text $RelativePath
+    $expectedMarker = "public-api-surface: functions=$($Summary.Functions) macros=$($Summary.Macros) enum-constants=$($Summary.EnumConstants) typedefs=$($Summary.Typedefs)"
+    if ($text -notmatch [regex]::Escape($expectedMarker)) {
+        Add-Failure $Failures "$RelativePath is missing current public API marker: $expectedMarker"
+    }
+}
+
 $failures = [System.Collections.Generic.List[string]]::new()
 
 $coreDocs = @(
@@ -293,6 +352,13 @@ foreach ($required in @("docs/index.md", "docs/compiler/bytecode-generation.md",
 $testSummary = Get-TestRunSummary -Failures $failures -ExecutablePath (Resolve-TestExecutablePath $TestExecutable)
 if ($null -ne $testSummary) {
     Assert-DocHasCurrentTestCounts -Failures $failures -RelativePath "README.md" -Summary $testSummary
+}
+
+$publicApiSummary = Get-PublicApiContractSummary -Failures $failures
+if ($null -ne $publicApiSummary) {
+    Assert-DocHasCurrentPublicApiCounts -Failures $failures `
+        -RelativePath "docs/compatibility/lua-c-api-coverage.md" `
+        -Summary $publicApiSummary
 }
 
 $runtimeServicesDoc = Read-Text "docs/runtime/services.md"

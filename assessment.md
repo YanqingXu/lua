@@ -1,6 +1,6 @@
 # 当前项目进展评估
 
-评估快照为本地 `HEAD 3346124` 加本工作树中的收敛修复。基准提交对应的 [Actions run 29651528378](https://github.com/YanqingXu/lua/actions/runs/29651528378) 在 17 个矩阵实例中仅 allocator Linux lane 通过；本工作树已经按日志逐项修复共同根因和平台问题，但新的远端矩阵尚未运行，因此本文严格区分“本地通过”和“线上待验证”。
+评估快照为修复提交 `4b0bc71`。该提交已在 [PR #14 的 Actions run 29993098262](https://github.com/YanqingXu/lua/actions/runs/29993098262) 取得 17/17 jobs 全绿：Windows Debug/Release、Linux GCC/Clang、API、官方 strict、差分、ASan/UBSan/TSan、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 clang-format/clang-tidy 均由同一 SHA 验证。
 
 当前最准确的项目定位是：
 
@@ -15,12 +15,12 @@
 | Lua 5.1 官方 strict | 原样 `all.lua` PASS | 本地 Release 约 10 秒，slow `sort.lua` / `verybig.lua` 也通过 |
 | TestC | `api.lua` 与校正后的 `code.lua` required PASS | 已知 XFAIL 清单为空 |
 | C API 函数合同 | 官方 123/123 PASS | 0 XFAIL / 0 UNSUPPORTED |
-| 项目公开面 | 132 函数、57 宏、26 枚举、11 typedef | `lua_tryclose` 已进入 C/C++/DLL/SO 合同 |
-| 测试基线 | 788 tests / 6681 assertions / 0 failures | C API 为 59 / 2822 |
+| 项目公开面 | 132 函数、58 宏、26 枚举、11 typedef | 新增动态文档漂移检查，防止公开面计数再次陈旧 |
+| 测试基线 | 789 tests / 6686 assertions / 0 failures | C API 为 59 / 2822 |
 | Runtime 治理 | budget、deadline、取消、finalizer budget、owner-thread、sandbox | 已有较强生产边界，但仍需 soak |
 | allocator hard limit | 多个核心切片闭环，整体仍为 unsupported | 本轮新增 I/O read buffer 三个增长 offset 的事务证据 |
 | 发布工程 | CMake install/export/PackageConfig 已实现 | 0.1.0 静态与共享目标均由外部纯 C consumer 验证 |
-| CI | 本地等价门禁通过，远端待验证 | 不能把工作树写成线上全绿 |
+| CI | PR #14 修复 SHA 17/17 全绿 | 合并后仍需确认 `main` push run |
 
 ## 二、本轮按顺序完成的收敛
 
@@ -36,7 +36,7 @@
 - `LUA_ERRTHREAD` / `LUA_ERRBUSY` 进入编译合同；
 - native-module host 对 fixture 路径统一做绝对规范化，避免 loader alias 与相对路径产生重复 lease。
 
-本地机器合同结果为：官方 123/123 PASS；项目公开面 132 函数、57 宏、26 枚举、11 typedef；API-contract CTest 全部通过。
+本地机器合同结果为：官方 123/123 PASS；项目公开面 132 函数、58 宏、26 枚举、11 typedef；API-contract CTest 全部通过。
 
 ### 3. 弃用接口与质量门
 
@@ -54,7 +54,7 @@
 - userdata 默认 payload 使用 `malloc/free` 并保持 `max_align_t >= 8` 合同，移除 MinGW 不可用的 aligned allocation；
 - benchmark trace scope 改为使用被测 `lua_State` 的 context-local trace runtime，恢复真实指令计数。
 
-这些修改都来自 run 29651528378 的失败日志，但 fuzz、coverage、macOS 与 ARM64 只能由新远端矩阵最终确认。
+这些平台修复已经由 run 29923089152 复核：fuzz、coverage、macOS、ARM64、allocator 与 sanitizer lane 全部通过。该 run 的剩余失败只涉及格式化与位置基线。
 
 ### 5. SDK、版本与 ABI 包装
 
@@ -85,7 +85,7 @@ I/O 标准库的 `readLine`、定长 `readChars`、`readAll` 和数字 token 缓
 
 - 根 MSBuild Debug 与 Release 构建；
 - CMake Release `lua_test`、共享库和 benchmark 构建；
-- 788 tests / 6681 assertions / 0 failures；
+- 789 tests / 6686 assertions / 0 failures；
 - CTest 全套（含 API、native module、benchmark、examples 与安装后 consumer）；
 - 官方 Release strict `all.lua`；
 - slow `sort.lua` / `verybig.lua`；
@@ -97,9 +97,9 @@ I/O 标准库的 `readLine`、定长 `readChars`、`readAll` 和数字 token 缓
 
 ## 四、真实剩余风险
 
-### 1. EngineContext 仍允许多个 root State
+### 1. EngineContext 单根状态不变量已收紧
 
-`LuaState::create(EngineContext&)` 没有拒绝同一 context 的第二个 root，而 `GlobalState` 只保存一个 `mainThread_`。这会使 GC 根扫描和 close 语义存在不完整支持。建议明确合同为“一个 EngineContext 恰好一个 root LuaState，coroutine 从 root 派生”，并为二次创建、强制 GC 和关闭增加回归。
+`LuaState::initialize()` 现在拒绝同一 `GlobalState` 的并发第二根状态。回归测试覆盖二次创建拒绝、原根登记保留、强制 GC、关闭释放和随后重建；coroutine 仍从根状态派生，不走根初始化路径。
 
 Trace 已迁入 `GlobalState::TraceRuntime`；无 services 的重载仅是 singleton 兼容层，因此旧报告中的“生产 trace 是进程全局状态”不再成立。
 
@@ -115,15 +115,9 @@ Trace 已迁入 `GlobalState::TraceRuntime`；无 services 的重载仅是 singl
 
 后两类不应机械塞入 `lua_Alloc`。文档应继续区分 ScriptRuntimeBudget 与 HostProcessBudget，并使用 Job Object/cgroup 等治理进程级上限。
 
-### 3. 新 CI 快照尚无线上绿色证据
+### 3. 修复分支已全绿，主线仍待合并
 
-基准 run 的 16 个失败已有本地对应修复，但在新 run 完成前不能关闭平台问题。优先观察：
-
-- Linux Clang/libc++ 的 ASan、UBSan、TSan；
-- libFuzzer 与 llvm-cov 工具链；
-- macOS ARM64 loader/RLIMIT 行为；
-- MinGW/Windows 共享导出与安装 consumer；
-- benchmark 的离散度。
+修复提交 `4b0bc71` 已有完整 17/17 线上证据，clang-format、clang-tidy、Windows C-style position baseline 和新增 `EngineContext` 回归均已跨平台通过。剩余发布风险不再是未知平台失败，而是必须先把该绿色提交合并到 `main`，再以主线 push run 作为 RC1 tag 的直接前置证据。
 
 ### 4. 长期稳定性仍不足
 
@@ -131,11 +125,11 @@ Trace 已迁入 `GlobalState::TraceRuntime`；无 services 的重载仅是 singl
 
 ## 五、下一阶段优先级
 
-1. 提交当前快照并跑完整 17-lane CI，按新日志只修真实剩余平台问题；
-2. 收紧一个 EngineContext 一个 root State 的不变量；
-3. 继续 allocator 切片：CodeGen temporaries → package/debug → allocator userdata 生命周期；
-4. 增加 sanitizer/fuzz/coverage 趋势和多 context soak；
-5. 在 0.1.x Runtime Preview 中验证真实游戏服务器嵌入：sandbox、预算、deadline、取消、preload-only package 与 owner-thread shutdown。
+1. 合并 PR #14，并确认 `main` push run 17/17；
+2. 关闭验收完成的 #3/#4/#7/#8，保留 allocator #5 与受套餐限制的 branch-protection #6；
+3. 让旧 Dependabot PR #12 基于绿色 `main` 重建并重新判定；
+4. 仅在绿色 `main` 提交上创建 RC1 tag/release；
+5. 继续 allocator 切片、覆盖率阈值、长 fuzz 与多 context soak。
 
 ## 最终判断
 

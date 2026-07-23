@@ -244,9 +244,8 @@ void initialize(LuaState* L);
  */
 int run(LuaState* L);
 
-}  // namespace REPL
+} // namespace REPL
 
-}  // namespace Lua
+} // namespace Lua
 
-#endif  // LUA_REPL_HPP
-
+#endif // LUA_REPL_HPP

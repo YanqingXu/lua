@@ -29,8 +29,7 @@ struct LocalVar {
     i32 endpc;
     bool captured;
 
-    LocalVar(const Str& n, i32 r, i32 start)
-        : name(n), reg(r), startpc(start), endpc(-1), captured(false) {}
+    LocalVar(const Str& n, i32 r, i32 start) : name(n), reg(r), startpc(start), endpc(-1), captured(false) {}
 };
 
 // =============================================================================
@@ -111,8 +110,7 @@ struct UpvalueCapture {
     bool inStack;
     i32 index;
 
-    UpvalueCapture(const Str& n, bool inStackVar, i32 idx)
-        : name(n), inStack(inStackVar), index(idx) {}
+    UpvalueCapture(const Str& n, bool inStackVar, i32 idx) : name(n), inStack(inStackVar), index(idx) {}
 };
 
 /**
@@ -146,7 +144,9 @@ public:
         return static_cast<i32>(upvalues_.size()) - 1;
     }
 
-    void clear() noexcept { upvalues_.clear(); }
+    void clear() noexcept {
+        upvalues_.clear();
+    }
 
     // === 公开字段（兼容旧代码的直接读写） ===
     Vec<UpvalueCapture> upvalues_;
@@ -167,11 +167,8 @@ struct BlockInfo {
     bool isbreakable;
 
     BlockInfo(UPtr<BlockInfo> prev, i32 activeCount, bool breakable)
-        : previous(prev.get())
-        , previousOwner(std::move(prev))
-        , breaklist(NO_JUMP)
-        , activeVarCount(activeCount)
-        , isbreakable(breakable) {}
+        : previous(prev.get()), previousOwner(std::move(prev)), breaklist(NO_JUMP), activeVarCount(activeCount),
+          isbreakable(breakable) {}
 };
 
 /** @brief 已编译子函数原型及其上值捕获信息。 */
@@ -195,8 +192,7 @@ public:
     BlockManager() = default;
 
     void enterBlock(bool isBreakable, i32 activeVarCount) {
-        currentBlockOwner_ = std::make_unique<BlockInfo>(
-            std::move(currentBlockOwner_), activeVarCount, isBreakable);
+        currentBlockOwner_ = std::make_unique<BlockInfo>(std::move(currentBlockOwner_), activeVarCount, isBreakable);
         currentBlock_ = currentBlockOwner_.get();
     }
 
@@ -219,8 +215,8 @@ public:
      * @param currentPc 当前指令位置
      * @param patchToHere 将跳转回填到当前位置的回调
      */
-    void leaveBlock(LocalVarScope& localScope, RegisterAllocator& registers,
-                    i32 currentPc, const std::function<void(i32)>& patchToHere) {
+    void leaveBlock(LocalVarScope& localScope, RegisterAllocator& registers, i32 currentPc,
+                    const std::function<void(i32)>& patchToHere) {
         UPtr<BlockInfo> bl = takeCurrentBlock();
 
         localScope.closeLocals(bl->activeVarCount, currentPc);
@@ -244,4 +240,4 @@ private:
     UPtr<BlockInfo> currentBlockOwner_;
 };
 
-}  // namespace Lua
+} // namespace Lua

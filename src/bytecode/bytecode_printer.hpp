@@ -30,12 +30,8 @@ void printProtoBytecode(const Proto* f, std::ostream& out, bool full);
  * @param leftLabel 左侧标签
  * @param rightLabel 右侧标签
  */
-void printProtoBytecodeDiff(const Proto* left,
-                            const Proto* right,
-                            std::ostream& out,
-                            bool full = false,
-                            std::string_view leftLabel = "left",
-                            std::string_view rightLabel = "right");
+void printProtoBytecodeDiff(const Proto* left, const Proto* right, std::ostream& out, bool full = false,
+                            std::string_view leftLabel = "left", std::string_view rightLabel = "right");
 
 /**
  * @brief 打印函数原型的 Mermaid 控制流图

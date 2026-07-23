@@ -3,16 +3,16 @@
 /**
  * @file codegen.hpp
  * @brief Lua字节码生成器
- * 
+ *
  * 将AST转换为Lua字节码的代码生成器。
- * 
+ *
  * 核心功能：
  * - 遍历AST并生成字节码指令
  * - 管理寄存器分配
  * - 管理常量表
  * - 处理跳转指令回填
  * - 支持局部变量作用域
- * 
+ *
  * 设计原则：
  * - 基于寄存器的虚拟机架构
  * - 基于 AST 的字节码生成
@@ -48,7 +48,7 @@ class StringPool;
 
 /**
  * @brief 代码生成器
- * 
+ *
  * 负责将AST转换为字节码。
  */
 #if defined(NDEBUG)
@@ -76,12 +76,12 @@ public:
      * @param services 显式运行时服务集合
      */
     explicit CodeGenerator(RuntimeServices& services);
-    
+
     /**
      * @brief 析构函数
      */
     ~CodeGenerator();
-    
+
     /**
      * @brief 生成字节码
      * @param chunk 抽象语法树根节点
@@ -97,7 +97,7 @@ public:
     [[nodiscard]] std::expected<Proto*, CodegenError> tryGenerate(const Chunk& chunk, StrView sourceName = {});
 
     // =====================================================================
-/** @brief 符号绑定（第 8 次拉取请求）。 */
+    /** @brief 符号绑定（第 8 次拉取请求）。 */
     // =====================================================================
 
     /**
@@ -153,5 +153,4 @@ private:
 
 #undef LUA_CODEGEN_COMPAT_DEPRECATED
 
-}  // namespace Lua
-
+} // namespace Lua

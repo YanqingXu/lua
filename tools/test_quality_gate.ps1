@@ -151,7 +151,8 @@ Assert-FileContains "tools/c_style_allowlist.json" @(
 )
 
 Assert-FileContains "src/compiler/codegen/codegen_types.hpp" @(
-    "using Variant = std::variant",
+    "using Variant =",
+    "std::variant<",
     "ValueResult\(\) = default",
     "explicit ValueResult\(Variant value\)"
 )
@@ -170,6 +171,9 @@ Assert-FileContains "tools/check_doc_drift.ps1" @(
     "Registered Tests:\s*",
     "Total Results:\s*",
     "Assert-DocHasCurrentTestCounts",
+    "Get-PublicApiContractSummary",
+    "Assert-DocHasCurrentPublicApiCounts",
+    "check_lua51_public_api_contract\.py",
     "verified_against",
     "Non-technical documentation path"
 )

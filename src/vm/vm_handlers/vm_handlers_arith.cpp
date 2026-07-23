@@ -53,8 +53,7 @@ HandlerStatus handleArithmetic(OpExecutionContext& context, Instruction inst) {
     try {
         detail::execArithmetic(state, context.proto, context.base, a, b, c, GET_OPCODE(inst));
     } catch (const RuntimeError& error) {
-        if (std::string(error.what()).find("attempt to perform arithmetic on non-number values") ==
-            std::string::npos) {
+        if (std::string(error.what()).find("attempt to perform arithmetic on non-number values") == std::string::npos) {
             throw;
         }
 
@@ -68,7 +67,7 @@ HandlerStatus handleArithmetic(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
-}  // namespace
+} // namespace
 
 void registerArithmeticHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::ADD)].handler = handleArithmetic;
@@ -79,4 +78,4 @@ void registerArithmeticHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::POW)].handler = handleArithmetic;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

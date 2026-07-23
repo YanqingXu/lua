@@ -52,8 +52,7 @@ Str commonPrefix(const Vec<Str>& values) {
     return prefix;
 }
 
-CompletionResult buildCompletionResult(const Str& line, usize tokenStart, const Str& token,
-                                       Vec<Str> candidates) {
+CompletionResult buildCompletionResult(const Str& line, usize tokenStart, const Str& token, Vec<Str> candidates) {
     sortUnique(candidates);
 
     CompletionResult result;
@@ -64,9 +63,7 @@ CompletionResult buildCompletionResult(const Str& line, usize tokenStart, const 
         return result;
     }
 
-    const Str replacement = result.candidates.size() == 1
-                                ? result.candidates.front()
-                                : commonPrefix(result.candidates);
+    const Str replacement = result.candidates.size() == 1 ? result.candidates.front() : commonPrefix(result.candidates);
     if (replacement.size() > token.size()) {
         result.completedLine = line.substr(0, tokenStart) + replacement;
     }
@@ -74,8 +71,7 @@ CompletionResult buildCompletionResult(const Str& line, usize tokenStart, const 
     return result;
 }
 
-void collectStringKeys(Table* table, std::string_view prefix, std::string_view candidatePrefix,
-                       Vec<Str>& candidates) {
+void collectStringKeys(Table* table, std::string_view prefix, std::string_view candidatePrefix, Vec<Str>& candidates) {
     if (table == nullptr) {
         return;
     }
@@ -162,11 +158,7 @@ Vec<Str> completeMetaCommandToken(std::string_view token) {
 
 Vec<Str> completeGcOption(std::string_view token) {
     static constexpr std::string_view kOptions[] = {
-        "collect",
-        "help",
-        "stats",
-        "status",
-        "strategy",
+        "collect", "help", "stats", "status", "strategy",
     };
 
     Vec<Str> candidates;
@@ -286,7 +278,7 @@ void applySubmittedTabCompletion(LuaState* L, Str& line, std::ostream& out) {
     }
 }
 
-}  // namespace detail
+} // namespace detail
 
 CompletionResult completeInput(LuaState* L, const Str& line) {
     usize first = 0;
@@ -301,4 +293,4 @@ CompletionResult completeInput(LuaState* L, const Str& line) {
     return detail::completeLuaInput(L, line);
 }
 
-}  // namespace Lua::REPL
+} // namespace Lua::REPL

@@ -17,6 +17,6 @@ void applyInteractiveCompletion(LuaState* L, const Str& prompt, Str& line, std::
 /** @brief 处理已提交输入行中的制表符补全。 */
 void applySubmittedTabCompletion(LuaState* L, Str& line, std::ostream& out);
 
-}  // namespace Lua::REPL::detail
+} // namespace Lua::REPL::detail
 
-#endif  // LUA_REPL_COMP_HPP
+#endif // LUA_REPL_COMP_HPP

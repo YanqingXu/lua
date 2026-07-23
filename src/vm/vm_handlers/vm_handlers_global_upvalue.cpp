@@ -47,8 +47,7 @@ HandlerStatus handleSetGlobal(OpExecutionContext& context, Instruction inst) {
     Value val = context.base[a];
     detail::settable(state, Value(env), key, val);
     context.base = refreshBase(state);
-    [[maybe_unused]] const usize collected =
-        state->getGlobalState().getGC().maybeCollectAutomatic(state);
+    [[maybe_unused]] const usize collected = state->getGlobalState().getGC().maybeCollectAutomatic(state);
     context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }
@@ -83,7 +82,7 @@ HandlerStatus handleSetUpval(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
-}  // namespace
+} // namespace
 
 void registerGlobalUpvalueHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::GETGLOBAL)].handler = handleGetGlobal;
@@ -92,4 +91,4 @@ void registerGlobalUpvalueHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::SETUPVAL)].handler = handleSetUpval;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

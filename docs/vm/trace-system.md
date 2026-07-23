@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: src/debug/trace_types.hpp; src/debug/trace_sink.hpp; src/debug/json_trace_sink.cpp; src/debug/value_serializer.cpp; src/vm/vm_trace.cpp; src/vm/vm.cpp; src/main.cpp; src/app/app_options.cpp; tests/unit/vm/test_vm_trace_debug.cpp; src/compiler/opcode.hpp; src/vm/; src/vm/vm_handlers/; tests/unit/vm/; tests/unit/vm/opcode_coverage_matrix.md
-last_checked: 2026-07-11
+last_checked: 2026-07-23
 applies_to: current JSONL VM trace system
 ---
 
@@ -128,13 +128,17 @@ main.cpp
   -> JsonTraceSink 写入 JSONL
 ```
 
-`VM::setTraceSink(nullptr)` 禁用 trace 输出。
+现代 VM 路径通过 `VM::setTraceSink(RuntimeServices&, ...)` 与
+`VM::setTraceDiffEnabled(RuntimeServices&, ...)` 修改当前 `GlobalState::TraceRuntime`；
+不接收 services 的重载只操作兼容 singleton。`VM::setTraceSink(services, nullptr)` 禁用
+指定上下文的 trace 输出。
 
 ## Schema 与实现边界
 
 - Error 事件在 schema 中有表示但尚未由 VM 错误路径发射。
 - C 函数调用事件使用通用 `C function` 标签，因为 C 闭包当前不携带调试名称。
-- Trace sink 状态是全局的，匹配当前 VM 入口点形态。
+- Trace sink、diff 开关与事件序列号属于各 `GlobalState` 的 `TraceRuntime`；不同
+  `EngineContext` 互不共享。无 services 的旧重载仅保留进程 singleton 兼容行为。
 
 这些是读取现有 trace 时必须遵守的事实边界；消费者不能假设每种 schema event 都一定出现，也不能把通用 C function 标签当作稳定函数身份。
 

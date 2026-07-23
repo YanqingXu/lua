@@ -137,11 +137,9 @@ static i32 getIntegerArg(LuaState* L, i32 idx, const char* funcName,
                          IntegerConversion mode = IntegerConversion::Truncate) {
     const auto converted = checkedLuaInteger(getNumberArg(L, idx, funcName), mode);
     if (!converted) {
-        const char* detail = converted.error() == IntegerConversionError::NotFinite
-                                 ? "finite number expected"
-                             : converted.error() == IntegerConversionError::NotIntegral
-                                 ? "integer expected"
-                                 : "number out of range";
+        const char* detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
+                             : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
+                                                                                        : "number out of range";
         L->error(std::format("bad argument #{} to 'table.{}' ({})", idx, funcName, detail).c_str());
     }
     return *converted;
@@ -155,8 +153,8 @@ static bool checkedSortLess(LuaState* L, Function* comparator, const Value& left
     }
     ++comparisons;
     L->consumeNativeWork();
-    const bool result = comparator != nullptr ? callSortComparator(L, comparator, left, right)
-                                              : defaultSortLess(L, left, right);
+    const bool result =
+        comparator != nullptr ? callSortComparator(L, comparator, left, right) : defaultSortLess(L, left, right);
     if (result && comparator != nullptr) {
         if (comparisons >= comparisonLimit) {
             L->error("table.sort: comparison limit exceeded");
@@ -195,7 +193,7 @@ static void safeMergeSort(LuaState* L, LuaVector<Value>& values, Function* compa
 
     LuaVector<Value> scratch(values.get_allocator());
     scratch.resize(size);
-    for (usize width = 1; width < size; width = width > size / 2 ? size : width * 2) {
+    for (usize width = 1; width<size; width = width> size / 2 ? size : width * 2) {
         for (usize left = 0; left < size; left += width * 2) {
             const usize middle = std::min(left + width, size);
             const usize right = std::min(left + width * 2, size);
@@ -271,13 +269,13 @@ i32 table_insert(LuaState* L) {
     Table* table = getTableArg(L, 1, "insert");
 
     if (nargs == 2) {
-// table.insert(table, value)——在末尾插入
+        // table.insert(table, value)——在末尾插入
         i32 len = getTableLength(table);
         L->consumeNativeWork();
         Value value = L->at(2);
         table->set(Value(static_cast<f64>(len + 1)), value);
     } else {
-// table.insert(table, pos, value)——在指定位置插入
+        // table.insert(table, pos, value)——在指定位置插入
         i32 pos = getIntegerArg(L, 2, "insert");
         Value value = L->at(3);
         i32 len = getTableLength(table);

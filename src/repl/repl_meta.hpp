@@ -12,18 +12,14 @@
 namespace Lua::REPL::detail {
 
 /** @brief 编译并打印源码对应的字节码。 */
-int printBytecode(ReplContext& context, LuaState* L, const Str& source, std::ostream& out,
-                  std::ostream& err);
+int printBytecode(ReplContext& context, LuaState* L, const Str& source, std::ostream& out, std::ostream& err);
 /** @brief 解析并打印源码对应的 AST。 */
-int printAst(ReplContext& context, LuaState* L, const Str& source, std::ostream& out,
-             std::ostream& err);
+int printAst(ReplContext& context, LuaState* L, const Str& source, std::ostream& out, std::ostream& err);
 /** @brief 打印或触发垃圾回收相关操作。 */
-int printGc(ReplContext& context, LuaState* L, const Str& argument, std::ostream& out,
-            std::ostream& err);
+int printGc(ReplContext& context, LuaState* L, const Str& argument, std::ostream& out, std::ostream& err);
 /** @brief 执行一条已解析的 REPL 元命令。 */
-int runMetaCommand(ReplContext& context, LuaState* L, const MetaCommand& command,
-                   std::ostream& out, std::ostream& err);
+int runMetaCommand(ReplContext& context, LuaState* L, const MetaCommand& command, std::ostream& out, std::ostream& err);
 
-}  // namespace Lua::REPL::detail
+} // namespace Lua::REPL::detail
 
-#endif  // LUA_REPL_META_HPP
+#endif // LUA_REPL_META_HPP

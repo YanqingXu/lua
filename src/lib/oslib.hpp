@@ -95,4 +95,3 @@ i32 luaOS_tmpname(LuaState* L);
 void openOSLib(LuaState* L);
 
 } // namespace Lua
-

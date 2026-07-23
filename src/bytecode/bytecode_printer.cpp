@@ -107,10 +107,7 @@ std::string indentFor(usize depth) {
     return std::string(depth * 2, ' ');
 }
 
-void addRKComment(std::vector<std::string>& comments,
-                  const Proto* proto,
-                  const char* name,
-                  i32 operand,
+void addRKComment(std::vector<std::string>& comments, const Proto* proto, const char* name, i32 operand,
                   OpArgMask mode) {
     if (mode != OpArgMask::OpArgK || !ISK(operand)) {
         return;
@@ -139,13 +136,12 @@ void printProtoHeader(const Proto* f, std::ostream& out, std::string_view indent
     out << indent << "  linedefined: " << f->getLineDefined() << '\n';
     out << indent << "  lastlinedefined: " << f->getLastLineDefined() << '\n';
     out << indent << "  numparams: " << static_cast<int>(f->getNumParams()) << '\n';
-    out << indent << std::format("  is_vararg: {} (flags={})\n",
-                       f->isVararg() ? "true" : "false",
+    out << indent
+        << std::format("  is_vararg: {} (flags={})\n", f->isVararg() ? "true" : "false",
                        static_cast<int>(f->getVarargFlags()));
     out << indent << "  maxStackSize: " << static_cast<int>(f->getMaxStackSize()) << '\n';
 
-    const usize upvalueCount =
-        std::max(static_cast<usize>(f->getNumUpvalues()), f->getUpvalueNameCount());
+    const usize upvalueCount = std::max(static_cast<usize>(f->getNumUpvalues()), f->getUpvalueNameCount());
     out << indent << "  upvalues (" << upvalueCount << "): ";
     if (upvalueCount == 0) {
         out << "(none)";
@@ -221,16 +217,10 @@ bool containsProto(const std::vector<const Proto*>& protos, const Proto* proto) 
     return std::find(protos.begin(), protos.end(), proto) != protos.end();
 }
 
-void printProtoBytecodeRecursive(const Proto* f,
-                                 std::ostream& out,
-                                 bool full,
-                                 usize depth,
+void printProtoBytecodeRecursive(const Proto* f, std::ostream& out, bool full, usize depth,
                                  const std::vector<const Proto*>& ancestry);
 
-void printChildProtos(const Proto* f,
-                      std::ostream& out,
-                      usize depth,
-                      const std::vector<const Proto*>& ancestry) {
+void printChildProtos(const Proto* f, std::ostream& out, usize depth, const std::vector<const Proto*>& ancestry) {
     const std::string indent = indentFor(depth);
     out << indent << "child protos (" << f->getSubProtoCount() << ")" << '\n';
 
@@ -252,10 +242,7 @@ void printChildProtos(const Proto* f,
     }
 }
 
-void printProtoBytecodeRecursive(const Proto* f,
-                                 std::ostream& out,
-                                 bool full,
-                                 usize depth,
+void printProtoBytecodeRecursive(const Proto* f, std::ostream& out, bool full, usize depth,
                                  const std::vector<const Proto*>& ancestry) {
     const std::string indent = indentFor(depth);
 
@@ -317,14 +304,11 @@ bool isSourceMetadataLine(std::string_view line) {
 }
 
 std::vector<std::string> removeDiffNoise(std::vector<std::string> lines) {
-    std::erase_if(lines, [](const std::string& line) {
-        return isSourceMetadataLine(line);
-    });
+    std::erase_if(lines, [](const std::string& line) { return isSourceMetadataLine(line); });
     return lines;
 }
 
-usize countChangedLines(const std::vector<std::string>& leftLines,
-                        const std::vector<std::string>& rightLines) {
+usize countChangedLines(const std::vector<std::string>& leftLines, const std::vector<std::string>& rightLines) {
     const usize lineCount = std::max(leftLines.size(), rightLines.size());
     usize changed = 0;
 
@@ -445,8 +429,7 @@ std::vector<bool> collectCfgLeaders(const std::vector<Instruction>& code) {
     return leaders;
 }
 
-std::vector<CfgBlock> buildCfgBlocks(const std::vector<Instruction>& code,
-                                     const std::vector<bool>& leaders) {
+std::vector<CfgBlock> buildCfgBlocks(const std::vector<Instruction>& code, const std::vector<bool>& leaders) {
     std::vector<usize> leaderPcs;
     for (usize pc = 0; pc < leaders.size(); ++pc) {
         if (leaders[pc]) {
@@ -473,8 +456,7 @@ std::vector<CfgBlock> buildCfgBlocks(const std::vector<Instruction>& code,
     return blocks;
 }
 
-std::vector<i32> buildPcToBlock(const std::vector<Instruction>& code,
-                                const std::vector<CfgBlock>& blocks) {
+std::vector<i32> buildPcToBlock(const std::vector<Instruction>& code, const std::vector<CfgBlock>& blocks) {
     std::vector<i32> pcToBlock(code.size(), -1);
     for (const CfgBlock& block : blocks) {
         for (usize pc = block.startPc; pc <= block.endPc && pc < pcToBlock.size(); ++pc) {
@@ -493,12 +475,10 @@ bool blockEndsWithCompanionJump(const std::vector<Instruction>& code, const CfgB
         return false;
     }
 
-    return isCompanionJumpConsumer(GET_OPCODE(code[block.endPc - 1]))
-        && GET_OPCODE(code[block.endPc]) == OpCode::JMP;
+    return isCompanionJumpConsumer(GET_OPCODE(code[block.endPc - 1])) && GET_OPCODE(code[block.endPc]) == OpCode::JMP;
 }
 
-std::vector<CfgEdge> buildCfgEdges(const std::vector<Instruction>& code,
-                                   const std::vector<CfgBlock>& blocks) {
+std::vector<CfgEdge> buildCfgEdges(const std::vector<Instruction>& code, const std::vector<CfgBlock>& blocks) {
     std::vector<CfgEdge> edges;
 
     for (const CfgBlock& block : blocks) {
@@ -630,16 +610,10 @@ std::string cfgBlockOpcodeSummary(const Proto* proto, const CfgBlock& block) {
 }
 
 std::string cfgBlockLabel(const Proto* proto, const CfgBlock& block) {
-    return std::format("B{}\n{}\n{}",
-                       block.id,
-                       cfgBlockPcRange(block),
-                       cfgBlockOpcodeSummary(proto, block));
+    return std::format("B{}\n{}\n{}", block.id, cfgBlockPcRange(block), cfgBlockOpcodeSummary(proto, block));
 }
 
-void printCfgEdge(const CfgGraph& graph,
-                  usize protoId,
-                  const CfgEdge& edge,
-                  std::ostream& out) {
+void printCfgEdge(const CfgGraph& graph, usize protoId, const CfgEdge& edge, std::ostream& out) {
     const std::string from = cfgNodeId(protoId, edge.fromBlock);
     std::string to = cfgExitNodeId(protoId);
 
@@ -653,10 +627,7 @@ void printCfgEdge(const CfgGraph& graph,
     out << "  " << from << " -->|" << edge.label << "| " << to << '\n';
 }
 
-void printSingleProtoCfg(const Proto* proto,
-                         std::ostream& out,
-                         usize protoId,
-                         std::string_view title) {
+void printSingleProtoCfg(const Proto* proto, std::ostream& out, usize protoId, std::string_view title) {
     out << std::format("  subgraph P{}[\"{}\"]\n", protoId, escapeMermaidLabel(title));
 
     if (!proto) {
@@ -668,8 +639,7 @@ void printSingleProtoCfg(const Proto* proto,
     const CfgGraph graph = buildCfgGraph(proto);
     out << std::format("    {}((\"exit\"))\n", cfgExitNodeId(protoId));
     for (const CfgBlock& block : graph.blocks) {
-        out << std::format("    {}[\"{}\"]\n",
-                           cfgNodeId(protoId, block.id),
+        out << std::format("    {}[\"{}\"]\n", cfgNodeId(protoId, block.id),
                            escapeMermaidLabel(cfgBlockLabel(proto, block)));
     }
     out << "  end" << '\n';
@@ -679,12 +649,8 @@ void printSingleProtoCfg(const Proto* proto,
     }
 }
 
-void printProtoCfgRecursive(const Proto* proto,
-                            std::ostream& out,
-                            bool full,
-                            CfgRenderState& state,
-                            std::string_view title,
-                            const std::vector<const Proto*>& ancestry) {
+void printProtoCfgRecursive(const Proto* proto, std::ostream& out, bool full, CfgRenderState& state,
+                            std::string_view title, const std::vector<const Proto*>& ancestry) {
     const usize protoId = state.nextProtoId++;
     printSingleProtoCfg(proto, out, protoId, title);
 
@@ -702,11 +668,7 @@ void printProtoCfgRecursive(const Proto* proto,
             continue;
         }
 
-        printProtoCfgRecursive(child,
-                               out,
-                               true,
-                               state,
-                               std::format("proto[{}] {}", i, formatProtoSummary(child)),
+        printProtoCfgRecursive(child, out, true, state, std::format("proto[{}] {}", i, formatProtoSummary(child)),
                                nextAncestry);
     }
 }
@@ -717,16 +679,10 @@ void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
     printProtoBytecodeRecursive(f, out, full, 0, {});
 }
 
-void printProtoBytecodeDiff(const Proto* left,
-                            const Proto* right,
-                            std::ostream& out,
-                            bool full,
-                            std::string_view leftLabel,
-                            std::string_view rightLabel) {
-    std::vector<std::string> leftLines =
-        removeDiffNoise(splitLines(renderProtoBytecode(left, full)));
-    std::vector<std::string> rightLines =
-        removeDiffNoise(splitLines(renderProtoBytecode(right, full)));
+void printProtoBytecodeDiff(const Proto* left, const Proto* right, std::ostream& out, bool full,
+                            std::string_view leftLabel, std::string_view rightLabel) {
+    std::vector<std::string> leftLines = removeDiffNoise(splitLines(renderProtoBytecode(left, full)));
+    std::vector<std::string> rightLines = removeDiffNoise(splitLines(renderProtoBytecode(right, full)));
     const usize changed = countChangedLines(leftLines, rightLines);
 
     out << "Bytecode diff" << '\n';
@@ -746,10 +702,8 @@ void printProtoBytecodeDiff(const Proto* left,
     for (usize i = 0; i < lineCount; ++i) {
         const bool hasLeft = i < leftLines.size();
         const bool hasRight = i < rightLines.size();
-        const std::string_view leftLine =
-            hasLeft ? std::string_view(leftLines[i]) : std::string_view("<missing>");
-        const std::string_view rightLine =
-            hasRight ? std::string_view(rightLines[i]) : std::string_view("<missing>");
+        const std::string_view leftLine = hasLeft ? std::string_view(leftLines[i]) : std::string_view("<missing>");
+        const std::string_view rightLine = hasRight ? std::string_view(rightLines[i]) : std::string_view("<missing>");
 
         if (hasLeft && hasRight && leftLine == rightLine) {
             continue;

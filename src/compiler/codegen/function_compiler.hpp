@@ -23,8 +23,7 @@ class Proto;
  */
 class FunctionCompiler {
 public:
-    explicit FunctionCompiler(CodeGenerator& owner) noexcept
-        : owner_(owner) {}
+    explicit FunctionCompiler(CodeGenerator& owner) noexcept : owner_(owner) {}
 
     [[nodiscard]] CompiledFunction compile(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
                                            i32 linedefined = 0, i32 lastlinedefined = 0);
@@ -36,4 +35,4 @@ private:
     CodeGenerator& owner_;
 };
 
-}  // namespace Lua
+} // namespace Lua

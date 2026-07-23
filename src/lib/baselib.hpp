@@ -1,11 +1,11 @@
 /**
  * @file baselib.hpp
  * @brief Lua基础库：核心函数和基本操作
- * 
+ *
  * 详细说明：
  * 本模块实现了Lua的基础库函数，提供了最核心和最常用的标准库功能。
  * 这些函数构成了Lua编程的基础，包括输入输出、类型操作、元表管理、错误处理等核心功能。
- * 
+ *
  * 主要功能：
  * 1. 输入输出：print
  * 2. 类型操作：type、tonumber、tostring
@@ -26,17 +26,19 @@ namespace Lua {
 /** @brief Lua 基础库模块。 */
 class BaseLibModule : public LibModule {
 public:
-	const char* getName() const override { return "base"; }
+    const char* getName() const override {
+        return "base";
+    }
 
-	void registerFunctions(LuaState* L) override;
+    void registerFunctions(LuaState* L) override;
 
-	void initialize(LuaState* L) override;
+    void initialize(LuaState* L) override;
 };
 
 /**
  * @brief 注册基础库到全局环境
  * @param L Lua状态机指针
- * 
+ *
  * 将所有基础库函数注册到全局表中，使其可以从Lua代码中调用。
  */
 void openBaseLib(LuaState* L);
@@ -193,4 +195,3 @@ i32 luaB_setfenv(LuaState* L);
 i32 luaB_collectgarbage(LuaState* L);
 
 } // namespace Lua
-

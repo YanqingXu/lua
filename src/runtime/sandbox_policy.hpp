@@ -63,7 +63,7 @@ struct SandboxProfile {
     bool gcControl = true;
 
     /**
- * @brief 与 Lua 5.1 兼容的无限制行为。
+     * @brief 与 Lua 5.1 兼容的无限制行为。
      */
     [[nodiscard]] static constexpr SandboxProfile unrestricted() noexcept {
         return {};

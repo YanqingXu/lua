@@ -433,8 +433,7 @@ int lua_tryclose(lua_State* L) LUA_CXX_NOEXCEPT {
     if (mainState == nullptr) {
         mainState = state;
     }
-    if (globalState.getRunningThread() != nullptr || mainState->getCurrentCI() != 0 ||
-        state->getCurrentCI() != 0) {
+    if (globalState.getRunningThread() != nullptr || mainState->getCurrentCI() != 0 || state->getCurrentCI() != 0) {
         return LUA_ERRBUSY;
     }
 
@@ -1300,11 +1299,11 @@ int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT {
                 return fail(errorValue, preparationStatus);
             }
             const int stateTop = apiTop(state);
-        /**
-         * @brief Thread::resume 负责 VM 状态转换，并要求恢复参数位于调用者栈上。
-         *
-         * 保持桥接层已有前缀不变。
-         */
+            /**
+             * @brief Thread::resume 负责 VM 状态转换，并要求恢复参数位于调用者栈上。
+             *
+             * 保持桥接层已有前缀不变。
+             */
             for (int i = nargs; i > 0; --i) {
                 bridge->pushValue(state->at(-i));
             }
@@ -1348,10 +1347,10 @@ int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT {
                 return static_cast<int>(LUA_YIELD);
             }
 
-        /**
-         * @brief 内部协程运行器将结果复制给调用者；公开 lua_resume 还必须将结果留在被恢复状态
-         * 自身的 API 栈上。
-         */
+            /**
+             * @brief 内部协程运行器将结果复制给调用者；公开 lua_resume 还必须将结果留在被恢复状态
+             * 自身的 API 栈上。
+             */
             setApiTop(state, 0);
             for (const Lua::Value& value : outputValues) {
                 state->pushValue(value);
@@ -1605,8 +1604,7 @@ int luaL_ref(lua_State* L, int tableIndex) LUA_CXX_MAY_THROW {
     const int absoluteTable =
         tableIndex < 0 && tableIndex > LUA_REGISTRYINDEX ? lua_gettop(L) + tableIndex + 1 : tableIndex;
     lua_rawgeti(L, absoluteTable, 0);
-    const auto convertedReference =
-        Lua::checkedLuaInteger(lua_tonumber(L, -1), Lua::IntegerConversion::Exact);
+    const auto convertedReference = Lua::checkedLuaInteger(lua_tonumber(L, -1), Lua::IntegerConversion::Exact);
     int reference = convertedReference.has_value() && *convertedReference > 0 ? *convertedReference : 0;
     lua_pop(L, 1);
 

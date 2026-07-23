@@ -192,6 +192,39 @@ void testLuaStateCreateReturnsOwningState(TestSuite& suite) {
     context.gc().clearAll(context.strings());
 }
 
+void testEngineContextRejectsConcurrentRootState(TestSuite& suite) {
+    EngineContext context;
+    UPtr<LuaState> root = LuaState::create(context);
+    LuaState* const originalRoot = root.get();
+
+    bool rejectedSecondRoot = false;
+    try {
+        [[maybe_unused]] UPtr<LuaState> second = LuaState::create(context);
+    } catch (const RuntimeError& error) {
+        rejectedSecondRoot = std::string(error.what()).find("already owns a root state") != std::string::npos;
+    }
+
+    ASSERT_TRUE(suite, rejectedSecondRoot, "EngineContext rejects a concurrent second root state");
+    ASSERT_TRUE(suite, context.globalState().getMainThread() == originalRoot,
+                "failed second creation preserves the original root registration");
+
+    (void)context.gc().collect(root.get());
+    ASSERT_TRUE(suite, context.globalState().getMainThread() == originalRoot,
+                "forced collection preserves the registered root state");
+
+    root.reset();
+    ASSERT_TRUE(suite, context.globalState().getMainThread() == nullptr,
+                "destroying the root releases the context root slot");
+
+    context.gc().clearAll(context.strings());
+    UPtr<LuaState> replacement = LuaState::create(context);
+    ASSERT_TRUE(suite, context.globalState().getMainThread() == replacement.get(),
+                "the context accepts a replacement root after the previous root closes");
+
+    replacement.reset();
+    context.gc().clearAll(context.strings());
+}
+
 void testCompilerAcceptsRuntimeServices(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
@@ -530,10 +563,8 @@ void testGameServerSandboxProfileControlsLibraryExposure(TestSuite& suite) {
     ASSERT_TRUE(suite, !policy.allows(SandboxCapability::NativeModules), "game-server profile denies native modules");
     ASSERT_TRUE(suite, !policy.allows(SandboxCapability::RuntimeCompilation),
                 "game-server profile denies runtime compilation");
-    ASSERT_TRUE(suite, !policy.allows(SandboxCapability::BinaryChunks),
-                "game-server profile denies binary chunks");
-    ASSERT_TRUE(suite, !policy.allows(SandboxCapability::GCControl),
-                "game-server profile denies script GC control");
+    ASSERT_TRUE(suite, !policy.allows(SandboxCapability::BinaryChunks), "game-server profile denies binary chunks");
+    ASSERT_TRUE(suite, !policy.allows(SandboxCapability::GCControl), "game-server profile denies script GC control");
 
     ASSERT_TRUE(suite, restrictedState->getGlobal("math").isTable(), "allowed math library is published");
     ASSERT_TRUE(suite, restrictedState->getGlobal("string").isTable(), "allowed string library is published");
@@ -544,11 +575,9 @@ void testGameServerSandboxProfileControlsLibraryExposure(TestSuite& suite) {
     ASSERT_TRUE(suite, restrictedState->getGlobal("debug").isNil(), "disabled debug library is not published");
     ASSERT_TRUE(suite, restrictedState->getGlobal("loadfile").isNil(), "filesystem base helper is not published");
     ASSERT_TRUE(suite, restrictedState->getGlobal("dofile").isNil(), "filesystem executor is not published");
-    ASSERT_TRUE(suite, restrictedState->getGlobal("loadstring").isNil(),
-                "runtime compiler is not published");
+    ASSERT_TRUE(suite, restrictedState->getGlobal("loadstring").isNil(), "runtime compiler is not published");
     ASSERT_TRUE(suite, restrictedState->getGlobal("load").isNil(), "reader compiler is not published");
-    ASSERT_TRUE(suite, restrictedState->getGlobal("collectgarbage").isNil(),
-                "shared GC control is not published");
+    ASSERT_TRUE(suite, restrictedState->getGlobal("collectgarbage").isNil(), "shared GC control is not published");
 
     Value packageValue = restrictedState->getGlobal("package");
     ASSERT_TRUE(suite, packageValue.isTable(), "preload-only package table is published");
@@ -763,13 +792,13 @@ void testSandboxCapabilitiesRejectCapturedPrivilegedFunctions(TestSuite& suite) 
               "captured privileged functions fail inside protected Lua calls");
 
     static constexpr std::array<StrView, 19> expectedTrue = {
-        "sandbox_denied_loadfile",   "sandbox_denied_dofile",          "sandbox_denied_io_open",
-        "sandbox_denied_io_tmpfile", "sandbox_denied_file_read",       "sandbox_denied_os_remove",
-        "sandbox_denied_os_rename",  "sandbox_denied_os_tmpname",      "sandbox_denied_io_popen",
-        "sandbox_denied_os_execute", "sandbox_denied_os_getenv",       "sandbox_denied_os_setlocale",
-        "sandbox_denied_loadlib",    "sandbox_denied_loadstring_text", "sandbox_denied_load_reader",
-        "sandbox_denied_loadstring_binary", "sandbox_denied_gc_control",
-        "sandbox_preload_after_restrict", "sandbox_require_file_denied",
+        "sandbox_denied_loadfile",          "sandbox_denied_dofile",          "sandbox_denied_io_open",
+        "sandbox_denied_io_tmpfile",        "sandbox_denied_file_read",       "sandbox_denied_os_remove",
+        "sandbox_denied_os_rename",         "sandbox_denied_os_tmpname",      "sandbox_denied_io_popen",
+        "sandbox_denied_os_execute",        "sandbox_denied_os_getenv",       "sandbox_denied_os_setlocale",
+        "sandbox_denied_loadlib",           "sandbox_denied_loadstring_text", "sandbox_denied_load_reader",
+        "sandbox_denied_loadstring_binary", "sandbox_denied_gc_control",      "sandbox_preload_after_restrict",
+        "sandbox_require_file_denied",
     };
     for (StrView name : expectedTrue) {
         ASSERT_TRUE(suite, state->getGlobal(Str(name)).isTrue(), Str(name) + " is enforced by the active sandbox");
@@ -973,6 +1002,8 @@ void registerRuntimeServicesTests() {
     registry.registerTest(kSuiteName, "LuaState newState accepts EngineContext",
                           testLuaStateNewStateAcceptsEngineContext);
     registry.registerTest(kSuiteName, "LuaState create returns owning state", testLuaStateCreateReturnsOwningState);
+    registry.registerTest(kSuiteName, "EngineContext rejects concurrent root state",
+                          testEngineContextRejectsConcurrentRootState);
     registry.registerTest(kSuiteName, "Compiler Accepts Runtime Services", testCompilerAcceptsRuntimeServices);
     registry.registerTest(kSuiteName, "LuaState And VM Accept Runtime Services",
                           testLuaStateAndVmAcceptRuntimeServices);
@@ -992,8 +1023,7 @@ void registerRuntimeServicesTests() {
                           testResourcePolicyIsIsolatedPerContext);
     registry.registerTest(kSuiteName, "Resource policy bounds every stack growth path",
                           testResourcePolicyBoundsEveryStackGrowthPath);
-    registry.registerTest(kSuiteName, "Native module host policy",
-                          testNativeModulePolicyHardensHostLoader);
+    registry.registerTest(kSuiteName, "Native module host policy", testNativeModulePolicyHardensHostLoader);
     registry.registerTest(kSuiteName, "Runtime owner thread rejects foreign state access",
                           testRuntimeOwnerThreadRejectsForeignStateAccess);
     registry.registerTest(kSuiteName, "Game-server sandbox profile controls library exposure",

@@ -85,12 +85,12 @@ void postcall(LuaState* L, i32 funcPos, i32 wantedResults, usize firstResult) {
         const i32 resultCount = (wantedResults < 0) ? availableResults : wantedResults;
         const i32 copyCount = std::min(availableResults, resultCount);
 
-    /**
-     * @brief 按重叠方向安全移动 Lua 返回值。
-     *
-     * Lua 返回值通常向下覆盖已消费的函数和参数。辅助逻辑需同时适配两个重叠方向，确保所有
-     * 保留结果在复制前均不会被覆盖。
-     */
+        /**
+         * @brief 按重叠方向安全移动 Lua 返回值。
+         *
+         * Lua 返回值通常向下覆盖已消费的函数和参数。辅助逻辑需同时适配两个重叠方向，确保所有
+         * 保留结果在复制前均不会被覆盖。
+         */
         if (resultDestination > firstResult && resultDestination < firstResult + static_cast<usize>(copyCount)) {
             for (i32 i = copyCount; i > 0; --i) {
                 stack[resultDestination + static_cast<usize>(i - 1)] = stack[firstResult + static_cast<usize>(i - 1)];

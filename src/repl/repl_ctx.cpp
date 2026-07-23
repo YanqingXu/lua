@@ -20,21 +20,19 @@ constexpr std::string_view kResetColor = "\x1b[0m";
 
 bool shouldColorizeErrors(ReplContext& context) {
     switch (context.errorColorMode()) {
-        case ErrorColorMode::Never:
-            return false;
-        case ErrorColorMode::Always:
-            return true;
-        case ErrorColorMode::Auto:
-            break;
+    case ErrorColorMode::Never:
+        return false;
+    case ErrorColorMode::Always:
+        return true;
+    case ErrorColorMode::Auto:
+        break;
     }
 
-    return context.isInteractiveErrorContext()
-        && isTerminal(stdout)
-        && isTerminal(stderr)
-        && enableVirtualTerminalFor(stderr);
+    return context.isInteractiveErrorContext() && isTerminal(stdout) && isTerminal(stderr) &&
+           enableVirtualTerminalFor(stderr);
 }
 
-}  // namespace
+} // namespace
 
 void ReplContext::setProgramName(const char* name) {
     if (name != nullptr && name[0] != '\0') {
@@ -96,8 +94,7 @@ void writeErrorLine(ReplContext& context, std::ostream& err, std::string_view me
     err << message << '\n';
 }
 
-void reportError(ReplContext& context, std::ostream& err, std::string_view msg,
-                 bool showProgName) {
+void reportError(ReplContext& context, std::ostream& err, std::string_view msg, bool showProgName) {
     if (showProgName && context.programName()[0] != '\0') {
         writeErrorLine(context, err, std::format("{}: {}", context.programName(), msg));
         return;
@@ -106,8 +103,8 @@ void reportError(ReplContext& context, std::ostream& err, std::string_view msg,
     writeErrorLine(context, err, msg);
 }
 
-void reportError(ReplContext& context, std::ostream& err, std::string_view source, int line,
-                 std::string_view msg, bool showProgName) {
+void reportError(ReplContext& context, std::ostream& err, std::string_view source, int line, std::string_view msg,
+                 bool showProgName) {
     const Str message = std::format("{}:{}: {}", source, line, msg);
     if (showProgName && context.programName()[0] != '\0') {
         writeErrorLine(context, err, std::format("{}: {}", context.programName(), message));
@@ -117,4 +114,4 @@ void reportError(ReplContext& context, std::ostream& err, std::string_view sourc
     writeErrorLine(context, err, message);
 }
 
-}  // namespace Lua::REPL::detail
+} // namespace Lua::REPL::detail

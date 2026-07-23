@@ -226,11 +226,11 @@ void Table::setArrayRange(i32 firstIndex, std::span<const Value> values) {
     }
 
     if (GarbageCollector* gc = getOwnerCollector()) {
-    /**
-     * @brief 修改数组前完成所有可能触发分配的写屏障。
-     *
-     * 随后的重新分配具有强失败保证，且 Value 赋值不会抛出异常。
-     */
+        /**
+         * @brief 修改数组前完成所有可能触发分配的写屏障。
+         *
+         * 随后的重新分配具有强失败保证，且 Value 赋值不会抛出异常。
+         */
         for (const Value& value : values) {
             gc->writeBarrier(this, value);
         }
@@ -549,8 +549,7 @@ usize Table::findHashNode(const Value& key, bool includeDead) const noexcept {
         if (node.state == HashNodeState::Empty) {
             return NoHashNode;
         }
-        if (node.hash == hash && node.key == key &&
-            (node.state == HashNodeState::Live || includeDead)) {
+        if (node.hash == hash && node.key == key && (node.state == HashNodeState::Live || includeDead)) {
             return index;
         }
         index = (index + 1) & mask;

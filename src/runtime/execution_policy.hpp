@@ -245,8 +245,7 @@ public:
     }
 
 private:
-    std::shared_ptr<ExecutionCancellationState> cancellationState_ =
-        std::make_shared<ExecutionCancellationState>();
+    std::shared_ptr<ExecutionCancellationState> cancellationState_ = std::make_shared<ExecutionCancellationState>();
     InstructionCount initialInstructions_ = UnlimitedInstructions;
     InstructionCount remainingInstructions_ = UnlimitedInstructions;
     NativeWorkCount initialNativeWork_ = UnlimitedNativeWork;

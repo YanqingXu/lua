@@ -156,4 +156,4 @@ private:
     CompilationBudget* budget_ = nullptr;
 };
 
-}  // namespace Lua
+} // namespace Lua

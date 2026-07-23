@@ -243,4 +243,4 @@ inline Opt<SwitchOpHandler> switchHandlerFor(OpCode op) noexcept {
     return entry.handler;
 }
 
-}  // namespace Lua::VM::detail
+} // namespace Lua::VM::detail

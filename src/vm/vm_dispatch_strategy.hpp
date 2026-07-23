@@ -50,5 +50,5 @@ public:
 DispatchStrategy& defaultDispatchStrategy() noexcept;
 DispatchStrategy& tableDispatchStrategy() noexcept;
 
-}  // namespace VM
-}  // namespace Lua
+} // namespace VM
+} // namespace Lua

@@ -70,7 +70,7 @@ HandlerStatus handleConcat(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
-}  // namespace
+} // namespace
 
 void registerUnaryHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::UNM)].handler = handleUnaryMinus;
@@ -79,4 +79,4 @@ void registerUnaryHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::CONCAT)].handler = handleConcat;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

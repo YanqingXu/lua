@@ -298,7 +298,7 @@ LuaState* LuaState::newThread(LuaState* parentL) {
     }
 
     try {
-    /** @brief 共享全局表，不创建新表，也不注册为垃圾回收根对象。 */
+        /** @brief 共享全局表，不创建新表，也不注册为垃圾回收根对象。 */
         L->globalTable_ = parentL->globalTable_;
         L->isChildThread_ = true;
 
@@ -372,6 +372,14 @@ LuaState::~LuaState() {
 // =====================================================================
 
 void LuaState::initialize() {
+    if (globalState_.getMainThread() != nullptr) {
+        throw RuntimeError("LuaState::initialize: runtime context already owns a root state");
+    }
+
+    // Each GlobalState may own at most one root LuaState at a time.
+    // Register first so destruction rolls the slot back if later initialization throws.
+    globalState_.setMainThread(this);
+
     // 创建全局表
     globalTable_ = globalState_.getGC().createRoot<Table>();
 
@@ -387,11 +395,6 @@ void LuaState::initialize() {
     // 在栈上放置一个nil值作为虚拟函数
     stack_.push(Value()); // nil
     top_ = 1;             // 栈顶指向下一个可用位置
-
-    // 如果这是第一个LuaState，设置为主线程
-    if (globalState_.getMainThread() == nullptr) {
-        globalState_.setMainThread(this);
-    }
 }
 
 void LuaState::setGlobalTable(Table* table) {

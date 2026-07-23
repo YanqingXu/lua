@@ -18,11 +18,16 @@ HandlerStatus handleMove(OpExecutionContext& context, Instruction inst) {
 
     if (detail::shouldDumpBytecode(context.state)) {
         std::fprintf(stderr, "[MOVE] pc=%zu a=%d b=%d base[b]=", context.instructionPc, a, b);
-        if (context.base[b].isNumber()) std::fprintf(stderr, "%g", context.base[b].asNumber());
-        else if (context.base[b].isNil()) std::fprintf(stderr, "nil");
-        else if (context.base[b].isFunction()) std::fprintf(stderr, "function");
-        else if (context.base[b].isString()) std::fprintf(stderr, "'%s'", context.base[b].asString()->c_str());
-        else std::fprintf(stderr, "other");
+        if (context.base[b].isNumber())
+            std::fprintf(stderr, "%g", context.base[b].asNumber());
+        else if (context.base[b].isNil())
+            std::fprintf(stderr, "nil");
+        else if (context.base[b].isFunction())
+            std::fprintf(stderr, "function");
+        else if (context.base[b].isString())
+            std::fprintf(stderr, "'%s'", context.base[b].asString()->c_str());
+        else
+            std::fprintf(stderr, "other");
         std::fprintf(stderr, "\n");
     }
 
@@ -60,7 +65,7 @@ HandlerStatus handleLoadNil(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
-}  // namespace
+} // namespace
 
 void registerDataHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::MOVE)].handler = handleMove;
@@ -69,4 +74,4 @@ void registerDataHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::LOADNIL)].handler = handleLoadNil;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

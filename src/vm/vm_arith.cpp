@@ -23,7 +23,7 @@ Value getRK(Proto* proto, Value* base, i32 rk) {
     return base[rk];
 }
 
-}  // namespace
+} // namespace
 
 namespace VM::detail {
 
@@ -36,5 +36,5 @@ void execArithmetic(LuaState* L, Proto* proto, Value*& base, i32 a, i32 b, i32 c
     base[a] = result;
 }
 
-}  // namespace VM::detail
-}  // namespace Lua
+} // namespace VM::detail
+} // namespace Lua

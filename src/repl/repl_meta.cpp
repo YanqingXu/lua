@@ -100,36 +100,36 @@ void printGcStrategy(RuntimeServices& services, std::ostream& out) {
 
 const char* binaryOpName(BinaryExpr::Op op) {
     switch (op) {
-        case BinaryExpr::Op::Add:
-            return "Add";
-        case BinaryExpr::Op::Sub:
-            return "Sub";
-        case BinaryExpr::Op::Mul:
-            return "Mul";
-        case BinaryExpr::Op::Div:
-            return "Div";
-        case BinaryExpr::Op::Mod:
-            return "Mod";
-        case BinaryExpr::Op::Pow:
-            return "Pow";
-        case BinaryExpr::Op::Eq:
-            return "Eq";
-        case BinaryExpr::Op::Ne:
-            return "Ne";
-        case BinaryExpr::Op::Lt:
-            return "Lt";
-        case BinaryExpr::Op::Le:
-            return "Le";
-        case BinaryExpr::Op::Gt:
-            return "Gt";
-        case BinaryExpr::Op::Ge:
-            return "Ge";
-        case BinaryExpr::Op::And:
-            return "And";
-        case BinaryExpr::Op::Or:
-            return "Or";
-        case BinaryExpr::Op::Concat:
-            return "Concat";
+    case BinaryExpr::Op::Add:
+        return "Add";
+    case BinaryExpr::Op::Sub:
+        return "Sub";
+    case BinaryExpr::Op::Mul:
+        return "Mul";
+    case BinaryExpr::Op::Div:
+        return "Div";
+    case BinaryExpr::Op::Mod:
+        return "Mod";
+    case BinaryExpr::Op::Pow:
+        return "Pow";
+    case BinaryExpr::Op::Eq:
+        return "Eq";
+    case BinaryExpr::Op::Ne:
+        return "Ne";
+    case BinaryExpr::Op::Lt:
+        return "Lt";
+    case BinaryExpr::Op::Le:
+        return "Le";
+    case BinaryExpr::Op::Gt:
+        return "Gt";
+    case BinaryExpr::Op::Ge:
+        return "Ge";
+    case BinaryExpr::Op::And:
+        return "And";
+    case BinaryExpr::Op::Or:
+        return "Or";
+    case BinaryExpr::Op::Concat:
+        return "Concat";
     }
 
     return "Unknown";
@@ -137,12 +137,12 @@ const char* binaryOpName(BinaryExpr::Op op) {
 
 const char* unaryOpName(UnaryExpr::Op op) {
     switch (op) {
-        case UnaryExpr::Op::Not:
-            return "Not";
-        case UnaryExpr::Op::Neg:
-            return "Neg";
-        case UnaryExpr::Op::Len:
-            return "Len";
+    case UnaryExpr::Op::Not:
+        return "Not";
+    case UnaryExpr::Op::Neg:
+        return "Neg";
+    case UnaryExpr::Op::Len:
+        return "Len";
     }
 
     return "Unknown";
@@ -152,24 +152,24 @@ Str escapeAstString(const Str& value) {
     Str escaped;
     for (char ch : value) {
         switch (ch) {
-            case '\\':
-                escaped += "\\\\";
-                break;
-            case '"':
-                escaped += "\\\"";
-                break;
-            case '\n':
-                escaped += "\\n";
-                break;
-            case '\r':
-                escaped += "\\r";
-                break;
-            case '\t':
-                escaped += "\\t";
-                break;
-            default:
-                escaped += ch;
-                break;
+        case '\\':
+            escaped += "\\\\";
+            break;
+        case '"':
+            escaped += "\\\"";
+            break;
+        case '\n':
+            escaped += "\\n";
+            break;
+        case '\r':
+            escaped += "\\r";
+            break;
+        case '\t':
+            escaped += "\\t";
+            break;
+        default:
+            escaped += ch;
+            break;
         }
     }
     return escaped;
@@ -235,8 +235,7 @@ public:
     }
 
     void visitNode(const CallExpr& node) {
-        lineWithLocation(std::format("CallExpr method={}", node.isMethodCall ? "true" : "false"),
-                         node);
+        lineWithLocation(std::format("CallExpr method={}", node.isMethodCall ? "true" : "false"), node);
         IndentGuard indent(*this);
         printExprField("func", node.func.get());
         line(std::format("args ({})", node.args.size()));
@@ -386,8 +385,7 @@ private:
         AstPrinter& printer_;
     };
 
-    template <typename Node>
-    void lineWithLocation(std::string_view label, const Node& node) {
+    template <typename Node> void lineWithLocation(std::string_view label, const Node& node) {
         line(std::format("{} @ {}:{}", label, node.line, node.column));
     }
 
@@ -443,8 +441,7 @@ private:
     }
 
     Str functionLabel(std::string_view nodeName, const Vec<Str>& params, bool isVararg) {
-        return std::format("{} params=[{}] vararg={}", nodeName, joinNames(params),
-                           isVararg ? "true" : "false");
+        return std::format("{} params=[{}] vararg={}", nodeName, joinNames(params), isVararg ? "true" : "false");
     }
 
     Str functionStmtLabel(const FunctionStmt& node) {
@@ -454,9 +451,8 @@ private:
             fullName += part;
         }
 
-        return std::format("FunctionStmt name={} local={} method={} params=[{}] vararg={}",
-                           fullName, node.isLocal ? "true" : "false",
-                           node.isMethod ? "true" : "false", joinNames(node.params),
+        return std::format("FunctionStmt name={} local={} method={} params=[{}] vararg={}", fullName,
+                           node.isLocal ? "true" : "false", node.isMethod ? "true" : "false", joinNames(node.params),
                            node.isVararg ? "true" : "false");
     }
 
@@ -464,8 +460,7 @@ private:
     usize indent_ = 0;
 };
 
-int printBytecode(ReplContext& context, LuaState* L, const Str& source, std::ostream& out,
-                  std::ostream& err) {
+int printBytecode(ReplContext& context, LuaState* L, const Str& source, std::ostream& out, std::ostream& err) {
     if (L == nullptr) {
         reportError(context, err, ".bytecode: LuaState is null", false);
         return 1;
@@ -507,8 +502,7 @@ int printBytecode(ReplContext& context, LuaState* L, const Str& source, std::ost
     }
 }
 
-int printAst(ReplContext& context, LuaState* L, const Str& source, std::ostream& out,
-             std::ostream& err) {
+int printAst(ReplContext& context, LuaState* L, const Str& source, std::ostream& out, std::ostream& err) {
     if (L == nullptr) {
         reportError(context, err, ".ast: LuaState is null", false);
         return 1;
@@ -556,8 +550,7 @@ int printAst(ReplContext& context, LuaState* L, const Str& source, std::ostream&
     }
 }
 
-int printGc(ReplContext& context, LuaState* L, const Str& argument, std::ostream& out,
-            std::ostream& err) {
+int printGc(ReplContext& context, LuaState* L, const Str& argument, std::ostream& out, std::ostream& err) {
     if (L == nullptr) {
         reportError(context, err, ".gc: LuaState is null", false);
         return 1;
@@ -605,30 +598,29 @@ int printGc(ReplContext& context, LuaState* L, const Str& argument, std::ostream
     return 1;
 }
 
-int runMetaCommand(ReplContext& context, LuaState* L, const MetaCommand& command,
-                   std::ostream& out, std::ostream& err) {
+int runMetaCommand(ReplContext& context, LuaState* L, const MetaCommand& command, std::ostream& out,
+                   std::ostream& err) {
     switch (command.kind) {
-        case MetaCommandKind::None:
-            return 0;
-        case MetaCommandKind::Help:
-            printHelp(out);
-            return 0;
-        case MetaCommandKind::Bytecode:
-            return printBytecode(context, L, command.argument, out, err);
-        case MetaCommandKind::Ast:
-            return printAst(context, L, command.argument, out, err);
-        case MetaCommandKind::Gc:
-            return printGc(context, L, command.argument, out, err);
-        case MetaCommandKind::Unknown:
-            reportError(context, err, std::format("unknown REPL command: .{}", command.argument),
-                        false);
-            return 1;
+    case MetaCommandKind::None:
+        return 0;
+    case MetaCommandKind::Help:
+        printHelp(out);
+        return 0;
+    case MetaCommandKind::Bytecode:
+        return printBytecode(context, L, command.argument, out, err);
+    case MetaCommandKind::Ast:
+        return printAst(context, L, command.argument, out, err);
+    case MetaCommandKind::Gc:
+        return printGc(context, L, command.argument, out, err);
+    case MetaCommandKind::Unknown:
+        reportError(context, err, std::format("unknown REPL command: .{}", command.argument), false);
+        return 1;
     }
 
     return 1;
 }
 
-}  // namespace detail
+} // namespace detail
 
 MetaCommand parseMetaCommand(const Str& line) {
     const Str trimmed = detail::trimCopy(line);
@@ -682,9 +674,8 @@ int printGc(LuaState* L, const Str& argument, std::ostream& out, std::ostream& e
     return detail::printGc(detail::globalContext(), L, argument, out, err);
 }
 
-int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out,
-                   std::ostream& err) {
+int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, std::ostream& err) {
     return detail::runMetaCommand(detail::globalContext(), L, command, out, err);
 }
 
-}  // namespace Lua::REPL
+} // namespace Lua::REPL

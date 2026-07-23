@@ -1,13 +1,13 @@
 ﻿/**
  * @file vm.hpp
  * @brief Lua虚拟机执行引擎：字节码解释器
- * 
+ *
  * 设计说明：
  * VM命名空间以自由函数的形式提供字节码执行引擎。
  * 与Lua 5.1 C实现的lvm.c设计一致：luaV_execute(L, nexeccalls)
  * 是接收lua_State*参数的自由函数，所有执行状态（pc, base, cl）
  * 作为局部变量存在于函数调用栈中。
- * 
+ *
  * 核心特性：
  * - 完整的Lua 5.1指令集支持（38条指令）
  * - 基于寄存器的虚拟机架构
@@ -39,13 +39,13 @@ struct RuntimeServices;
  * @brief 虚拟机执行结果（替代无返回值，使挂起成为正常控制流）
  */
 enum class ExecResult : u8 {
-    Returned,      // 函数正常返回
-    Yielded        // 协程挂起
+    Returned, // 函数正常返回
+    Yielded   // 协程挂起
 };
 
 /**
  * @brief 虚拟机执行引擎命名空间
- * 
+ *
  * 使用示例：
  * @code
  * UPtr<LuaState> L = LuaState::create();
@@ -62,91 +62,90 @@ namespace VM {
 #define LUA_VM_COMPAT_DEPRECATED(message)
 #endif
 
-    /**
-     * @brief 执行Lua函数
-     * @param L Lua状态指针
-     * @param func 要执行的函数对象
-     */
-    LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly") void execute(LuaState* L, Function* func);
+/**
+ * @brief 执行Lua函数
+ * @param L Lua状态指针
+ * @param func 要执行的函数对象
+ */
+LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly") void execute(LuaState* L, Function* func);
 
-    /**
-     * @brief 使用显式运行时服务执行Lua函数
-     */
-    void execute(RuntimeServices& services, LuaState* L, Function* func);
+/**
+ * @brief 使用显式运行时服务执行Lua函数
+ */
+void execute(RuntimeServices& services, LuaState* L, Function* func);
 
-    /**
-     * @brief 执行字节码块（Proto）
-     * @param L Lua状态指针
-     * @param proto 函数原型
-     * @param nexeccalls 嵌套调用计数（用于检测栈溢出）
-     * @return ExecResult::Returned 或 ExecResult::Yielded
-     */
-    LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly")
-    ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
+/**
+ * @brief 执行字节码块（Proto）
+ * @param L Lua状态指针
+ * @param proto 函数原型
+ * @param nexeccalls 嵌套调用计数（用于检测栈溢出）
+ * @return ExecResult::Returned 或 ExecResult::Yielded
+ */
+LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly")
+ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
-    /**
-     * @brief 使用显式运行时服务执行字节码块（Proto）
-     */
-    ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls = 1);
+/**
+ * @brief 使用显式运行时服务执行字节码块（Proto）
+ */
+ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
-    /**
-     * @brief 执行字节码块（Proto），以 expected 返回运行期错误
-     */
-    LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly") [[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(
-        LuaState* L, Proto* proto, i32 nexeccalls = 1);
+/**
+ * @brief 执行字节码块（Proto），以 expected 返回运行期错误
+ */
+LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly")
+[[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
-    /**
-     * @brief 使用显式运行时服务执行字节码块（Proto），以 expected 返回运行期错误
-     */
-    [[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(
-        RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls = 1);
+/**
+ * @brief 使用显式运行时服务执行字节码块（Proto），以 expected 返回运行期错误
+ */
+[[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(RuntimeServices& services, LuaState* L,
+                                                                      Proto* proto, i32 nexeccalls = 1);
 
-    /**
-     * @brief 从CFunction内部调用栈上的函数（不清除栈）
-     *
-     * 调用方先将 func + args 压入栈，然后调用此函数。
-     * 执行完毕后结果替换到原 func 位置。
-     *
-     * @param L Lua状态指针
-     * @param nargs 参数个数（不含函数本身）
-     * @param nresults 期望的返回值数量（-1 = MULTRET）
-     */
-    LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly") void call(LuaState* L, i32 nargs, i32 nresults);
+/**
+ * @brief 从CFunction内部调用栈上的函数（不清除栈）
+ *
+ * 调用方先将 func + args 压入栈，然后调用此函数。
+ * 执行完毕后结果替换到原 func 位置。
+ *
+ * @param L Lua状态指针
+ * @param nargs 参数个数（不含函数本身）
+ * @param nresults 期望的返回值数量（-1 = MULTRET）
+ */
+LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly") void call(LuaState* L, i32 nargs, i32 nresults);
 
-    /**
-     * @brief 使用显式运行时服务从CFunction内部调用栈上的函数
-     */
-    void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults);
+/**
+ * @brief 使用显式运行时服务从CFunction内部调用栈上的函数
+ */
+void call(RuntimeServices& services, LuaState* L, i32 nargs, i32 nresults);
 
-    /**
-     * @brief 设置全局追踪输出端（空指针表示关闭追踪）
-     */
-    void setTraceSink(ITraceSink* sink);
+/**
+ * @brief 设置全局追踪输出端（空指针表示关闭追踪）
+ */
+void setTraceSink(ITraceSink* sink);
 
-    /** @brief 隔离运行时所使用的上下文本地跟踪配置。 */
-    void setTraceSink(RuntimeServices& services, ITraceSink* sink);
+/** @brief 隔离运行时所使用的上下文本地跟踪配置。 */
+void setTraceSink(RuntimeServices& services, ITraceSink* sink);
 
-    /**
-     * @brief 获取当前追踪输出端
-     */
-    ITraceSink* getTraceSink();
-    ITraceSink* getTraceSink(RuntimeServices& services);
+/**
+ * @brief 获取当前追踪输出端
+ */
+ITraceSink* getTraceSink();
+ITraceSink* getTraceSink(RuntimeServices& services);
 
-    /**
-     * @brief 开关追踪差异模式；开启后指令事件包含已变化的寄存器。
-     */
-    void setTraceDiffEnabled(bool enabled);
-    void setTraceDiffEnabled(RuntimeServices& services, bool enabled);
+/**
+ * @brief 开关追踪差异模式；开启后指令事件包含已变化的寄存器。
+ */
+void setTraceDiffEnabled(bool enabled);
+void setTraceDiffEnabled(RuntimeServices& services, bool enabled);
 
-    /**
-     * @brief 查询追踪差异模式是否开启。
-     */
-    bool isTraceDiffEnabled();
-    bool isTraceDiffEnabled(RuntimeServices& services);
+/**
+ * @brief 查询追踪差异模式是否开启。
+ */
+bool isTraceDiffEnabled();
+bool isTraceDiffEnabled(RuntimeServices& services);
 
 } // namespace VM
 
 #undef LUA_VM_COMPAT_DEPRECATED
 
 } // namespace Lua
-

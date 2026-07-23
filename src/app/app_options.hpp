@@ -11,20 +11,10 @@
 namespace Lua {
 
 /** @brief 命令行程序最终选择的运行模式。 */
-enum class RunMode {
-    ShowVersion,
-    ShowHelp,
-    Error,
-    Repl,
-    Script,
-    DefaultBehavior
-};
+enum class RunMode { ShowVersion, ShowHelp, Error, Repl, Script, DefaultBehavior };
 
 /** @brief 脚本执行前启动动作的类型。 */
-enum class StartupActionKind {
-    ExecuteChunk,
-    RequireModule
-};
+enum class StartupActionKind { ExecuteChunk, RequireModule };
 
 /** @brief 一项按命令行顺序执行的启动动作。 */
 struct StartupAction {
