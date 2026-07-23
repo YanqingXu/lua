@@ -47,7 +47,7 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-当前 Debug/Release strict 结果为 59 个测试、2822 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 132 个真实函数、58 个宏、26 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。当前完整 Release 套件为 789 个测试、6686 个断言、0 failures。当前 `main` 的 [Actions run 29923089152](https://github.com/YanqingXu/lua/actions/runs/29923089152) 已通过全部 API、官方 strict 与平台构建 lane；3 个剩余失败均为 format/C-style position baseline 质量门，当前工作树已修复并等待新远端矩阵验证。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+当前 Debug/Release strict 结果为 59 个测试、2822 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 132 个真实函数、58 个宏、26 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。当前完整 Release 套件为 789 个测试、6686 个断言、0 failures。修复提交 `4b0bc71` 已在 [PR #14 的 Actions run 29993098262](https://github.com/YanqingXu/lua/actions/runs/29993098262) 取得 17/17 jobs 全绿；API、官方 strict、差分、平台构建、sanitizer、fuzz、coverage、allocator、ARM64、macOS、benchmark 与 lint 均由同一 SHA 验证。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"

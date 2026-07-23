@@ -135,7 +135,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-23 的当前本地 Release 基线为 **789 registered tests, 6686 assertion results, 0 failures**；其中 `Lua C API` suite 为 59 个测试、2822 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。当前 `main` 的 [Actions run 29923089152](https://github.com/YanqingXu/lua/actions/runs/29923089152) 为 14/17 jobs 通过：全部构建、兼容性、sanitizer、fuzz、coverage、ARM64、macOS 与 benchmark lane 已通过，剩余失败限于 clang-format 和由格式化行位移触发的 Windows C-style baseline。当前工作树已修复这两类质量门，但新的远端矩阵仍待验证。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-23 的当前本地 Release 基线为 **789 registered tests, 6686 assertion results, 0 failures**；其中 `Lua C API` suite 为 59 个测试、2822 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。当前 `main` 的 [Actions run 29923089152](https://github.com/YanqingXu/lua/actions/runs/29923089152) 为 14/17 jobs 通过，失败限于 clang-format 和由格式化行位移触发的 Windows C-style baseline；修复提交 `4b0bc71` 已在 [PR #14 的 Actions run 29993098262](https://github.com/YanqingXu/lua/actions/runs/29993098262) 取得 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 lint。
 
 ### CMake / CTest 与 SDK 安装
 

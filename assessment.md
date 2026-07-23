@@ -1,6 +1,6 @@
 # 当前项目进展评估
 
-评估快照为本地 `HEAD 6756b4d` 加当前工作树修复。该提交对应的 [Actions run 29923089152](https://github.com/YanqingXu/lua/actions/runs/29923089152) 在 17 个 jobs 中通过 14 个：全部构建、API、官方 strict、差分、sanitizer、fuzz、coverage、allocator、ARM64、macOS 与 benchmark lane 已通过；3 个失败分别是 Linux clang-format 和两条 Windows C-style position baseline。当前工作树已用 CI 同版 clang-format 18.1.8 修复受检文件并重建基线，但新的远端矩阵尚未运行。
+评估快照为修复提交 `4b0bc71`。该提交已在 [PR #14 的 Actions run 29993098262](https://github.com/YanqingXu/lua/actions/runs/29993098262) 取得 17/17 jobs 全绿：Windows Debug/Release、Linux GCC/Clang、API、官方 strict、差分、ASan/UBSan/TSan、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 clang-format/clang-tidy 均由同一 SHA 验证。
 
 当前最准确的项目定位是：
 
@@ -20,7 +20,7 @@
 | Runtime 治理 | budget、deadline、取消、finalizer budget、owner-thread、sandbox | 已有较强生产边界，但仍需 soak |
 | allocator hard limit | 多个核心切片闭环，整体仍为 unsupported | 本轮新增 I/O read buffer 三个增长 offset 的事务证据 |
 | 发布工程 | CMake install/export/PackageConfig 已实现 | 0.1.0 静态与共享目标均由外部纯 C consumer 验证 |
-| CI | `main` 14/17；当前工作树本地修复 3 个质量门 | 新远端矩阵通过前不能宣称全绿 |
+| CI | PR #14 修复 SHA 17/17 全绿 | 合并后仍需确认 `main` push run |
 
 ## 二、本轮按顺序完成的收敛
 
@@ -115,11 +115,9 @@ Trace 已迁入 `GlobalState::TraceRuntime`；无 services 的重载仅是 singl
 
 后两类不应机械塞入 `lua_Alloc`。文档应继续区分 ScriptRuntimeBudget 与 HostProcessBudget，并使用 Job Object/cgroup 等治理进程级上限。
 
-### 3. 当前工作树尚无线上绿色证据
+### 3. 修复分支已全绿，主线仍待合并
 
-当前 `main` 已有 14/17 线上证据，平台与运行时 lane 均已通过。工作树修复的 clang-format 与 C-style position baseline 仍须由新 run 复核；在该 run 完成前不能关闭质量门问题。
-
-新 run 还应确认新增 `EngineContext` 单根回归在 Windows Debug/Release、Linux GCC/Clang 和 sanitizer lane 一致通过。
+修复提交 `4b0bc71` 已有完整 17/17 线上证据，clang-format、clang-tidy、Windows C-style position baseline 和新增 `EngineContext` 回归均已跨平台通过。剩余发布风险不再是未知平台失败，而是必须先把该绿色提交合并到 `main`，再以主线 push run 作为 RC1 tag 的直接前置证据。
 
 ### 4. 长期稳定性仍不足
 
@@ -127,10 +125,10 @@ Trace 已迁入 `GlobalState::TraceRuntime`；无 services 的重载仅是 singl
 
 ## 五、下一阶段优先级
 
-1. 完成本地 17 项 CTest、文档漂移、质量门合同与 clang-format 复核；
-2. 提交当前快照并跑完整 17-job CI，只按新日志修复真实失败；
-3. 清理已完成但仍开放的 issues/旧 Dependabot PR，并配置 branch protection/ruleset；
-4. 仅在绿色提交上创建 RC1 tag/release；
+1. 合并 PR #14，并确认 `main` push run 17/17；
+2. 关闭验收完成的 #3/#4/#7/#8，保留 allocator #5 与受套餐限制的 branch-protection #6；
+3. 让旧 Dependabot PR #12 基于绿色 `main` 重建并重新判定；
+4. 仅在绿色 `main` 提交上创建 RC1 tag/release；
 5. 继续 allocator 切片、覆盖率阈值、长 fuzz 与多 context soak。
 
 ## 最终判断
