@@ -1,6 +1,6 @@
 # 当前项目进展评估
 
-当前已合并基线为 `main` 提交 `94b694b`。该提交已在 [Actions run 30000455395](https://github.com/YanqingXu/lua/actions/runs/30000455395) 取得 17/17 jobs 全绿：Windows Debug/Release、Linux GCC/Clang、API、官方 strict、差分、ASan/UBSan/TSan、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 clang-format/clang-tidy 均由同一 SHA 验证。首轮唯一失败是运行时输入完全相同情况下的 Hosted Runner benchmark 非对称噪声；未改阈值的失败项重跑成功，失败/成功 artifact 均保留。
+运行时与 SDK 功能基线 `94b694b` 已在 [Actions run 30000455395](https://github.com/YanqingXu/lua/actions/runs/30000455395) 完成 17/17 jobs 验证；同轮首个 benchmark attempt 同时保留了运行时输入完全相同却发生非对称降速的失败 artifact。benchmark schema v3 加固提交 `6f571cc` 随后在 [Actions run 30004681771](https://github.com/YanqingXu/lua/actions/runs/30004681771) 首轮取得 17/17 全绿，覆盖 Windows Debug/Release、Linux GCC/Clang、API、官方 strict、差分、ASan/UBSan/TSan、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 clang-format/clang-tidy。
 
 当前最准确的项目定位是：
 
@@ -20,7 +20,7 @@
 | Runtime 治理 | budget、deadline、取消、finalizer budget、owner-thread、sandbox | 已有较强生产边界，但仍需 soak |
 | allocator hard limit | 多个核心切片闭环，整体仍为 unsupported | 本轮新增 I/O read buffer 三个增长 offset 的事务证据 |
 | 发布工程 | CMake install/export/PackageConfig 已实现 | 0.1.0 静态与共享目标均由外部纯 C consumer 验证 |
-| CI | `main` push run 17/17 全绿 | benchmark 误报模式已进入 schema v3 合同加固 |
+| CI | `main` push run 17/17 首轮全绿 | benchmark schema v3 已由 PR 与 main artifact 验证 |
 
 ## 二、本轮按顺序完成的收敛
 
@@ -117,11 +117,11 @@ Trace 已迁入 `GlobalState::TraceRuntime`；无 services 的重载仅是 singl
 
 ### 3. 主线已全绿，发布治理仍受仓库套餐阻塞
 
-PR #14 与 Dependabot PR #12 均已合并，`main` 提交 `94b694b` 的 push run 最终 17/17 全绿，本地 `main` 与远端一致。验收完成的 #3/#4/#7/#8 已关闭。当前不能按既定顺序创建 RC1 的直接原因是 #6：私有仓库现有套餐对 branch protection 与 repository rulesets API 均返回 HTTP 403。除非升级套餐、公开仓库或明确豁免该发布标准，否则不应创建 RC1 tag。
+PR #14、Dependabot PR #12 与 benchmark 加固 PR #16 均已合并；`6f571cc` 的 main push run 首轮 17/17 全绿。验收完成的 #3/#4/#7/#8/#15 已关闭。当前不能按既定顺序创建 RC1 的直接原因是 #6：私有仓库现有套餐对 branch protection 与 repository rulesets API 均返回 HTTP 403。除非升级套餐、公开仓库或明确豁免该发布标准，否则不应创建 RC1 tag。
 
-### 4. Hosted Runner benchmark 仍需降低误报率
+### 4. Hosted Runner benchmark 已加固，仍需持续观察
 
-PR #12 首轮和合并后的 `main` 首轮都出现了运行时源码等价、个别 head pair 单边降速的误报，独立失败项重跑均在原阈值下通过。新 schema v3 合同把 `CMakeLists.txt`、`cmake/` 与 `src/` 作为运行时输入集合：完全等价时记录全部越线证据但作确定性等价结论；真实输入变化且三对结果同时包含阈值内/外时，再追加两对确认采样。持续 30% 合成回归仍必须被拒绝。该修复须经 PR 在线矩阵验证后关闭 #15。
+PR #12 首轮和合并后的旧 `main` 首轮都出现过运行时源码等价、个别 head pair 单边降速的误报，独立失败项重跑均在原阈值下通过。schema v3 现把 `CMakeLists.txt`、`cmake/` 与 `src/` 作为运行时输入集合：完全等价时记录全部越线证据但作确定性等价结论；真实输入变化且三对结果同时包含阈值内/外时，再追加两对确认采样。持续 30% 合成回归仍被合同拒绝，初始三对失败证据也会单独保留。PR #16 与合并后 main 均首轮 17/17 全绿，artifact `8561943871` / `8562573583` 均证明等价输入路径；#15 已关闭。剩余工作是观察真实运行时改动触发五对确认时的线上证据，而不是继续放宽预算。
 
 ### 5. 长期稳定性仍不足
 
@@ -129,11 +129,11 @@ PR #12 首轮和合并后的 `main` 首轮都出现了运行时源码等价、�
 
 ## 五、下一阶段优先级
 
-1. 完成 benchmark schema v3 的 PR 在线矩阵，关闭 Hosted Runner 误报 #15；
-2. 决定升级套餐、公开仓库，或明确豁免 #6；若不豁免，RC1 保持暂停；
-3. 仅在绿色且满足治理标准的 `main` 提交上创建 RC1 tag/release；
-4. 继续 allocator #5 的 AST/codegen/stdlib 切片；
-5. 增加覆盖率阈值、长 fuzz，以及 coroutine/weak table/finalizer/取消/多 context/native-module soak。
+1. 决定升级套餐、公开仓库，或明确豁免 #6；若不豁免，RC1 保持暂停；
+2. 仅在绿色且满足治理标准的 `main` 提交上创建 RC1 tag/release；
+3. 继续 allocator #5 的 AST/codegen/stdlib 切片；
+4. 增加覆盖率阈值、长 fuzz，以及 coroutine/weak table/finalizer/取消/多 context/native-module soak；
+5. 观察首个真实运行时改动触发 schema v3 五对确认时的 artifact，只有出现新反例才重开 benchmark 可靠性问题。
 
 ## 最终判断
 
