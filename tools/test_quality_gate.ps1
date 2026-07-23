@@ -581,8 +581,15 @@ Assert-FileContains "tools/check_runtime_bench.ps1" @(
 )
 
 Assert-FileContains "tools/run_runtime_bench_comparison.ps1" @(
-    'schemaVersion -ne 2',
+    'schemaVersion -ne 3',
     'minimumRunsPerRevision',
+    'confirmationRunsPerRevision',
+    'maximumRunsPerRevision',
+    'runtimeInputDiffPaths',
+    'runtimeInputsEquivalent',
+    'comparison-initial\.json',
+    'confirmationTriggered',
+    'confirmationRecommended',
     '@\("base", "head"\)',
     '@\("head", "base"\)',
     'check_runtime_bench\.ps1',
@@ -598,17 +605,26 @@ Assert-FileContains "tools/check_runtime_bench_comparison.ps1" @(
     'median-of-run-medians',
     'median-of-paired-run-regressions',
     'pooled-nearest-rank-p99',
+    'confirm-mixed-paired-threshold-outcomes',
     'maximumRegressionRatio',
     'regressionRatio',
-    'success\s*=\s*\$failures\.Count -eq 0'
+    'pairedOutcomeMixed',
+    'confirmationTriggered',
+    'confirmationRecommended',
+    'equivalent-runtime-inputs',
+    'success\s*=\s*\$effectiveFailures\.Count -eq 0'
 )
 
 Assert-FileContains "tests/compatibility/runtime-benchmark-regression-policy.json" @(
-    '"schemaVersion": 2',
+    '"schemaVersion": 3',
     '"minimumRunsPerRevision": 3',
+    '"confirmationRunsPerRevision": 2',
+    '"maximumRunsPerRevision": 5',
     '"sampleAggregation": "median-of-run-medians"',
     '"regressionAggregation": "median-of-paired-run-regressions"',
     '"gcPauseAggregation": "pooled-nearest-rank-p99"',
+    '"noisePolicy": "confirm-mixed-paired-threshold-outcomes"',
+    '"runtimeInputPaths"',
     '"vm_instructions_per_second"',
     '"cpp_to_lua_ns_per_call"',
     '"lua_to_cpp_ns_per_call"',
@@ -649,45 +665,82 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             }
         }
 
-        $basePaths = @()
-        $headPaths = @()
-        for ($run = 1; $run -le 3; $run++) {
+        $allBasePaths = @()
+        $allHeadPaths = @()
+        for ($run = 1; $run -le 5; $run++) {
             $basePath = Join-Path $tempRoot "base-$run.json"
             $headPath = Join-Path $tempRoot "head-$run.json"
             New-SyntheticBenchmarkReport -Sha "base-sha" -CppToLua 100.0 |
                 ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $basePath -Encoding utf8
             New-SyntheticBenchmarkReport -Sha "head-sha" -CppToLua 100.0 |
                 ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $headPath -Encoding utf8
-            $basePaths += $basePath
-            $headPaths += $headPath
+            $allBasePaths += $basePath
+            $allHeadPaths += $headPath
         }
 
-        $runs = @()
-        for ($pair = 0; $pair -lt 3; $pair++) {
-            $order = if (($pair % 2) -eq 0) { @("base", "head") } else { @("head", "base") }
-            foreach ($revision in $order) {
-                $isBase = $revision -eq "base"
-                $startedAt = [DateTimeOffset]::FromUnixTimeSeconds(2 * $runs.Count).UtcDateTime
-                $runs += [ordered]@{
-                    pair       = $pair
-                    revision   = $revision
-                    sha        = if ($isBase) { "base-sha" } else { "head-sha" }
-                    resultPath = if ($isBase) { $basePaths[$pair] } else { $headPaths[$pair] }
-                    startedAt  = $startedAt.ToString("o")
-                    endedAt    = $startedAt.AddSeconds(1).ToString("o")
+        function Set-SyntheticCppToLuaValues {
+            param(
+                [double[]]$BaseValues,
+                [double[]]$HeadValues
+            )
+
+            if ($BaseValues.Count -ne $HeadValues.Count) {
+                throw "synthetic base/head value counts differ"
+            }
+            for ($run = 0; $run -lt $BaseValues.Count; $run++) {
+                foreach ($revision in @("base", "head")) {
+                    $isBase = $revision -eq "base"
+                    $value = if ($isBase) { $BaseValues[$run] } else { $HeadValues[$run] }
+                    $sha = if ($isBase) { "base-sha" } else { "head-sha" }
+                    $report = New-SyntheticBenchmarkReport -Sha $sha -CppToLua $value
+                    $path = if ($isBase) { $allBasePaths[$run] } else { $allHeadPaths[$run] }
+                    $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding utf8
                 }
             }
         }
+
         $manifestPath = Join-Path $tempRoot "run-order.json"
-        [ordered]@{
-            schemaVersion = 1
-            runnerPid     = $PID
-            baseSha       = "base-sha"
-            headSha       = "head-sha"
-            runs          = $runs
-        } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+        function Write-SyntheticManifest {
+            param(
+                [int]$PairCount,
+                [bool]$RuntimeInputsEquivalent
+            )
+
+            $runs = @()
+            for ($pair = 0; $pair -lt $PairCount; $pair++) {
+                $order = if (($pair % 2) -eq 0) { @("base", "head") } else { @("head", "base") }
+                foreach ($revision in $order) {
+                    $isBase = $revision -eq "base"
+                    $startedAt = [DateTimeOffset]::FromUnixTimeSeconds(2 * $runs.Count).UtcDateTime
+                    $runs += [ordered]@{
+                        pair       = $pair
+                        revision   = $revision
+                        sha        = if ($isBase) { "base-sha" } else { "head-sha" }
+                        resultPath = if ($isBase) { $allBasePaths[$pair] } else { $allHeadPaths[$pair] }
+                        startedAt  = $startedAt.ToString("o")
+                        endedAt    = $startedAt.AddSeconds(1).ToString("o")
+                    }
+                }
+            }
+            [ordered]@{
+                schemaVersion            = 2
+                runnerPid               = $PID
+                baseSha                 = "base-sha"
+                headSha                 = "head-sha"
+                runtimeInputPaths        = @("CMakeLists.txt", "cmake", "src")
+                runtimeInputDiffPaths    = if ($RuntimeInputsEquivalent) { @() } else { @("src/runtime.cpp") }
+                runtimeInputsEquivalent = $RuntimeInputsEquivalent
+                confirmationTriggered   = $PairCount -gt 3
+                runs                     = $runs
+            } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+        }
 
         $comparisonPath = Join-Path $tempRoot "comparison.json"
+        $basePaths = @($allBasePaths[0..2])
+        $headPaths = @($allHeadPaths[0..2])
+        Set-SyntheticCppToLuaValues -BaseValues @(100.0, 100.0, 100.0) `
+            -HeadValues @(100.0, 100.0, 100.0)
+        Write-SyntheticManifest -PairCount 3 -RuntimeInputsEquivalent $false
         & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
             -BaseResultPath $basePaths `
             -HeadResultPath $headPaths `
@@ -695,7 +748,8 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
             -OutputPath $comparisonPath
         $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
-        if ($comparison.schemaVersion -ne 2 -or $comparison.success -ne $true -or
+        if ($comparison.schemaVersion -ne 3 -or $comparison.success -ne $true -or
+            $comparison.decision -ne "thresholds-passed" -or
             $comparison.regressionAggregation -ne "median-of-paired-run-regressions" -or
             $comparison.metrics.Count -ne 6) {
             throw "base-vs-head benchmark checker rejected stable synthetic evidence"
@@ -703,18 +757,7 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
 
         $baseMedians = @(100.0, 200.0, 300.0)
         $headMedians = @(90.0, 300.0, 270.0)
-        for ($run = 0; $run -lt $headPaths.Count; $run++) {
-            foreach ($revision in @("base", "head")) {
-                $isBase = $revision -eq "base"
-                $value = if ($isBase) { $baseMedians[$run] } else { $headMedians[$run] }
-                $sha = if ($isBase) { "base-sha" } else { "head-sha" }
-                $report = New-SyntheticBenchmarkReport -Sha $sha -CppToLua $value
-                $metric = $report.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
-                $metric.samples = @((1.6 * $value), $value, $value)
-                $path = if ($isBase) { $basePaths[$run] } else { $headPaths[$run] }
-                $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding utf8
-            }
-        }
+        Set-SyntheticCppToLuaValues -BaseValues $baseMedians -HeadValues $headMedians
         & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
             -BaseResultPath $basePaths `
             -HeadResultPath $headPaths `
@@ -724,18 +767,69 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
         $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
         $cppToLua = $comparison.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
         if ($comparison.success -ne $true -or [Math]::Abs($cppToLua.regressionRatio + 0.1) -gt 0.000001 -or
-            $cppToLua.pairedRunCount -ne 3 -or $cppToLua.pairedRegressionRatios.Count -ne 3) {
+            $cppToLua.pairedRunCount -ne 3 -or $cppToLua.pairedRegressionRatios.Count -ne 3 -or
+            $comparison.confirmationRecommended -ne $false) {
             throw "base-vs-head benchmark checker did not preserve paired comparison under runner drift"
         }
 
-        foreach ($basePath in $basePaths) {
-            New-SyntheticBenchmarkReport -Sha "base-sha" -CppToLua 100.0 |
-                ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $basePath -Encoding utf8
+        Set-SyntheticCppToLuaValues -BaseValues @(100.0, 100.0, 100.0) `
+            -HeadValues @(100.0, 170.0, 137.0)
+        Write-SyntheticManifest -PairCount 3 -RuntimeInputsEquivalent $false
+        & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
+            -BaseResultPath $basePaths `
+            -HeadResultPath $headPaths `
+            -RunManifestPath $manifestPath `
+            -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
+            -OutputPath $comparisonPath `
+            -DoNotThrowOnRegression
+        $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
+        $cppToLua = $comparison.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
+        if ($comparison.success -ne $false -or $comparison.decision -ne "confirmation-required" -or
+            $comparison.confirmationRecommended -ne $true -or
+            $comparison.mixedFailingMetrics -notcontains "cpp_to_lua_ns_per_call" -or
+            $cppToLua.pairedRunsWithinLimit -ne 1 -or $cppToLua.pairedRunsOverLimit -ne 2) {
+            throw "base-vs-head benchmark checker did not request confirmation for asymmetric noise"
         }
-        foreach ($headPath in $headPaths) {
-            New-SyntheticBenchmarkReport -Sha "head-sha" -CppToLua 130.0 |
-                ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $headPath -Encoding utf8
+
+        Write-SyntheticManifest -PairCount 3 -RuntimeInputsEquivalent $true
+        & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
+            -BaseResultPath $basePaths `
+            -HeadResultPath $headPaths `
+            -RunManifestPath $manifestPath `
+            -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
+            -OutputPath $comparisonPath
+        $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
+        if ($comparison.success -ne $true -or $comparison.decision -ne "equivalent-runtime-inputs" -or
+            $comparison.runtimeInputsEquivalent -ne $true -or
+            $comparison.observedThresholdFailures.Count -lt 1 -or $comparison.failures.Count -ne 0) {
+            throw "equivalent runtime inputs did not deterministically neutralize hosted-runner noise"
         }
+
+        Set-SyntheticCppToLuaValues -BaseValues @(100.0, 100.0, 100.0, 100.0, 100.0) `
+            -HeadValues @(100.0, 170.0, 137.0, 100.0, 100.0)
+        $basePaths = @($allBasePaths)
+        $headPaths = @($allHeadPaths)
+        Write-SyntheticManifest -PairCount 5 -RuntimeInputsEquivalent $false
+        & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
+            -BaseResultPath $basePaths `
+            -HeadResultPath $headPaths `
+            -RunManifestPath $manifestPath `
+            -PolicyPath (Join-RepoPath "tests/compatibility/runtime-benchmark-regression-policy.json") `
+            -OutputPath $comparisonPath
+        $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
+        $cppToLua = $comparison.metrics | Where-Object { $_.name -eq "cpp_to_lua_ns_per_call" }
+        if ($comparison.success -ne $true -or $comparison.runsPerRevision -ne 5 -or
+            [Math]::Abs($cppToLua.regressionRatio) -gt 0.000001 -or
+            $comparison.confirmationTriggered -ne $true -or
+            $comparison.confirmationRecommended -ne $false) {
+            throw "confirmation pairs did not resolve the observed asymmetric-noise pattern"
+        }
+
+        Set-SyntheticCppToLuaValues -BaseValues @(100.0, 100.0, 100.0) `
+            -HeadValues @(130.0, 130.0, 130.0)
+        $basePaths = @($allBasePaths[0..2])
+        $headPaths = @($allHeadPaths[0..2])
+        Write-SyntheticManifest -PairCount 3 -RuntimeInputsEquivalent $false
         $rejected = $false
         try {
             & (Join-RepoPath "tools/check_runtime_bench_comparison.ps1") `
@@ -751,8 +845,9 @@ function Invoke-RuntimeBenchmarkComparisonSmokeTest {
             throw "base-vs-head benchmark checker accepted a 30% C++ to Lua regression"
         }
         $comparison = Get-Content -Raw -LiteralPath $comparisonPath | ConvertFrom-Json
-        if ($comparison.success -ne $false) {
-            throw "failed benchmark comparison did not emit success=false evidence"
+        if ($comparison.success -ne $false -or $comparison.confirmationRecommended -ne $false -or
+            $comparison.decision -ne "thresholds-failed") {
+            throw "persistent benchmark regression did not emit terminal failure evidence"
         }
     } finally {
         if (Test-Path -LiteralPath $tempRoot) {
