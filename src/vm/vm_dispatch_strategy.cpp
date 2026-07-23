@@ -25,4 +25,4 @@ DispatchStrategy& tableDispatchStrategy() noexcept {
     return strategy;
 }
 
-}  // namespace Lua::VM
+} // namespace Lua::VM

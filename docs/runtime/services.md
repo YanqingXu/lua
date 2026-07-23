@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: src/lua.h; src/api/lapi.cpp; src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/sandbox_policy.hpp; src/runtime/native_module_registry.hpp; src/runtime/native_module_registry.cpp; src/core/string_pool.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.hpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/gc_strategy.hpp; src/gc/gc_sweep.cpp; src/vm/vm_dispatch_strategy.hpp; src/vm/vm.cpp; src/main.cpp; src/repl.cpp; src/bytecode/bytecode_main.cpp; src/compiler/parser/parser.hpp; src/compiler/codegen/codegen.hpp; src/vm/vm.hpp; tests/compatibility/public_native_module.c; tests/compatibility/public_native_module_host.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/vm/test_vm_dispatch.cpp; tests/unit/gc/test_gc.cpp; tests/unit/api/test_lua_c_api.cpp
-last_checked: 2026-07-16
+last_checked: 2026-07-23
 applies_to: current RuntimeServices boundary
 ---
 
@@ -81,7 +81,11 @@ public:
 - 由该全局状态拥有、控制库暴露与文件/进程/原生模块能力的 `SandboxPolicy`
 - 在该全局状态内创建的注册表、基础类型元表、保留字符串、元方法名称和主线程簿记
 
-`LuaState::newState(EngineContext&)` 在该上下文内创建主状态。测试断言两个上下文将相同文本驻留为不同的 `GCString` 对象，且这些字符串属于不同的回收器。
+`LuaState::newState(EngineContext&)` 在该上下文内创建主状态。一个 `EngineContext` 同时只允许
+一个根 `LuaState`；第二次根创建抛出 `RuntimeError`，coroutine 必须从该根状态派生。根状态
+销毁后会释放上下文的主线程槽，允许同一上下文创建替代根。回归测试覆盖二次创建拒绝、强制
+GC 保持原根、关闭释放以及随后重建。测试还断言两个上下文将相同文本驻留为不同的
+`GCString` 对象，且这些字符串属于不同的回收器。
 
 ## Owner-thread 合同
 

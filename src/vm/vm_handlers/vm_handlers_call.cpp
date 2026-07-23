@@ -26,10 +26,7 @@ Str resolveCallTargetName(void* context) {
         return Str();
     }
 
-    return diagnostics::describeRegister(
-        callContext->proto,
-        callContext->reg,
-        callContext->pc).value_or(Str());
+    return diagnostics::describeRegister(callContext->proto, callContext->reg, callContext->pc).value_or(Str());
 }
 
 HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
@@ -45,18 +42,22 @@ HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
     if (detail::shouldDumpBytecode(state)) {
         CallInfo& dbgCI = state->getCurrentCallInfo();
         std::fprintf(stderr, "[CALL] pc=%zu a=%d B=%d C=%d nArgs=%d nRes=%d base=%zu absTop=%zu\n",
-                     context.instructionPc, a, b, c, nArgs, nResults, dbgCI.base,
-                     state->getAbsoluteTop());
+                     context.instructionPc, a, b, c, nArgs, nResults, dbgCI.base, state->getAbsoluteTop());
         if (nArgs < 0) {
             usize funcP = dbgCI.base + static_cast<usize>(a);
             Stack& dbgStk = state->getStack();
             for (usize si = funcP; si < state->getAbsoluteTop(); si++) {
                 Value& v = dbgStk[si];
-                if (v.isNumber()) std::fprintf(stderr, "  [%zu] number=%g\n", si, v.asNumber());
-                else if (v.isFunction()) std::fprintf(stderr, "  [%zu] function\n", si);
-                else if (v.isString()) std::fprintf(stderr, "  [%zu] string='%s'\n", si, v.asString()->c_str());
-                else if (v.isNil()) std::fprintf(stderr, "  [%zu] nil\n", si);
-                else std::fprintf(stderr, "  [%zu] other\n", si);
+                if (v.isNumber())
+                    std::fprintf(stderr, "  [%zu] number=%g\n", si, v.asNumber());
+                else if (v.isFunction())
+                    std::fprintf(stderr, "  [%zu] function\n", si);
+                else if (v.isString())
+                    std::fprintf(stderr, "  [%zu] string='%s'\n", si, v.asString()->c_str());
+                else if (v.isNil())
+                    std::fprintf(stderr, "  [%zu] nil\n", si);
+                else
+                    std::fprintf(stderr, "  [%zu] other\n", si);
             }
         }
     }
@@ -67,8 +68,7 @@ HandlerStatus handleCall(OpExecutionContext& context, Instruction inst) {
     state->getCurrentCallInfo().savedpc = code.data() + context.pc;
 
     CallTargetDiagnosticContext diagnosticContext{proto, a, context.instructionPc};
-    bool isLua = detail::precallWithNameResolver(
-        state, a, nArgs, nResults, resolveCallTargetName, &diagnosticContext);
+    bool isLua = detail::precallWithNameResolver(state, a, nArgs, nResults, resolveCallTargetName, &diagnosticContext);
 
     if (isLua) {
         context.nexeccalls++;
@@ -109,8 +109,7 @@ HandlerStatus handleTailCall(OpExecutionContext& context, Instruction inst) {
     currentCI.savedpc = code.data() + context.pc;
 
     CallTargetDiagnosticContext diagnosticContext{proto, a, context.instructionPc};
-    bool isLua = detail::precallWithNameResolver(
-        state, a, nArgs, -1, resolveCallTargetName, &diagnosticContext);
+    bool isLua = detail::precallWithNameResolver(state, a, nArgs, -1, resolveCallTargetName, &diagnosticContext);
 
     if (isLua) {
         detail::reuseCurrentFrameForTailCall(state, callerIndex, callerFunc, callerTailcalls);
@@ -144,8 +143,7 @@ HandlerStatus handleReturn(OpExecutionContext& context, Instruction inst) {
 
     i32 nres;
     if (b == 0) {
-        nres = static_cast<i32>(state->getAbsoluteTop())
-             - (static_cast<i32>(ci.base) + a);
+        nres = static_cast<i32>(state->getAbsoluteTop()) - (static_cast<i32>(ci.base) + a);
     } else {
         nres = b - 1;
     }
@@ -172,7 +170,7 @@ HandlerStatus handleReturn(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Reenter;
 }
 
-}  // namespace
+} // namespace
 
 void registerCallHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::CALL)].handler = handleCall;
@@ -180,4 +178,4 @@ void registerCallHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::RETURN)].handler = handleReturn;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

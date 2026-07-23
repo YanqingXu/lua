@@ -16,12 +16,7 @@ HandlerTable makeHandlerTable() {
 
     for (usize index = 0; index < table.size(); ++index) {
         OpCode op = static_cast<OpCode>(index);
-        table[index] = HandlerEntry{
-            op,
-            getOpName(op),
-            opcodeGroup(op),
-            nullptr
-        };
+        table[index] = HandlerEntry{op, getOpName(op), opcodeGroup(op), nullptr};
     }
 
     handlers::registerDataHandlers(table);
@@ -37,7 +32,7 @@ HandlerTable makeHandlerTable() {
     return table;
 }
 
-}  // namespace
+} // namespace
 
 const HandlerTable& handlerTable() noexcept {
     static const HandlerTable table = makeHandlerTable();
@@ -69,4 +64,4 @@ HandlerStatus runHandler(OpExecutionContext& context, Instruction inst) {
     return handler.value()(context, inst);
 }
 
-}  // namespace Lua::VM
+} // namespace Lua::VM

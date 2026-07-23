@@ -35,7 +35,7 @@ void signalHandler([[maybe_unused]] int signal) {
 #endif
 }
 
-}  // namespace
+} // namespace
 
 SignalController::SignalController() {
     std::signal(SIGINT, signalHandler);
@@ -93,8 +93,7 @@ bool isInputTerminal() {
     return isTerminal(stdin);
 }
 
-ConsoleReadStatus readInteractiveConsoleLine(LuaState* L, const Str& prompt, Str& line,
-                                             std::ostream& out,
+ConsoleReadStatus readInteractiveConsoleLine(LuaState* L, const Str& prompt, Str& line, std::ostream& out,
                                              CompletionHandler completionHandler) {
 #ifdef _WIN32
     if (!isInputTerminal()) {
@@ -149,4 +148,4 @@ ConsoleReadStatus readInteractiveConsoleLine(LuaState* L, const Str& prompt, Str
 #endif
 }
 
-}  // namespace Lua::REPL::detail
+} // namespace Lua::REPL::detail

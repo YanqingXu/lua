@@ -42,10 +42,14 @@ public:
     void flush() override;
 
     /** @brief 检查文件是否成功打开 */
-    bool isOpen() const { return file_.is_open(); }
+    bool isOpen() const {
+        return file_.is_open();
+    }
 
     /** @brief 获取已写入的事件数 */
-    u64 getEventCount() const { return eventCount_; }
+    u64 getEventCount() const {
+        return eventCount_;
+    }
 
 private:
     std::ofstream file_;

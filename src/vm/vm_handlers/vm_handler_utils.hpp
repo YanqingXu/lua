@@ -60,4 +60,4 @@ void registerLoopHandlers(HandlerTable& table) noexcept;
 void registerClosureHandlers(HandlerTable& table) noexcept;
 void registerCallHandlers(HandlerTable& table) noexcept;
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

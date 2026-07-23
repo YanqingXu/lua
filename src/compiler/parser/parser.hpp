@@ -3,9 +3,9 @@
 /**
  * @file parser.hpp
  * @brief Lua语法分析器
- * 
+ *
  * 实现 Lua 5.1 的语法分析器，将词法单元流转换为抽象语法树。
- * 
+ *
  * 核心功能：
  * - 递归下降解析
  * - 支持 Lua 5.1 的完整语法
@@ -29,10 +29,7 @@ namespace Lua {
 struct RuntimeServices;
 
 /** @brief 语法分析错误后的恢复模式。 */
-enum class ParseRecoveryMode {
-    FailFast,
-    StatementBoundary
-};
+enum class ParseRecoveryMode { FailFast, StatementBoundary };
 
 /** @brief 语法分析器的可配置选项。 */
 struct ParserOptions {
@@ -41,9 +38,9 @@ struct ParserOptions {
 
 /**
  * @brief Lua语法分析器类
- * 
+ *
  * 使用递归下降算法解析Lua源代码，生成抽象语法树。
- * 
+ *
  * 特性：
  * - 完整的Lua 5.1语法支持
  * - 正确的运算符优先级和结合性
@@ -86,7 +83,7 @@ public:
     Parser& operator=(const Parser&) = delete;
     Parser(Parser&&) noexcept;
     Parser& operator=(Parser&&) noexcept;
-    
+
     /**
      * @brief 解析源代码，生成AST
      * @return Chunk对象（程序块）或 ParseError
@@ -107,4 +104,3 @@ private:
 };
 
 } // namespace Lua
-

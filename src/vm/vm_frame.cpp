@@ -24,12 +24,11 @@ Value* refreshBase(LuaState* L) {
     return &L->getStack()[L->getCurrentCallInfo().base];
 }
 
-}  // namespace
+} // namespace
 
 namespace VM::detail {
 
-void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFunc,
-             usize& pc, i32 a, i32 bx) {
+void closure(LuaState* L, Value* base, Proto* currentProto, Function* currentFunc, usize& pc, i32 a, i32 bx) {
     if (bx < 0 || static_cast<usize>(bx) >= currentProto->getSubProtoCount()) {
         throw RuntimeError("VM: CLOSURE proto index out of range");
     }
@@ -79,7 +78,8 @@ void vararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
     i32 numParams = proto->getNumParams();
 
     i32 n = static_cast<i32>(ci.base - ci.func - 1) - numParams;
-    if (n < 0) n = 0;
+    if (n < 0)
+        n = 0;
 
     i32 wanted;
     if (b == 0) {
@@ -91,8 +91,8 @@ void vararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
         }
         L->setAbsoluteTop(neededTop);
         if (shouldDumpBytecode(L)) {
-            std::fprintf(stderr, "[VARARG] open multret: wanted=%d neededTop=%zu absTop=%zu stackTop=%zu\n",
-                         wanted, neededTop, neededTop, stack.size());
+            std::fprintf(stderr, "[VARARG] open multret: wanted=%d neededTop=%zu absTop=%zu stackTop=%zu\n", wanted,
+                         neededTop, neededTop, stack.size());
         }
     } else {
         wanted = b - 1;
@@ -102,10 +102,9 @@ void vararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
         if (j < n) {
             usize srcIndex = ci.base - static_cast<usize>(n) + static_cast<usize>(j);
             if (shouldDumpBytecode(L)) {
-                std::fprintf(stderr, "[VARARG] copy j=%d srcIdx=%zu val=%s\n",
-                             j, srcIndex, stack[srcIndex].isNumber()
-                                              ? std::to_string(stack[srcIndex].asNumber()).c_str()
-                                              : "non-number");
+                std::fprintf(stderr, "[VARARG] copy j=%d srcIdx=%zu val=%s\n", j, srcIndex,
+                             stack[srcIndex].isNumber() ? std::to_string(stack[srcIndex].asNumber()).c_str()
+                                                        : "non-number");
             }
             base[a + j] = stack[srcIndex];
         } else {
@@ -114,5 +113,5 @@ void vararg(LuaState* L, Value*& base, Proto* proto, i32 a, i32 b) {
     }
 }
 
-}  // namespace VM::detail
-}  // namespace Lua
+} // namespace VM::detail
+} // namespace Lua

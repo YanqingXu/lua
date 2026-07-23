@@ -14,33 +14,25 @@ namespace Lua {
 
 namespace {
 
-enum class PayloadTruthiness {
-    Falsy,
-    Truthy,
-    Runtime
-};
+enum class PayloadTruthiness { Falsy, Truthy, Runtime };
 
 PayloadTruthiness constantTruthiness(const ValueResult& value) {
     return value.visit(ValueResultVisitor{
         [](const ValueResult::Immediate& immediate) noexcept -> PayloadTruthiness {
             switch (immediate.kind) {
-                case ValueResult::ImmediateKind::Nil:
-                    return PayloadTruthiness::Falsy;
-                case ValueResult::ImmediateKind::Boolean:
-                    return immediate.boolValue ? PayloadTruthiness::Truthy : PayloadTruthiness::Falsy;
-                case ValueResult::ImmediateKind::Number:
-                    return PayloadTruthiness::Truthy;
-                case ValueResult::ImmediateKind::None:
-                default:
-                    return PayloadTruthiness::Runtime;
+            case ValueResult::ImmediateKind::Nil:
+                return PayloadTruthiness::Falsy;
+            case ValueResult::ImmediateKind::Boolean:
+                return immediate.boolValue ? PayloadTruthiness::Truthy : PayloadTruthiness::Falsy;
+            case ValueResult::ImmediateKind::Number:
+                return PayloadTruthiness::Truthy;
+            case ValueResult::ImmediateKind::None:
+            default:
+                return PayloadTruthiness::Runtime;
             }
         },
-        [](const ValueResult::ConstantRef&) noexcept -> PayloadTruthiness {
-            return PayloadTruthiness::Truthy;
-        },
-        [](const auto&) noexcept -> PayloadTruthiness {
-            return PayloadTruthiness::Runtime;
-        },
+        [](const ValueResult::ConstantRef&) noexcept -> PayloadTruthiness { return PayloadTruthiness::Truthy; },
+        [](const auto&) noexcept -> PayloadTruthiness { return PayloadTruthiness::Runtime; },
     });
 }
 
@@ -51,8 +43,7 @@ Opt<bool> literalTruthiness(const Expr& expr) {
     if (const auto* boolean = std::get_if<BoolExpr>(&expr.variant)) {
         return boolean->value;
     }
-    if (std::holds_alternative<NumberExpr>(expr.variant) ||
-        std::holds_alternative<StringExpr>(expr.variant)) {
+    if (std::holds_alternative<NumberExpr>(expr.variant) || std::holds_alternative<StringExpr>(expr.variant)) {
         return true;
     }
     if (const auto* paren = std::get_if<ParenExpr>(&expr.variant)) {
@@ -73,18 +64,18 @@ bool producesBoolean(const Expr& expr) {
     }
     if (const auto* binary = std::get_if<BinaryExpr>(&expr.variant)) {
         switch (binary->op) {
-            case BinaryExpr::Op::Eq:
-            case BinaryExpr::Op::Ne:
-            case BinaryExpr::Op::Lt:
-            case BinaryExpr::Op::Le:
-            case BinaryExpr::Op::Gt:
-            case BinaryExpr::Op::Ge:
-                return true;
-            case BinaryExpr::Op::And:
-            case BinaryExpr::Op::Or:
-                return producesBoolean(*binary->left) && producesBoolean(*binary->right);
-            default:
-                break;
+        case BinaryExpr::Op::Eq:
+        case BinaryExpr::Op::Ne:
+        case BinaryExpr::Op::Lt:
+        case BinaryExpr::Op::Le:
+        case BinaryExpr::Op::Gt:
+        case BinaryExpr::Op::Ge:
+            return true;
+        case BinaryExpr::Op::And:
+        case BinaryExpr::Op::Or:
+            return producesBoolean(*binary->left) && producesBoolean(*binary->right);
+        default:
+            break;
         }
     }
     return false;
@@ -98,41 +89,39 @@ Opt<f64> immediateNumber(const ValueResult& value) {
             }
             return std::nullopt;
         },
-        [](const auto&) -> Opt<f64> {
-            return std::nullopt;
-        },
+        [](const auto&) -> Opt<f64> { return std::nullopt; },
     });
 }
 
 Opt<f64> foldArithmetic(BinaryExpr::Op op, f64 left, f64 right) {
     f64 result = 0.0;
     switch (op) {
-        case BinaryExpr::Op::Add:
-            result = left + right;
-            break;
-        case BinaryExpr::Op::Sub:
-            result = left - right;
-            break;
-        case BinaryExpr::Op::Mul:
-            result = left * right;
-            break;
-        case BinaryExpr::Op::Div:
-            if (right == 0.0) {
-                return std::nullopt;
-            }
-            result = left / right;
-            break;
-        case BinaryExpr::Op::Mod:
-            if (right == 0.0) {
-                return std::nullopt;
-            }
-            result = left - std::floor(left / right) * right;
-            break;
-        case BinaryExpr::Op::Pow:
-            result = std::pow(left, right);
-            break;
-        default:
+    case BinaryExpr::Op::Add:
+        result = left + right;
+        break;
+    case BinaryExpr::Op::Sub:
+        result = left - right;
+        break;
+    case BinaryExpr::Op::Mul:
+        result = left * right;
+        break;
+    case BinaryExpr::Op::Div:
+        if (right == 0.0) {
             return std::nullopt;
+        }
+        result = left / right;
+        break;
+    case BinaryExpr::Op::Mod:
+        if (right == 0.0) {
+            return std::nullopt;
+        }
+        result = left - std::floor(left / right) * right;
+        break;
+    case BinaryExpr::Op::Pow:
+        result = std::pow(left, right);
+        break;
+    default:
+        return std::nullopt;
     }
 
     if (std::isnan(result)) {
@@ -160,9 +149,7 @@ Opt<i32> ownedRegister(const ValueResult& value) {
             }
             return std::nullopt;
         },
-        [](const auto&) -> Opt<i32> {
-            return std::nullopt;
-        },
+        [](const auto&) -> Opt<i32> { return std::nullopt; },
     });
 }
 
@@ -174,15 +161,11 @@ i32 getLastLineOfBlock(const Vec<StmtPtr>& body) {
     return body.back()->getLine();
 }
 
-}  // namespace
+} // namespace
 
 ExpressionEmitter::ExpressionEmitter(CodeGenerator& owner) noexcept
-    : owner_(owner)
-    , state_(owner.state_)
-    , ops_(owner.ops_)
-    , jumps_(owner.jumps_)
-    , scopes_(owner.scopes_)
-    , binder_(owner.binder_) {}
+    : owner_(owner), state_(owner.state_), ops_(owner.ops_), jumps_(owner.jumps_), scopes_(owner.scopes_),
+      binder_(owner.binder_) {}
 
 i32 ExpressionEmitter::codeABC(OpCode op, i32 a, i32 b, i32 c) {
     return ops_.codeABC(op, a, b, c);
@@ -248,8 +231,7 @@ void ExpressionEmitter::fixjump(i32 pc, i32 dest) {
     jumps_.fixJump(pc, dest);
 }
 
-CompiledFunction ExpressionEmitter::compileFunction(const Vec<Str>& params, bool isVararg,
-                                                    const Vec<StmtPtr>& body,
+CompiledFunction ExpressionEmitter::compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
                                                     i32 linedefined, i32 lastlinedefined) {
     return owner_.compileFunction(params, isVararg, body, linedefined, lastlinedefined);
 }
@@ -276,32 +258,32 @@ CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
 
     if (const auto* binary = std::get_if<BinaryExpr>(&e.variant)) {
         switch (binary->op) {
-            case BinaryExpr::Op::And: {
-                CondResult left = emitCondResult(*binary->left);
-                CondResult right = emitCondResult(*binary->right);
-                result.falseList = PatchList::merge(left.falseList, right.falseList);
-                return result;
-            }
+        case BinaryExpr::Op::And: {
+            CondResult left = emitCondResult(*binary->left);
+            CondResult right = emitCondResult(*binary->right);
+            result.falseList = PatchList::merge(left.falseList, right.falseList);
+            return result;
+        }
 
-            case BinaryExpr::Op::Or: {
-                CondResult left = emitCondResultTrue(*binary->left);
-                CondResult right = emitCondResult(*binary->right);
-                patchtohere(left.trueList);
-                result.falseList = right.falseList;
-                return result;
-            }
+        case BinaryExpr::Op::Or: {
+            CondResult left = emitCondResultTrue(*binary->left);
+            CondResult right = emitCondResult(*binary->right);
+            patchtohere(left.trueList);
+            result.falseList = right.falseList;
+            return result;
+        }
 
-            case BinaryExpr::Op::Eq:
-            case BinaryExpr::Op::Ne:
-            case BinaryExpr::Op::Lt:
-            case BinaryExpr::Op::Le:
-            case BinaryExpr::Op::Gt:
-            case BinaryExpr::Op::Ge:
-                result.falseList = emitComparisonJump(*binary, false);
-                return result;
+        case BinaryExpr::Op::Eq:
+        case BinaryExpr::Op::Ne:
+        case BinaryExpr::Op::Lt:
+        case BinaryExpr::Op::Le:
+        case BinaryExpr::Op::Gt:
+        case BinaryExpr::Op::Ge:
+            result.falseList = emitComparisonJump(*binary, false);
+            return result;
 
-            default:
-                break;
+        default:
+            break;
         }
     }
 
@@ -318,23 +300,23 @@ CondResult ExpressionEmitter::emitCondResult(const Expr& e) {
     val = forceSingleValue(val);
 
     switch (constantTruthiness(val)) {
-        case PayloadTruthiness::Falsy:
-            // 常假值 — 无条件跳转到 falseList
-            result.falseList.append(jump());
-            break;
-        case PayloadTruthiness::Truthy:
-            // 常真值（true / number / constant）— 无条件通过，falseList 为空
-            break;
-        case PayloadTruthiness::Runtime: {
-            i32 reg = valueToAnyReg(val);
-    /**
-     * @brief TEST reg 0 0：真值跳过 JMP（顺序执行表示 true），假值执行 JMP（进入 falseList）。
-     */
-            codeABC(OpCode::TEST, reg, 0, 0);
-            result.falseList.append(jump());
-            freeReg(reg);
-            break;
-        }
+    case PayloadTruthiness::Falsy:
+        // 常假值 — 无条件跳转到 falseList
+        result.falseList.append(jump());
+        break;
+    case PayloadTruthiness::Truthy:
+        // 常真值（true / number / constant）— 无条件通过，falseList 为空
+        break;
+    case PayloadTruthiness::Runtime: {
+        i32 reg = valueToAnyReg(val);
+        /**
+         * @brief TEST reg 0 0：真值跳过 JMP（顺序执行表示 true），假值执行 JMP（进入 falseList）。
+         */
+        codeABC(OpCode::TEST, reg, 0, 0);
+        result.falseList.append(jump());
+        freeReg(reg);
+        break;
+    }
     }
 
     return result;
@@ -350,32 +332,32 @@ CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
 
     if (const auto* binary = std::get_if<BinaryExpr>(&e.variant)) {
         switch (binary->op) {
-            case BinaryExpr::Op::And: {
-                CondResult left = emitCondResult(*binary->left);
-                CondResult right = emitCondResultTrue(*binary->right);
-                patchtohere(left.falseList);
-                result.trueList = right.trueList;
-                return result;
-            }
+        case BinaryExpr::Op::And: {
+            CondResult left = emitCondResult(*binary->left);
+            CondResult right = emitCondResultTrue(*binary->right);
+            patchtohere(left.falseList);
+            result.trueList = right.trueList;
+            return result;
+        }
 
-            case BinaryExpr::Op::Or: {
-                CondResult left = emitCondResultTrue(*binary->left);
-                CondResult right = emitCondResultTrue(*binary->right);
-                result.trueList = PatchList::merge(left.trueList, right.trueList);
-                return result;
-            }
+        case BinaryExpr::Op::Or: {
+            CondResult left = emitCondResultTrue(*binary->left);
+            CondResult right = emitCondResultTrue(*binary->right);
+            result.trueList = PatchList::merge(left.trueList, right.trueList);
+            return result;
+        }
 
-            case BinaryExpr::Op::Eq:
-            case BinaryExpr::Op::Ne:
-            case BinaryExpr::Op::Lt:
-            case BinaryExpr::Op::Le:
-            case BinaryExpr::Op::Gt:
-            case BinaryExpr::Op::Ge:
-                result.trueList = emitComparisonJump(*binary, true);
-                return result;
+        case BinaryExpr::Op::Eq:
+        case BinaryExpr::Op::Ne:
+        case BinaryExpr::Op::Lt:
+        case BinaryExpr::Op::Le:
+        case BinaryExpr::Op::Gt:
+        case BinaryExpr::Op::Ge:
+            result.trueList = emitComparisonJump(*binary, true);
+            return result;
 
-            default:
-                break;
+        default:
+            break;
         }
     }
 
@@ -392,23 +374,23 @@ CondResult ExpressionEmitter::emitCondResultTrue(const Expr& e) {
     val = forceSingleValue(val);
 
     switch (constantTruthiness(val)) {
-        case PayloadTruthiness::Truthy:
-            // 常真值 — 无条件跳转到 trueList
-            result.trueList.append(jump());
-            break;
-        case PayloadTruthiness::Falsy:
-            // nil / false — 无条件通过，trueList 为空
-            break;
-        case PayloadTruthiness::Runtime: {
-            i32 reg = valueToAnyReg(val);
-    /**
-     * @brief TEST reg 0 1：假值跳过 JMP（顺序执行表示 false），真值执行 JMP（进入 trueList）。
-     */
-            codeABC(OpCode::TEST, reg, 0, 1);
-            result.trueList.append(jump());
-            freeReg(reg);
-            break;
-        }
+    case PayloadTruthiness::Truthy:
+        // 常真值 — 无条件跳转到 trueList
+        result.trueList.append(jump());
+        break;
+    case PayloadTruthiness::Falsy:
+        // nil / false — 无条件通过，trueList 为空
+        break;
+    case PayloadTruthiness::Runtime: {
+        i32 reg = valueToAnyReg(val);
+        /**
+         * @brief TEST reg 0 1：假值跳过 JMP（顺序执行表示 false），真值执行 JMP（进入 trueList）。
+         */
+        codeABC(OpCode::TEST, reg, 0, 1);
+        result.trueList.append(jump());
+        freeReg(reg);
+        break;
+    }
     }
 
     return result;
@@ -513,25 +495,23 @@ void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
         [](const ValueResult::None&) {},
         [&](const ValueResult::Immediate& immediate) {
             switch (immediate.kind) {
-                case ValueResult::ImmediateKind::Nil:
-                    codeABC(OpCode::LOADNIL, reg, reg, 0);
-                    break;
-                case ValueResult::ImmediateKind::Boolean:
-                    codeABC(OpCode::LOADBOOL, reg, immediate.boolValue ? 1 : 0, 0);
-                    break;
-                case ValueResult::ImmediateKind::Number: {
-                    i32 k = numberConstant(immediate.numberValue);
-                    codeABx(OpCode::LOADK, reg, k);
-                    break;
-                }
-                case ValueResult::ImmediateKind::None:
-                default:
-                    break;
+            case ValueResult::ImmediateKind::Nil:
+                codeABC(OpCode::LOADNIL, reg, reg, 0);
+                break;
+            case ValueResult::ImmediateKind::Boolean:
+                codeABC(OpCode::LOADBOOL, reg, immediate.boolValue ? 1 : 0, 0);
+                break;
+            case ValueResult::ImmediateKind::Number: {
+                i32 k = numberConstant(immediate.numberValue);
+                codeABx(OpCode::LOADK, reg, k);
+                break;
+            }
+            case ValueResult::ImmediateKind::None:
+            default:
+                break;
             }
         },
-        [&](const ValueResult::ConstantRef& constant) {
-            codeABx(OpCode::LOADK, reg, constant.constIndex);
-        },
+        [&](const ValueResult::ConstantRef& constant) { codeABx(OpCode::LOADK, reg, constant.constIndex); },
         [&](const ValueResult::RegisterRef& source) {
             if (source.reg != reg) {
                 codeABC(OpCode::MOVE, reg, source.reg, 0);
@@ -539,17 +519,17 @@ void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
         },
         [&](const ValueResult::PendingLoad& pending) {
             switch (pending.access) {
-                case ValueResult::AccessKind::Global:
-                    codeABx(OpCode::GETGLOBAL, reg, pending.constIndex);
-                    break;
-                case ValueResult::AccessKind::Upvalue:
-                    codeABC(OpCode::GETUPVAL, reg, pending.aux, 0);
-                    break;
-                case ValueResult::AccessKind::Indexed:
-                    codeABC(OpCode::GETTABLE, reg, pending.reg, pending.aux);
-                    break;
-                default:
-                    break;
+            case ValueResult::AccessKind::Global:
+                codeABx(OpCode::GETGLOBAL, reg, pending.constIndex);
+                break;
+            case ValueResult::AccessKind::Upvalue:
+                codeABC(OpCode::GETUPVAL, reg, pending.aux, 0);
+                break;
+            case ValueResult::AccessKind::Indexed:
+                codeABC(OpCode::GETTABLE, reg, pending.reg, pending.aux);
+                break;
+            default:
+                break;
             }
         },
         [&](const ValueResult::Relocatable& relocatable) {
@@ -559,10 +539,10 @@ void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
         },
         [&](const ValueResult::MultiRet& multi) {
             if (multi.access == ValueResult::AccessKind::Call) {
-    /** @brief 调用结果位于 baseReg，不能直接重写 A。 */
+                /** @brief 调用结果位于 baseReg，不能直接重写 A。 */
                 Instruction inst = ops_.instruction(multi.instructionPc);
                 i32 callBase = GETARG_A(inst);
-                SETARG_C(inst, 2);  // 固定为 1 个返回值
+                SETARG_C(inst, 2); // 固定为 1 个返回值
                 ops_.replaceInstruction(multi.instructionPc, inst);
                 if (callBase != reg) {
                     codeABC(OpCode::MOVE, reg, callBase, 0);
@@ -570,7 +550,7 @@ void ExpressionEmitter::materializeValue(const ValueResult& val, i32 reg) {
             } else if (multi.access == ValueResult::AccessKind::Vararg) {
                 Instruction inst = ops_.instruction(multi.instructionPc);
                 SETARG_A(inst, reg);
-                SETARG_B(inst, 2);  // 固定为 1 个值
+                SETARG_B(inst, 2); // 固定为 1 个值
                 ops_.replaceInstruction(multi.instructionPc, inst);
             }
         },
@@ -614,9 +594,7 @@ i32 ExpressionEmitter::valueToRK(const ValueResult& val) {
             }
             return std::nullopt;
         },
-        [](const auto&) -> Opt<i32> {
-            return std::nullopt;
-        },
+        [](const auto&) -> Opt<i32> { return std::nullopt; },
     });
     if (encoded.has_value()) {
         return *encoded;
@@ -628,9 +606,7 @@ i32 ExpressionEmitter::valueToRK(const ValueResult& val) {
 
 i32 ExpressionEmitter::valueToAnyReg(const ValueResult& val) {
     Opt<i32> existingReg = val.visit(ValueResultVisitor{
-        [](const ValueResult::RegisterRef& source) -> Opt<i32> {
-            return source.reg;
-        },
+        [](const ValueResult::RegisterRef& source) -> Opt<i32> { return source.reg; },
         [&](const ValueResult::MultiRet& multi) -> Opt<i32> {
             if (multi.access != ValueResult::AccessKind::Call) {
                 return std::nullopt;
@@ -642,9 +618,7 @@ i32 ExpressionEmitter::valueToAnyReg(const ValueResult& val) {
             ops_.replaceInstruction(multi.instructionPc, inst);
             return GETARG_A(inst);
         },
-        [](const auto&) -> Opt<i32> {
-            return std::nullopt;
-        },
+        [](const auto&) -> Opt<i32> { return std::nullopt; },
     });
     if (existingReg.has_value()) {
         return *existingReg;
@@ -659,15 +633,11 @@ i32 ExpressionEmitter::valueToAnyReg(const ValueResult& val) {
 void ExpressionEmitter::valueToNextReg(const ValueResult& val) {
     ValueResult v = forceSingleValue(val);
     bool alreadyAtNextReg = v.visit(ValueResultVisitor{
-        [&](const ValueResult::RegisterRef& source) {
-            return source.reg == ops_.currentReg() - 1;
-        },
-        [](const auto&) {
-            return false;
-        },
+        [&](const ValueResult::RegisterRef& source) { return source.reg == ops_.currentReg() - 1; },
+        [](const auto&) { return false; },
     });
     if (alreadyAtNextReg) {
-        return;  // 已在下一个位置
+        return; // 已在下一个位置
     }
     i32 reg = allocReg();
     materializeValue(v, reg);
@@ -679,34 +649,31 @@ ValueResult ExpressionEmitter::forceSingleValue(const ValueResult& val) {
             // 将 CALL/VARARG 固定为单返回值并转为 Relocatable/Register
             if (multi.access == ValueResult::AccessKind::Vararg) {
                 Instruction inst = ops_.instruction(multi.instructionPc);
-                SETARG_B(inst, 2);  // B=2 → 1 个值
+                SETARG_B(inst, 2); // B=2 → 1 个值
                 ops_.replaceInstruction(multi.instructionPc, inst);
                 return ValueResult::makeRelocatable(multi.instructionPc);
             }
             if (multi.access == ValueResult::AccessKind::Call) {
                 Instruction inst = ops_.instruction(multi.instructionPc);
-                SETARG_C(inst, 2);  // C=2 → 1 个返回值
+                SETARG_C(inst, 2); // C=2 → 1 个返回值
                 ops_.replaceInstruction(multi.instructionPc, inst);
                 return ValueResult::makeRegister(GETARG_A(inst), false);
             }
             return val;
         },
-        [&](const auto&) -> ValueResult {
-            return val;
-        },
+        [&](const auto&) -> ValueResult { return val; },
     });
 }
 
 // =====================================================================
-    /** @brief 复合表达式原生通道（第 6 次拉取请求的复合表达式清理）。 */
+/** @brief 复合表达式原生通道（第 6 次拉取请求的复合表达式清理）。 */
 // =====================================================================
 
 ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
     BinaryExpr::Op op = e.op;
 
     // === 比较表达式 → 条件通道 + 物化 ===
-    if (op == BinaryExpr::Op::Eq || op == BinaryExpr::Op::Ne ||
-        op == BinaryExpr::Op::Lt || op == BinaryExpr::Op::Le ||
+    if (op == BinaryExpr::Op::Eq || op == BinaryExpr::Op::Ne || op == BinaryExpr::Op::Lt || op == BinaryExpr::Op::Le ||
         op == BinaryExpr::Op::Gt || op == BinaryExpr::Op::Ge) {
         CondResult cond;
         cond.trueList = emitComparisonJump(e, true);
@@ -715,7 +682,7 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
         return ValueResult::makeRegister(resultReg, true);
     }
 
-// === 与/或：短路求值 ===
+    // === 与/或：短路求值 ===
     if (op == BinaryExpr::Op::And || op == BinaryExpr::Op::Or) {
         if (producesBoolean(*e.left) && producesBoolean(*e.right)) {
             CondResult cond;
@@ -798,14 +765,26 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
     // === 算术表达式: Add/Sub/Mul/Div/Mod/Pow ===
     OpCode arithOp;
     switch (op) {
-        case BinaryExpr::Op::Add: arithOp = OpCode::ADD; break;
-        case BinaryExpr::Op::Sub: arithOp = OpCode::SUB; break;
-        case BinaryExpr::Op::Mul: arithOp = OpCode::MUL; break;
-        case BinaryExpr::Op::Div: arithOp = OpCode::DIV; break;
-        case BinaryExpr::Op::Mod: arithOp = OpCode::MOD; break;
-        case BinaryExpr::Op::Pow: arithOp = OpCode::POW; break;
-        default:
-            throw std::runtime_error("emitValueBinary: unsupported binary operator");
+    case BinaryExpr::Op::Add:
+        arithOp = OpCode::ADD;
+        break;
+    case BinaryExpr::Op::Sub:
+        arithOp = OpCode::SUB;
+        break;
+    case BinaryExpr::Op::Mul:
+        arithOp = OpCode::MUL;
+        break;
+    case BinaryExpr::Op::Div:
+        arithOp = OpCode::DIV;
+        break;
+    case BinaryExpr::Op::Mod:
+        arithOp = OpCode::MOD;
+        break;
+    case BinaryExpr::Op::Pow:
+        arithOp = OpCode::POW;
+        break;
+    default:
+        throw std::runtime_error("emitValueBinary: unsupported binary operator");
     }
 
     ValueResult left = emitValue(*e.left);
@@ -832,8 +811,13 @@ ValueResult ExpressionEmitter::emitValueBinary(const BinaryExpr& e) {
     }
     i32 rkRight = valueToRK(right);
 
-    if (rkLeft > rkRight) { freeReg(rkLeft); freeReg(rkRight); }
-    else                  { freeReg(rkRight); freeReg(rkLeft); }
+    if (rkLeft > rkRight) {
+        freeReg(rkLeft);
+        freeReg(rkRight);
+    } else {
+        freeReg(rkRight);
+        freeReg(rkLeft);
+    }
 
     i32 pc = codeABC(arithOp, 0, rkLeft, rkRight);
     return ValueResult::makeRelocatable(pc);
@@ -956,8 +940,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
                     lastCallResult = info;
                     hasLastCallResult = true;
                     continue;
-                }
-                else if (std::holds_alternative<VarargExpr>(field.value->variant)) {
+                } else if (std::holds_alternative<VarargExpr>(field.value->variant)) {
                     CallResultInfo info = emitVarargExpr();
                     lastCallResult = info;
                     hasLastCallResult = true;
@@ -1018,7 +1001,7 @@ ValueResult ExpressionEmitter::emitValueTable(const TableExpr& table) {
 CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase) {
     LineGuard line(state_, e.line);
 
-    i32 base;  // 函数所在的寄存器（调用帧的基址）
+    i32 base; // 函数所在的寄存器（调用帧的基址）
     i32 explicitArgCount = static_cast<i32>(e.args.size());
     bool hasImplicitSelf = false;
     bool funcBaseIsDisposable = false;
@@ -1030,7 +1013,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
             throw std::runtime_error("Method call must have MemberExpr as func");
         }
 
-    /** @brief PR-6：SELF 使用原生 ValueResult 管线。 */
+        /** @brief PR-6：SELF 使用原生 ValueResult 管线。 */
         ValueResult obj = emitValue(*memberExpr->table);
         i32 objReg = valueToAnyReg(obj);
 
@@ -1054,16 +1037,11 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
         // R(base+1) = R(objReg); R(base) = R(objReg)[RK(method)]
         codeABC(OpCode::SELF, base, objReg, rkKey);
         hasImplicitSelf = true;
-    }
-    else {
+    } else {
         ValueResult funcVal = emitValue(*e.func);
         funcBaseIsDisposable = funcVal.visit(ValueResultVisitor{
-            [](const ValueResult::RegisterRef& reg) {
-                return reg.ownsRegister;
-            },
-            [](const auto&) {
-                return true;
-            },
+            [](const ValueResult::RegisterRef& reg) { return reg.ownsRegister; },
+            [](const auto&) { return true; },
         });
         base = valueToAnyReg(funcVal);
         funcBaseIsDisposable = funcBaseIsDisposable && base == ops_.currentReg() - 1;
@@ -1072,7 +1050,8 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
     i32 savedFreeReg = ops_.currentReg();
 
     auto moveRegRange = [this](i32 dst, i32 src, i32 count) {
-        if (count <= 0 || dst == src) return;
+        if (count <= 0 || dst == src)
+            return;
         if (dst < src) {
             for (i32 i = 0; i < count; i++)
                 codeABC(OpCode::MOVE, dst + i, src + i, 0);
@@ -1086,8 +1065,7 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
         // 表构造器等场景明确指定基址
         moveRegRange(targetBase, base, hasImplicitSelf ? 2 : 1);
         base = targetBase;
-    }
-    else if (base < savedFreeReg && !(!hasImplicitSelf && funcBaseIsDisposable)) {
+    } else if (base < savedFreeReg && !(!hasImplicitSelf && funcBaseIsDisposable)) {
         i32 newBase = savedFreeReg;
         moveRegRange(newBase, base, hasImplicitSelf ? 2 : 1);
         base = newBase;
@@ -1111,21 +1089,18 @@ CallResultInfo ExpressionEmitter::emitCallExpr(const CallExpr& e, i32 targetBase
                 CallResultInfo innerInfo = emitCallExpr(*innerCall, targetReg);
                 setOpenMultiRet(innerInfo);
                 lastArgIsMultiRet = true;
-            }
-            else if (std::holds_alternative<VarargExpr>(arg->variant)) {
+            } else if (std::holds_alternative<VarargExpr>(arg->variant)) {
                 // g(...) — 最后一个实参是 vararg，保持 multret
                 CallResultInfo innerInfo = emitVarargExpr();
                 ops_.patchArgsAB(innerInfo.instructionPc, targetReg, 0);
                 lastArgIsMultiRet = true;
-            }
-            else {
+            } else {
                 // 普通最后实参
                 ValueResult argVal = emitValue(*arg);
                 argVal = forceSingleValue(argVal);
                 materializeValue(argVal, targetReg);
             }
-        }
-        else {
+        } else {
             // 非最后实参：固定为单值
             ValueResult argVal = emitValue(*arg);
             argVal = forceSingleValue(argVal);
@@ -1167,18 +1142,18 @@ CallResultInfo ExpressionEmitter::emitVarargExpr() {
 
 void ExpressionEmitter::setOpenMultiRet(CallResultInfo& info) {
     if (info.kind == CallResultInfo::Kind::Call) {
-        ops_.patchArgC(info.instructionPc, 0);  // C=0 → 返回所有值
+        ops_.patchArgC(info.instructionPc, 0); // C=0 → 返回所有值
     } else if (info.kind == CallResultInfo::Kind::Vararg) {
-        ops_.patchArgB(info.instructionPc, 0);  // B=0 → 复制所有 vararg
+        ops_.patchArgB(info.instructionPc, 0); // B=0 → 复制所有 vararg
     }
     info.openMultiRet = true;
 }
 
 void ExpressionEmitter::setWantedResults(CallResultInfo& info, i32 wanted) {
     if (info.kind == CallResultInfo::Kind::Call) {
-        ops_.patchArgC(info.instructionPc, wanted + 1);  // C = wanted+1
+        ops_.patchArgC(info.instructionPc, wanted + 1); // C = wanted+1
     } else if (info.kind == CallResultInfo::Kind::Vararg) {
-        ops_.patchArgB(info.instructionPc, wanted + 1);  // B = wanted+1
+        ops_.patchArgB(info.instructionPc, wanted + 1); // B = wanted+1
     }
 }
 
@@ -1188,34 +1163,34 @@ PatchList ExpressionEmitter::emitComparisonJump(const BinaryExpr& e, bool jumpOn
     bool swapOperands = false;
 
     switch (e.op) {
-        case BinaryExpr::Op::Eq:
-            op = OpCode::EQ;
-            cond = jumpOnTrue ? 1 : 0;
-            break;
-        case BinaryExpr::Op::Ne:
-            op = OpCode::EQ;
-            cond = jumpOnTrue ? 0 : 1;
-            break;
-        case BinaryExpr::Op::Lt:
-            op = OpCode::LT;
-            cond = jumpOnTrue ? 1 : 0;
-            break;
-        case BinaryExpr::Op::Le:
-            op = OpCode::LE;
-            cond = jumpOnTrue ? 1 : 0;
-            break;
-        case BinaryExpr::Op::Gt:
-            op = OpCode::LT;
-            cond = jumpOnTrue ? 1 : 0;
-            swapOperands = true;
-            break;
-        case BinaryExpr::Op::Ge:
-            op = OpCode::LE;
-            cond = jumpOnTrue ? 1 : 0;
-            swapOperands = true;
-            break;
-        default:
-            throw std::runtime_error("emitComparisonJump requires comparison operator");
+    case BinaryExpr::Op::Eq:
+        op = OpCode::EQ;
+        cond = jumpOnTrue ? 1 : 0;
+        break;
+    case BinaryExpr::Op::Ne:
+        op = OpCode::EQ;
+        cond = jumpOnTrue ? 0 : 1;
+        break;
+    case BinaryExpr::Op::Lt:
+        op = OpCode::LT;
+        cond = jumpOnTrue ? 1 : 0;
+        break;
+    case BinaryExpr::Op::Le:
+        op = OpCode::LE;
+        cond = jumpOnTrue ? 1 : 0;
+        break;
+    case BinaryExpr::Op::Gt:
+        op = OpCode::LT;
+        cond = jumpOnTrue ? 1 : 0;
+        swapOperands = true;
+        break;
+    case BinaryExpr::Op::Ge:
+        op = OpCode::LE;
+        cond = jumpOnTrue ? 1 : 0;
+        swapOperands = true;
+        break;
+    default:
+        throw std::runtime_error("emitComparisonJump requires comparison operator");
     }
 
     ValueResult left = emitValue(*e.left);
@@ -1228,8 +1203,13 @@ PatchList ExpressionEmitter::emitComparisonJump(const BinaryExpr& e, bool jumpOn
         std::swap(o1, o2);
     }
 
-    if (o1 > o2) { freeReg(o1); freeReg(o2); }
-    else         { freeReg(o2); freeReg(o1); }
+    if (o1 > o2) {
+        freeReg(o1);
+        freeReg(o2);
+    } else {
+        freeReg(o2);
+        freeReg(o1);
+    }
 
     codeABC(op, cond, o1, o2);
 
@@ -1252,16 +1232,6 @@ void ExpressionEmitter::materializeCondResult(const CondResult& cond, i32 reg, b
     patchList(cond.trueList, trueLabel);
     codeABC(OpCode::LOADBOOL, reg, 1, 0);
 }
-
-
-
-
-
-
-
-
-
-
 
 // =====================================================================
 // LValue 通道（PR-3）
@@ -1310,52 +1280,52 @@ LValueRef ExpressionEmitter::emitLValue(const Expr& e) {
 
 void ExpressionEmitter::emitStore(const LValueRef& target, const ValueResult& val) {
     switch (target.kind) {
-        case LValueRef::Kind::Local: {
-            // 局部变量：直接存储到指定寄存器
-            if (Opt<i32> reg = ownedRegister(val); reg.has_value()) {
-                freeReg(*reg);
-            }
-            materializeValue(val, target.slot);
-            return;
+    case LValueRef::Kind::Local: {
+        // 局部变量：直接存储到指定寄存器
+        if (Opt<i32> reg = ownedRegister(val); reg.has_value()) {
+            freeReg(*reg);
         }
+        materializeValue(val, target.slot);
+        return;
+    }
 
-        case LValueRef::Kind::Upvalue: {
-    /** @brief 上值：生成 SETUPVAL 指令。 */
-            ValueResult v = forceSingleValue(val);
-            i32 reg = valueToAnyReg(v);
-            codeABC(OpCode::SETUPVAL, reg, target.slot, 0);
-            if (ownedRegister(v).has_value()) {
-                freeReg(reg);
-            }
-            break;
+    case LValueRef::Kind::Upvalue: {
+        /** @brief 上值：生成 SETUPVAL 指令。 */
+        ValueResult v = forceSingleValue(val);
+        i32 reg = valueToAnyReg(v);
+        codeABC(OpCode::SETUPVAL, reg, target.slot, 0);
+        if (ownedRegister(v).has_value()) {
+            freeReg(reg);
         }
+        break;
+    }
 
-        case LValueRef::Kind::Global: {
-            // 全局变量：生成 SETGLOBAL 指令
-            ValueResult v = forceSingleValue(val);
-            i32 reg = valueToAnyReg(v);
-            codeABx(OpCode::SETGLOBAL, reg, target.slot);
-            if (ownedRegister(v).has_value()) {
-                freeReg(reg);
-            }
-            break;
+    case LValueRef::Kind::Global: {
+        // 全局变量：生成 SETGLOBAL 指令
+        ValueResult v = forceSingleValue(val);
+        i32 reg = valueToAnyReg(v);
+        codeABx(OpCode::SETGLOBAL, reg, target.slot);
+        if (ownedRegister(v).has_value()) {
+            freeReg(reg);
         }
+        break;
+    }
 
-        case LValueRef::Kind::Indexed: {
-            // 表索引：生成 SETTABLE 指令
-            ValueResult v = forceSingleValue(val);
-            i32 rk = valueToRK(v);
-            codeABC(OpCode::SETTABLE, target.tableReg, target.key, rk);
-            if (ownedRegister(v).has_value()) {
-                freeReg(rk);
-            }
-            break;
+    case LValueRef::Kind::Indexed: {
+        // 表索引：生成 SETTABLE 指令
+        ValueResult v = forceSingleValue(val);
+        i32 rk = valueToRK(v);
+        codeABC(OpCode::SETTABLE, target.tableReg, target.key, rk);
+        if (ownedRegister(v).has_value()) {
+            freeReg(rk);
         }
+        break;
+    }
 
-        case LValueRef::Kind::None:
-        default:
-            throw std::runtime_error("Invalid variable type for assignment");
+    case LValueRef::Kind::None:
+    default:
+        throw std::runtime_error("Invalid variable type for assignment");
     }
 }
 
-}  // namespace Lua
+} // namespace Lua

@@ -588,7 +588,7 @@ i32 loader_lua(LuaState* L) {
     Str filename = searchPath(modname, pathStr, errorBuf);
 
     if (filename.empty()) {
-    // 未找到——返回错误字符串
+        // 未找到——返回错误字符串
         L->setTop(0);
         L->pushString(pool.intern(errorBuf.c_str()));
         return 1;

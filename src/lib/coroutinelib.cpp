@@ -199,7 +199,7 @@ static i32 coroutine_wrap(LuaState* L) {
     Function* func = L->at(1).asFunction();
     Thread* thread = Thread::create(L, func);
 
-/** @brief 创建 C 闭包，将协程对象作为关闭上值。 */
+    /** @brief 创建 C 闭包，将协程对象作为关闭上值。 */
     Function* closure = L->getGlobalState().getGC().create<Function>(wrap_iterator);
 
     Upvalue* uv = L->getGlobalState().getGC().create<Upvalue>(Value(thread));

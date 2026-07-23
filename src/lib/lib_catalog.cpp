@@ -25,15 +25,15 @@ namespace {
 
 constexpr std::array<LibCatalogEntry, 9> kStandardLibraryCatalog = {
     {
-        { "base", "Base Library", openBaseLib },
-        { "math", "Math Library", openMathLib },
-        { "io", "IO Library", openIOLib },
-        { "string", "String Library", openStringLib },
-        { "table", "Table Library", openTableLib },
-        { "os", "OS Library", openOSLib },
-        { "coroutine", "Coroutine Library", openCoroutineLib },
-        { "debug", "Debug Library", openDebugLib },
-        { "package", "Package Library", openPackageLib },
+        {"base", "Base Library", openBaseLib},
+        {"math", "Math Library", openMathLib},
+        {"io", "IO Library", openIOLib},
+        {"string", "String Library", openStringLib},
+        {"table", "Table Library", openTableLib},
+        {"os", "OS Library", openOSLib},
+        {"coroutine", "Coroutine Library", openCoroutineLib},
+        {"debug", "Debug Library", openDebugLib},
+        {"package", "Package Library", openPackageLib},
     },
 };
 
@@ -45,9 +45,7 @@ std::span<const LibCatalogEntry> getStandardLibraryCatalog() {
 
 Opt<std::reference_wrapper<const LibCatalogEntry>> findStandardLibrary(StrView id) {
     const auto catalog = getStandardLibraryCatalog();
-    const auto iter = std::ranges::find_if(catalog, [id](const LibCatalogEntry& entry) {
-        return entry.id == id;
-    });
+    const auto iter = std::ranges::find_if(catalog, [id](const LibCatalogEntry& entry) { return entry.id == id; });
 
     if (iter == catalog.end()) {
         return std::nullopt;

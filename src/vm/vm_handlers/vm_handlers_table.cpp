@@ -51,8 +51,7 @@ HandlerStatus handleSetTable(OpExecutionContext& context, Instruction inst) {
     Value val = getRK(context, c);
     detail::settable(state, table, key, val);
     context.base = refreshBase(state);
-    [[maybe_unused]] const usize preCreateCollected =
-        state->getGlobalState().getGC().maybeCollectAutomatic(state);
+    [[maybe_unused]] const usize preCreateCollected = state->getGlobalState().getGC().maybeCollectAutomatic(state);
     context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }
@@ -64,8 +63,7 @@ HandlerStatus handleNewTable(OpExecutionContext& context, Instruction inst) {
 
     Table* table = state->getGlobalState().getGC().create<Table>();
     context.base[a] = Value(table);
-    [[maybe_unused]] const usize postCreateCollected =
-        state->getGlobalState().getGC().maybeCollectAutomatic(state);
+    [[maybe_unused]] const usize postCreateCollected = state->getGlobalState().getGC().maybeCollectAutomatic(state);
     context.base = refreshBase(state);
     return HandlerStatus::Continue;
 }
@@ -116,7 +114,7 @@ HandlerStatus handleSetList(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
-}  // namespace
+} // namespace
 
 void registerTableHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::GETTABLE)].handler = handleGetTable;
@@ -126,4 +124,4 @@ void registerTableHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::SETLIST)].handler = handleSetList;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

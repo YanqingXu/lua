@@ -58,5 +58,5 @@ Opt<OpHandler> handlerFor(OpCode op) noexcept;
 bool hasHandler(OpCode op) noexcept;
 HandlerStatus runHandler(OpExecutionContext& context, Instruction inst);
 
-}  // namespace VM
-}  // namespace Lua
+} // namespace VM
+} // namespace Lua

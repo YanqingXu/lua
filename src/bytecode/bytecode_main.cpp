@@ -78,11 +78,9 @@ std::expected<BytecodeToolOptions, Str> parseOptions(int argc, char** argv) {
 
     const usize expectedScripts = options.diff ? 2 : 1;
     if (options.scripts.size() != expectedScripts) {
-        return optionError(std::format("[ERROR] Expected {} script path{} for {} mode, got {}",
-                                       expectedScripts,
-                                       expectedScripts == 1 ? "" : "s",
-                                       options.diff ? "diff" : (options.cfg ? "cfg" : "print"),
-                                       options.scripts.size()));
+        return optionError(std::format(
+            "[ERROR] Expected {} script path{} for {} mode, got {}", expectedScripts, expectedScripts == 1 ? "" : "s",
+            options.diff ? "diff" : (options.cfg ? "cfg" : "print"), options.scripts.size()));
     }
 
     return options;
@@ -144,4 +142,3 @@ int main(int argc, char** argv) {
         return 4;
     }
 }
-

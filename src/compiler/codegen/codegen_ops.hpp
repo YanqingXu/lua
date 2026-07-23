@@ -19,9 +19,7 @@ namespace Lua {
  */
 class CodegenOps {
 public:
-    CodegenOps(CodegenState& state, JumpPatcher& jumps) noexcept
-        : state_(state)
-        , jumps_(jumps) {}
+    CodegenOps(CodegenState& state, JumpPatcher& jumps) noexcept : state_(state), jumps_(jumps) {}
 
     [[nodiscard]] i32 codeABC(OpCode op, i32 a, i32 b, i32 c) {
         jumps_.flushPendingJumps();
@@ -153,9 +151,7 @@ private:
 /** @brief 在作用域内保存并恢复当前源码行号的守卫。 */
 class LineGuard {
 public:
-    LineGuard(CodegenState& state, i32 line) noexcept
-        : state_(state)
-        , previousLine_(state.currentLine) {
+    LineGuard(CodegenState& state, i32 line) noexcept : state_(state), previousLine_(state.currentLine) {
         if (line > 0) {
             state_.currentLine = line;
         }
@@ -176,9 +172,7 @@ private:
 /** @brief 在作用域结束时恢复寄存器分配状态的守卫。 */
 class RegisterGuard {
 public:
-    explicit RegisterGuard(CodegenState& state) noexcept
-        : state_(state)
-        , savedFreeReg_(state.registers.current()) {}
+    explicit RegisterGuard(CodegenState& state) noexcept : state_(state), savedFreeReg_(state.registers.current()) {}
 
     RegisterGuard(const RegisterGuard&) = delete;
     RegisterGuard& operator=(const RegisterGuard&) = delete;
@@ -213,9 +207,7 @@ private:
 /** @brief 管理一组临时寄存器生命周期的作用域帧。 */
 class RegisterFrame {
 public:
-    RegisterFrame(CodegenOps& ops, i32 base) noexcept
-        : ops_(ops)
-        , base_(base) {
+    RegisterFrame(CodegenOps& ops, i32 base) noexcept : ops_(ops), base_(base) {
         ops_.setFreeReg(base_);
     }
 
@@ -240,4 +232,4 @@ private:
     i32 base_;
 };
 
-}  // namespace Lua
+} // namespace Lua

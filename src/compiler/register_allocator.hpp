@@ -26,13 +26,17 @@ public:
      * @brief 绑定当前函数原型。
      * @param proto 当前正在编译的函数原型。
      */
-    void bind(Proto* proto) noexcept { proto_ = proto; }
+    void bind(Proto* proto) noexcept {
+        proto_ = proto;
+    }
 
     /**
      * @brief 获取下一个空闲寄存器的位置。
      * @return 下一个空闲寄存器的索引。
      */
-    i32 current() const noexcept { return freereg_; }
+    i32 current() const noexcept {
+        return freereg_;
+    }
 
     /**
      * @brief 分配一个新寄存器并更新最大栈容量。
@@ -82,25 +86,33 @@ public:
      * @brief 将下一个空闲寄存器设置到指定位置。
      * @param reg 新的空闲寄存器索引。
      */
-    void setFreeReg(i32 reg) noexcept { freereg_ = reg; }
+    void setFreeReg(i32 reg) noexcept {
+        freereg_ = reg;
+    }
 
     /**
      * @brief 将下一个空闲寄存器重置到活动局部变量之后。
      * @param activeLocals 当前活动局部变量数量。
      */
-    void resetToLocals(i32 activeLocals) noexcept { freereg_ = activeLocals; }
+    void resetToLocals(i32 activeLocals) noexcept {
+        freereg_ = activeLocals;
+    }
 
     /**
      * @brief 恢复到先前保存的空闲寄存器位置。
      * @param saved 先前保存的位置。
      */
-    void restore(i32 saved) noexcept { freereg_ = saved; }
+    void restore(i32 saved) noexcept {
+        freereg_ = saved;
+    }
 
     /**
      * @brief 预留连续寄存器，但不立即更新最大栈容量。
      * @param count 待预留的寄存器数量。
      */
-    void reserve(i32 count) noexcept { freereg_ += count; }
+    void reserve(i32 count) noexcept {
+        freereg_ += count;
+    }
 
     /**
      * @brief 确保下一个空闲寄存器至少位于指定位置。
@@ -116,11 +128,13 @@ public:
      * @brief 重置到子函数编译所需的初始状态。
      * @param start 初始空闲寄存器索引。
      */
-    void reset(i32 start = 0) noexcept { freereg_ = start; }
+    void reset(i32 start = 0) noexcept {
+        freereg_ = start;
+    }
 
 private:
     Proto* proto_ = nullptr;
     i32 freereg_ = 0;
 };
 
-}  // namespace Lua
+} // namespace Lua

@@ -32,13 +32,12 @@ Str tryAsExpression(const Str& source, bool& wasExplicitReturn);
 bool isIncompleteInput(const Str& errorMessage);
 
 /** @brief 解析并准备一段 REPL 输入供后续执行。 */
-std::expected<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, const Str& source,
-                                                                 bool isExpression);
+std::expected<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, const Str& source, bool isExpression);
 /** @brief 执行已准备输入并输出结果或错误。 */
-int executePreparedInput(ReplContext& context, LuaState* L, PreparedInput&& input,
-                         std::ostream& out, std::ostream& err);
+int executePreparedInput(ReplContext& context, LuaState* L, PreparedInput&& input, std::ostream& out,
+                         std::ostream& err);
 
-}  // namespace REPL::detail
-}  // namespace Lua
+} // namespace REPL::detail
+} // namespace Lua
 
-#endif  // LUA_REPL_EXE_HPP
+#endif // LUA_REPL_EXE_HPP

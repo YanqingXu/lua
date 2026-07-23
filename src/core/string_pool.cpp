@@ -45,12 +45,12 @@ GCString* StringPool::intern(StrView str) {
     GCString* newString = gc.create<GCString>(str);
 
     try {
-    /**
-     * @brief 使用 GCString 拥有的内容作为键，使 find() 与 remove() 共享同一规范值。
-     *
-     * 此时对象已注册到垃圾回收器，因此插入失败必须回滚，不能在对象链表中留下未驻留的
-     * GCString。
-     */
+        /**
+         * @brief 使用 GCString 拥有的内容作为键，使 find() 与 remove() 共享同一规范值。
+         *
+         * 此时对象已注册到垃圾回收器，因此插入失败必须回滚，不能在对象链表中留下未驻留的
+         * GCString。
+         */
         auto [entry, inserted] = pool_.emplace(newString->view(), newString);
         if (!inserted) {
             gc.destroyManagedObject(newString);

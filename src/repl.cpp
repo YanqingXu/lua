@@ -47,10 +47,9 @@ enum class SessionStep {
 
 class ReplSession {
 public:
-    ReplSession(detail::ReplContext& context, LuaState* L, detail::SignalController& signals,
-                std::istream& input, std::ostream& output, std::ostream& error)
-        : context_(context), L_(L), signals_(signals), input_(input), output_(output),
-          error_(error) {}
+    ReplSession(detail::ReplContext& context, LuaState* L, detail::SignalController& signals, std::istream& input,
+                std::ostream& output, std::ostream& error)
+        : context_(context), L_(L), signals_(signals), input_(input), output_(output), error_(error) {}
 
     int run() {
         printBanner();
@@ -121,8 +120,8 @@ private:
             return true;
         }
 
-        const detail::ConsoleReadStatus consoleStatus = detail::readInteractiveConsoleLine(
-            L_, prompt, line, output_, detail::applyInteractiveCompletion);
+        const detail::ConsoleReadStatus consoleStatus =
+            detail::readInteractiveConsoleLine(L_, prompt, line, output_, detail::applyInteractiveCompletion);
         if (consoleStatus == detail::ConsoleReadStatus::LineRead) {
             return true;
         }
@@ -190,8 +189,7 @@ private:
     }
 
     void prepareAndExecuteBufferedInput() {
-        auto prepared =
-            detail::prepareInputForExecution(L_, inputBuffer_, bufferIsExpression_);
+        auto prepared = detail::prepareInputForExecution(L_, inputBuffer_, bufferIsExpression_);
         if (!prepared) {
             handleParseFailure(prepared.error());
             return;
@@ -231,7 +229,7 @@ private:
     usize currentLine_ = 1;
 };
 
-}  // namespace
+} // namespace
 
 void setProgName(const char* name) {
     detail::globalContext().setProgramName(name);
@@ -282,4 +280,4 @@ int run(LuaState* L) {
     return session.run();
 }
 
-}  // namespace Lua::REPL
+} // namespace Lua::REPL

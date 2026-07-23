@@ -32,11 +32,10 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     : ownerThread_(std::this_thread::get_id()), sandboxPolicy_(), nativeModules_(&sandboxPolicy_), gc_(allocator),
       stringPool_(stringPool), registry_(nullptr), mainThread_(nullptr), memerrmsg_(nullptr),
       apiExceptionMessage_(nullptr), instructionBudgetErrorMessage_(nullptr), nativeWorkBudgetErrorMessage_(nullptr),
-      deadlineErrorMessage_(nullptr),
-      cancellationErrorMessage_(nullptr), sandboxLibraryErrorMessage_(nullptr), sandboxFilesystemErrorMessage_(nullptr),
-      sandboxProcessErrorMessage_(nullptr), sandboxNativeModuleErrorMessage_(nullptr),
-      sandboxRuntimeCompilationErrorMessage_(nullptr), sandboxBinaryChunksErrorMessage_(nullptr),
-      sandboxGCControlErrorMessage_(nullptr) {
+      deadlineErrorMessage_(nullptr), cancellationErrorMessage_(nullptr), sandboxLibraryErrorMessage_(nullptr),
+      sandboxFilesystemErrorMessage_(nullptr), sandboxProcessErrorMessage_(nullptr),
+      sandboxNativeModuleErrorMessage_(nullptr), sandboxRuntimeCompilationErrorMessage_(nullptr),
+      sandboxBinaryChunksErrorMessage_(nullptr), sandboxGCControlErrorMessage_(nullptr) {
     stringPool_.setResourcePolicy(&resourcePolicy_);
     stringPool_.setGarbageCollector(&gc_);
 
@@ -101,8 +100,7 @@ GlobalState::GlobalState(StringPool& stringPool, LuaAllocator* allocator)
     gc_.registerObject(sandboxBinaryChunksErrorMessage_);
     sandboxBinaryChunksErrorMessage_->markFixed();
 
-    sandboxGCControlErrorMessage_ =
-        stringPool_.intern(SandboxPolicy::deniedMessage(SandboxCapability::GCControl));
+    sandboxGCControlErrorMessage_ = stringPool_.intern(SandboxPolicy::deniedMessage(SandboxCapability::GCControl));
     gc_.registerObject(sandboxGCControlErrorMessage_);
     sandboxGCControlErrorMessage_->markFixed();
 

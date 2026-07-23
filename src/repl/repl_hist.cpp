@@ -47,4 +47,4 @@ bool saveHistory(const Str& path, const Vec<Str>& history) {
     return output.good();
 }
 
-}  // namespace Lua::REPL
+} // namespace Lua::REPL

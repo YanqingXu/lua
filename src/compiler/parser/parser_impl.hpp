@@ -279,9 +279,9 @@ private:
     public:
         explicit RecursionGuard(Impl& parser, i32 maxDepth = MAX_RECURSION_DEPTH)
             : parser_(parser),
-              maxDepth_(std::min<i32>(maxDepth, static_cast<i32>(std::min<usize>(
-                                                parser.compilationBudget_.maxNesting(),
-                                                static_cast<usize>(std::numeric_limits<i32>::max()))))) {
+              maxDepth_(std::min<i32>(
+                  maxDepth, static_cast<i32>(std::min<usize>(parser.compilationBudget_.maxNesting(),
+                                                             static_cast<usize>(std::numeric_limits<i32>::max()))))) {
             entered_ = true;
             if (parser_.parseState_.enterSyntaxLevel() > maxDepth_) {
                 parser_.parseState_.leaveSyntaxLevel();

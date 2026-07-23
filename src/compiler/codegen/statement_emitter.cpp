@@ -424,7 +424,7 @@ void StatementEmitter::statement(const Stmt& s) {
 }
 
 void StatementEmitter::emitStmt(const EmptyStmt&) {
-        /** @brief 空语句不产生字节码。 */
+    /** @brief 空语句不产生字节码。 */
 }
 
 void StatementEmitter::emitStmt(const AssignStmt& s) {
@@ -534,8 +534,7 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
 
     const auto stableLocalName = [&](const Expr* expression) {
         const auto* name = expression != nullptr ? std::get_if<NameExpr>(&expression->variant) : nullptr;
-        return name != nullptr && scopes_.findLocalVar(name->name) >= 0 &&
-               !assignedLocalNames.contains(name->name);
+        return name != nullptr && scopes_.findLocalVar(name->name) >= 0 && !assignedLocalNames.contains(name->name);
     };
 
     auto freezeLValue = [&](const Expr& targetExpr) -> LValueRef {
@@ -621,8 +620,8 @@ void StatementEmitter::emitStmt(const AssignStmt& s) {
         ValueResult val = emitValue(expr);
         val = forceSingleValue(val);
         const auto* valueName = std::get_if<NameExpr>(&expr.variant);
-        const bool borrowsStableLocal = i == directValues - 1 && valueName != nullptr &&
-                                        scopes_.findLocalVar(valueName->name) >= 0;
+        const bool borrowsStableLocal =
+            i == directValues - 1 && valueName != nullptr && scopes_.findLocalVar(valueName->name) >= 0;
         if (assignmentNeedsFrozenValues && !borrowsStableLocal) {
             materializeValue(val, targetReg);
             valuesForStore.push_back(ValueResult::makeRegister(targetReg, false));
@@ -784,11 +783,11 @@ void StatementEmitter::emitStmt(const ReturnStmt& s) {
             ValueResult val = emitValue(*s.values[i]);
             val = forceSingleValue(val);
             materializeValue(val, base + i);
-        /**
-         * @brief 将每个已实体化返回值保存在下一表达式的暂存区下方。
-         *
-         * 否则调用可能复用 `base`，并在 RETURN 消费先前结果前将其覆盖。
-         */
+            /**
+             * @brief 将每个已实体化返回值保存在下一表达式的暂存区下方。
+             *
+             * 否则调用可能复用 `base`，并在 RETURN 消费先前结果前将其覆盖。
+             */
             ops_.setFreeRegAndCheck(base + i + 1);
         }
 
@@ -948,9 +947,8 @@ void StatementEmitter::emitStmt(const RepeatStmt& s) {
      * @brief Lua 5.1 将 repeat 条件中的 nil 字面量降级为布尔 false 临时值（LOADBOOL），
      * 而不是值 LOADNIL。
      */
-    ValueResult cond = std::holds_alternative<NilExpr>(s.condition->variant)
-                           ? ValueResult::makeBoolean(false)
-                           : emitValue(*s.condition);
+    ValueResult cond = std::holds_alternative<NilExpr>(s.condition->variant) ? ValueResult::makeBoolean(false)
+                                                                             : emitValue(*s.condition);
     cond = forceSingleValue(cond);
     i32 condReg = valueToAnyReg(cond);
 

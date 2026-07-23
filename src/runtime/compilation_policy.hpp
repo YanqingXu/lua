@@ -99,9 +99,8 @@ private:
     }
 
     void consumeNativeWork(usize count) {
-        if (execution_ != nullptr &&
-            execution_->consumeNativeWork(static_cast<ExecutionPolicy::NativeWorkCount>(count)) !=
-                ExecutionStopReason::None) {
+        if (execution_ != nullptr && execution_->consumeNativeWork(static_cast<ExecutionPolicy::NativeWorkCount>(
+                                         count)) != ExecutionStopReason::None) {
             throw CompilationLimitError("compilation interrupted by execution policy");
         }
     }

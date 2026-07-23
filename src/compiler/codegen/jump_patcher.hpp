@@ -41,4 +41,4 @@ private:
     CodegenState& state_;
 };
 
-}  // namespace Lua
+} // namespace Lua

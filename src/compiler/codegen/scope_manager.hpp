@@ -47,4 +47,4 @@ private:
     JumpPatcher& jumps_;
 };
 
-}  // namespace Lua
+} // namespace Lua

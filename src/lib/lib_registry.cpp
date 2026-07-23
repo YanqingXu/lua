@@ -1,9 +1,9 @@
 /**
  * @file lib_registry.cpp
  * @brief Lua函数注册工具实现
- * 
+ *
  * 提供统一的函数注册实现，支持静态方法和流式接口两种使用方式。
- * 
+ *
  * @author Lua C++ 项目
  * @date 2025-12-19
  */
@@ -23,21 +23,17 @@ namespace Lua {
 
 namespace {
 
-std::unexpected<LibRegistrationError> registrationError(
-    LibRegistrationErrorCode code,
-    StrView operation
-) {
+std::unexpected<LibRegistrationError> registrationError(LibRegistrationErrorCode code, StrView operation) {
     return std::unexpected(LibRegistrationError{code, operation});
 }
 
-}  // namespace
+} // namespace
 
 // =====================================================================
 // 私有辅助函数
 // =====================================================================
 
-std::expected<Function*, LibRegistrationError>
-FunctionRegistrar::tryCreateClosure(LuaState* L, LibCFunction func) {
+std::expected<Function*, LibRegistrationError> FunctionRegistrar::tryCreateClosure(LuaState* L, LibCFunction func) {
     if (!L) {
         return registrationError(LibRegistrationErrorCode::NullState, "createClosure");
     }
@@ -95,8 +91,7 @@ Table* FunctionRegistrar::createLibTable(LuaState* L, const char* libName) {
     return created ? *created : nullptr;
 }
 
-std::expected<Table*, LibRegistrationError>
-FunctionRegistrar::tryCreateLibTable(LuaState* L, StrView libName) {
+std::expected<Table*, LibRegistrationError> FunctionRegistrar::tryCreateLibTable(LuaState* L, StrView libName) {
     if (!L) {
         return registrationError(LibRegistrationErrorCode::NullState, "createLibTable");
     }

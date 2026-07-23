@@ -30,4 +30,4 @@ private:
     ScopeManager& scopes_;
 };
 
-}  // namespace Lua
+} // namespace Lua

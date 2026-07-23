@@ -67,11 +67,9 @@ static i32 getIntegerArg(LuaState* L, i32 idx, const char* argName,
     const LuaNumber value = getNumberArg(L, idx, argName);
     const auto converted = checkedLuaInteger(value, mode);
     if (!converted) {
-        const char* detail = converted.error() == IntegerConversionError::NotFinite
-                                 ? "finite number expected"
-                             : converted.error() == IntegerConversionError::NotIntegral
-                                 ? "integer expected"
-                                 : "number out of range";
+        const char* detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
+                             : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
+                                                                                        : "number out of range";
         L->error(std::format("bad argument #{} to '{}' ({})", idx, argName, detail).c_str());
     }
     return *converted;

@@ -103,14 +103,13 @@ public:
     /**
      * @brief 以 expected 表达创建闭包时的参数错误
      */
-    [[nodiscard]] static std::expected<Function*, LibRegistrationError>
-    tryCreateClosure(LuaState* L, LibCFunction func);
+    [[nodiscard]] static std::expected<Function*, LibRegistrationError> tryCreateClosure(LuaState* L,
+                                                                                         LibCFunction func);
 
     /**
      * @brief 以 expected 表达库表创建/注册时的参数错误
      */
-    [[nodiscard]] static std::expected<Table*, LibRegistrationError>
-    tryCreateLibTable(LuaState* L, StrView libName);
+    [[nodiscard]] static std::expected<Table*, LibRegistrationError> tryCreateLibTable(LuaState* L, StrView libName);
 
     // =====================================================================
     // 实例方法：流式接口（批量注册）
@@ -129,7 +128,7 @@ public:
      * @return *this 支持链式调用
      */
     FunctionRegistrar& addGlobal(const char* name, LibCFunction func) {
-        entries_.push_back({ name, func });
+        entries_.push_back({name, func});
         return *this;
     }
 
@@ -140,8 +139,9 @@ public:
      * 如果entries_为空，则不执行任何操作。
      */
     void commit() const {
-        if (entries_.empty()) return;
-        
+        if (entries_.empty())
+            return;
+
         for (const auto& entry : entries_) {
             registerGlobal(state_, entry.name, entry.func);
         }
@@ -155,8 +155,9 @@ public:
      * 如果entries_为空，则不执行任何操作。
      */
     void commitToTable(Table* table) const {
-        if (entries_.empty()) return;
-        
+        if (entries_.empty())
+            return;
+
         for (const auto& entry : entries_) {
             registerToTable(state_, table, entry.name, entry.func);
         }

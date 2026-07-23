@@ -57,4 +57,4 @@ public:
 /** @brief 按名称查找垃圾回收策略。 */
 [[nodiscard]] Opt<std::reference_wrapper<const GCStrategy>> findGCStrategy(StrView name) noexcept;
 
-}  // namespace Lua
+} // namespace Lua

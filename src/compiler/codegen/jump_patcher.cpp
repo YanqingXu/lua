@@ -9,8 +9,7 @@
 
 namespace Lua {
 
-JumpPatcher::JumpPatcher(CodegenState& state) noexcept
-    : state_(state) {}
+JumpPatcher::JumpPatcher(CodegenState& state) noexcept : state_(state) {}
 
 /**
  * @brief 将未解析的 JMP 指令编码为单向链表。
@@ -126,4 +125,4 @@ PatchList JumpPatcher::collectPatchList(i32 list) const {
     return result;
 }
 
-}  // namespace Lua
+} // namespace Lua

@@ -37,4 +37,4 @@ inline constexpr bool mayInvokeMetamethod(OpCode op) noexcept {
     return opcodeMetadata(op).mayInvokeMetamethod;
 }
 
-}  // namespace Lua::VM
+} // namespace Lua::VM

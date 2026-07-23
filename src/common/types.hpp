@@ -1,11 +1,11 @@
 ﻿/**
  * @file types.hpp
  * @brief Lua解释器基础类型定义
- * 
+ *
  * 详细说明：
  * 本文件定义了Lua解释器中使用的所有基础类型、类型别名和前向声明。
  * 采用现代 C++17 标准，使用标准库类型和智能指针，确保类型安全和内存安全。
- * 
+ *
  * 设计理念：
  * - 类型安全：使用强类型和类型别名，避免隐式转换
  * - 现代 C++：充分利用 C++17/20 的变体、可选值和字符串视图等特性
@@ -24,34 +24,34 @@
 // =====================================================================
 
 // 基础类型
-#include <cstdint>      // 固定宽度整数类型
-#include <cstddef>      // size_t, ptrdiff_t
-#include <climits>      // 整数限制
+#include <cstdint> // 固定宽度整数类型
+#include <cstddef> // size_t, ptrdiff_t
+#include <climits> // 整数限制
 
 // 字符串和容器
-#include <string>       // std::string
-#include <string_view>  // std::string_view (C++17)
-#include <vector>       // std::vector
-#include <unordered_map>  // std::unordered_map
-#include <unordered_set>  // std::unordered_set
+#include <string>        // std::string
+#include <string_view>   // std::string_view (C++17)
+#include <vector>        // std::vector
+#include <unordered_map> // std::unordered_map
+#include <unordered_set> // std::unordered_set
 
 // 智能指针和内存管理
-#include <memory>       // std::shared_ptr, std::unique_ptr
+#include <memory> // std::shared_ptr, std::unique_ptr
 
 // 现代C++特性
-#include <variant>      // std::variant (C++17)
-#include <optional>     // std::optional (C++17)
-#include <functional>   // std::function
+#include <variant>    // std::variant (C++17)
+#include <optional>   // std::optional (C++17)
+#include <functional> // std::function
 
 // 并发支持（可选）
-#include <atomic>       // std::atomic
-#include <mutex>        // std::mutex
+#include <atomic> // std::atomic
+#include <mutex>  // std::mutex
 
 // 异常处理
-#include <stdexcept>    // std::runtime_error
+#include <stdexcept> // std::runtime_error
 
 // 工具
-#include <utility>      // std::forward, std::move
+#include <utility> // std::forward, std::move
 
 // =====================================================================
 // 命名空间定义
@@ -60,7 +60,7 @@
 /**
  * @namespace Lua
  * @brief Lua解释器的顶层命名空间
- * 
+ *
  * 所有Lua解释器相关的类、函数、常量都定义在此命名空间中，
  * 避免与其他库的命名冲突。
  */
@@ -76,7 +76,7 @@ namespace Lua {
  * @{
  */
 /** @brief 8位有符号整数 (-128 到 127) */
-using i8  = int8_t;
+using i8 = int8_t;
 /** @brief 16位有符号整数 (-32,768 到 32,767) */
 using i16 = int16_t;
 /** @brief 32位有符号整数 (-2^31 到 2^31-1) */
@@ -91,7 +91,7 @@ using i64 = int64_t;
  * @{
  */
 /** @brief 8位无符号整数 (0 到 255) */
-using u8  = uint8_t;
+using u8 = uint8_t;
 /** @brief 16位无符号整数 (0 到 65,535) */
 using u16 = uint16_t;
 /** @brief 32位无符号整数 (0 到 2^32-1) */
@@ -159,20 +159,17 @@ using StrView = std::string_view;
 /**
  * @brief 动态数组容器
  */
-template<typename T>
-using Vec = std::vector<T>;
+template <typename T> using Vec = std::vector<T>;
 
 /**
  * @brief 哈希映射容器
  */
-template<typename K, typename V>
-using HashMap = std::unordered_map<K, V>;
+template <typename K, typename V> using HashMap = std::unordered_map<K, V>;
 
 /**
  * @brief 哈希集合容器
  */
-template<typename T>
-using HashSet = std::unordered_set<T>;
+template <typename T> using HashSet = std::unordered_set<T>;
 
 /** @} */
 
@@ -189,20 +186,17 @@ using HashSet = std::unordered_set<T>;
 /**
  * @brief 变体类型（类型安全的union）
  */
-template<typename... Types>
-using Var = std::variant<Types...>;
+template <typename... Types> using Var = std::variant<Types...>;
 
 /**
  * @brief 可选类型（可能不存在的值）
  */
-template<typename T>
-using Opt = std::optional<T>;
+template <typename T> using Opt = std::optional<T>;
 
 /**
  * @brief 函数对象类型
  */
-template<typename Signature>
-using Func = std::function<Signature>;
+template <typename Signature> using Func = std::function<Signature>;
 
 /** @} */
 
@@ -219,20 +213,17 @@ using Func = std::function<Signature>;
 /**
  * @brief 共享指针（引用计数）
  */
-template<typename T>
-using Ptr = std::shared_ptr<T>;
+template <typename T> using Ptr = std::shared_ptr<T>;
 
 /**
  * @brief 弱引用指针
  */
-template<typename T>
-using WPtr = std::weak_ptr<T>;
+template <typename T> using WPtr = std::weak_ptr<T>;
 
 /**
  * @brief 独占指针（唯一所有权）
  */
-template<typename T>
-using UPtr = std::unique_ptr<T>;
+template <typename T> using UPtr = std::unique_ptr<T>;
 
 /** @} */
 
@@ -253,9 +244,7 @@ using UPtr = std::unique_ptr<T>;
  * @param args 构造函数参数
  * @return 指向新对象的共享指针
  */
-template<typename T, typename... Args>
-inline Ptr<T> makePtr(Args&&... args)
-{
+template <typename T, typename... Args> inline Ptr<T> makePtr(Args&&... args) {
     return std::make_shared<T>(std::forward<Args>(args)...);
 }
 
@@ -266,9 +255,7 @@ inline Ptr<T> makePtr(Args&&... args)
  * @param args 构造函数参数
  * @return 指向新对象的独占指针
  */
-template<typename T, typename... Args>
-inline UPtr<T> makeUnique(Args&&... args)
-{
+template <typename T, typename... Args> inline UPtr<T> makeUnique(Args&&... args) {
     return std::make_unique<T>(std::forward<Args>(args)...);
 }
 
@@ -287,8 +274,7 @@ inline UPtr<T> makeUnique(Args&&... args)
 /**
  * @brief 原子类型
  */
-template<typename T>
-using Atom = std::atomic<T>;
+template <typename T> using Atom = std::atomic<T>;
 
 /**
  * @brief 互斥锁
@@ -336,9 +322,9 @@ using LuaBoolean = bool;
 /**
  * @enum ValueType
  * @brief Lua值的类型标签
- * 
+ *
  * 定义了Lua中所有可能的值类型。这些类型对应Lua 5.1.5中的类型系统。
- * 
+ *
  * 对应关系：
  * - Nil          -> LUA_TNIL
  * - Boolean      -> LUA_TBOOLEAN
@@ -453,4 +439,3 @@ class StringPool;
 /** @} */
 
 } // namespace Lua
-

@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: CMakeLists.txt; cmake/LuaCppConfig.cmake.in; .github/workflows/ci.yml; src/lua.h; src/lauxlib.h; src/lualib.h; src/lua_cpp_version.h; src/api/lapi.cpp; src/api/lauxlib.cpp; src/lib/debuglib.cpp; src/lib/iolib.cpp; src/runtime/lua_allocator.hpp; src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/native_module_registry.hpp; src/common/lua_error.hpp; src/compiler/ast.hpp; src/compiler/parser/parser_impl.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/userdata.cpp; src/lib/testlib.cpp; tests/packaging/; tests/compatibility/lua51-public-api-contract.json; tests/compatibility/lua_public_api_exports.def; tests/compatibility/lua_public_api_exports.map; tests/compatibility/public_api_c_compile.c; tests/compatibility/public_api_cpp_consumer.cpp; tests/compatibility/lua51_c_api_differential_probe.c; tests/compatibility/public_native_module.c; tests/unit/api/test_lua_c_api.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tools/check_lua51_public_api_contract.py; tools/run_lua51_c_api_differential.ps1; tests/lua/official/api.lua; tests/lua/official/code.lua
-last_checked: 2026-07-22
+last_checked: 2026-07-23
 applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖边界
 ---
 
@@ -39,13 +39,15 @@ applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖�
 
 ## 当前证据
 
-2026-07-17 的直接门禁：
+2026-07-23 的直接门禁：
+
+<!-- public-api-surface: functions=132 macros=58 enum-constants=26 typedefs=11 -->
 
 ```powershell
 bin\lua_test.exe --filter "Lua C API"
 ```
 
-当前 Debug/Release strict 结果为 59 个测试、2822 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 132 个真实函数、57 个宏、26 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。当前完整 Debug/Release strict 套件为 788 个测试、6681 个断言、0 failures；上一完整在线基线 [`7e95938`](https://github.com/YanqingXu/lua/commit/7e95938979c82b2f5f2ad9f415bb45f4b83c9a7f) 已在 [Actions run 29505951352](https://github.com/YanqingXu/lua/actions/runs/29505951352) 取得 10/10 jobs 全绿，本提交在线矩阵待验证。原始 `api.lua` 另以以下 exact TestC 门禁通过：
+当前 Debug/Release strict 结果为 59 个测试、2822 个断言、0 failures。机器合同包含 123 个官方公共函数：123 个 `PASS`、0 个 `XFAIL`、0 个 `UNSUPPORTED`。项目头文件的当前公开面另由 132 个真实函数、58 个宏、26 个枚举常量和 11 个 typedef 的穷尽式编译合同保护。当前完整 Release 套件为 789 个测试、6686 个断言、0 failures。当前 `main` 的 [Actions run 29923089152](https://github.com/YanqingXu/lua/actions/runs/29923089152) 已通过全部 API、官方 strict 与平台构建 lane；3 个剩余失败均为 format/C-style position baseline 质量门，当前工作树已修复并等待新远端矩阵验证。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell
 bin\lua_test.exe --filter "api.lua with T module"

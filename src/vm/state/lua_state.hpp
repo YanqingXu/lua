@@ -271,11 +271,11 @@ public:
      */
     void pushValue(const Value& v) {
         stack_.checkLimit(top_ + 1);
-    /**
-     * @brief 在普通压栈路径之外保留一个已分配的栈槽。
-     *
-     * 即使失败的分配操作正是栈扩容，保护 C API 边界仍可用该槽发布固定的内存错误对象。
-     */
+        /**
+         * @brief 在普通压栈路径之外保留一个已分配的栈槽。
+         *
+         * 即使失败的分配操作正是栈扩容，保护 C API 边界仍可用该槽发布固定的内存错误对象。
+         */
         if (stack_.capacity() == 0 || top_ >= stack_.capacity() - 1) {
             const usize available = stack_.capacity() - stack_.size();
             stack_.ensureSpace(available + STACK_GROW_MARGIN);

@@ -20,15 +20,29 @@ public:
         events_.reserve(capacity_);
     }
 
-    void onInstruction(const TraceEvent& event) override { append(event); }
-    void onCall(const TraceEvent& event) override { append(event); }
-    void onReturn(const TraceEvent& event) override { append(event); }
-    void onError(const TraceEvent& event) override { append(event); }
+    void onInstruction(const TraceEvent& event) override {
+        append(event);
+    }
+    void onCall(const TraceEvent& event) override {
+        append(event);
+    }
+    void onReturn(const TraceEvent& event) override {
+        append(event);
+    }
+    void onError(const TraceEvent& event) override {
+        append(event);
+    }
     void flush() override {}
 
-    [[nodiscard]] usize size() const noexcept { return events_.size(); }
-    [[nodiscard]] usize capacity() const noexcept { return capacity_; }
-    [[nodiscard]] u64 totalEvents() const noexcept { return totalEvents_; }
+    [[nodiscard]] usize size() const noexcept {
+        return events_.size();
+    }
+    [[nodiscard]] usize capacity() const noexcept {
+        return capacity_;
+    }
+    [[nodiscard]] u64 totalEvents() const noexcept {
+        return totalEvents_;
+    }
 
     [[nodiscard]] const TraceEvent& at(usize chronologicalIndex) const {
         if (chronologicalIndex >= events_.size()) {

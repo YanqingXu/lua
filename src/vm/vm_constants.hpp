@@ -94,7 +94,7 @@ inline constexpr i32 MULTRET = -1;
  * 对应 Lua C: lua.h 中的状态码定义
  */
 /** @brief 成功 */
-inline constexpr i32 LUA_OK     = 0;
+inline constexpr i32 LUA_OK = 0;
 /** @brief 运行时错误 */
 inline constexpr i32 LUA_ERRRUN = 2;
 /** @brief 内存错误 */

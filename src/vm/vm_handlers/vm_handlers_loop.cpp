@@ -53,8 +53,7 @@ HandlerStatus handleClose(OpExecutionContext& context, Instruction inst) {
 HandlerStatus handleForLoop(OpExecutionContext& context, Instruction inst) {
     i32 a = GETARG_A(inst);
 
-    if (!context.base[a].isNumber() || !context.base[a + 1].isNumber() ||
-        !context.base[a + 2].isNumber()) {
+    if (!context.base[a].isNumber() || !context.base[a + 1].isNumber() || !context.base[a + 2].isNumber()) {
         throw RuntimeError("VM: FORLOOP requires numeric values");
     }
 
@@ -74,8 +73,7 @@ HandlerStatus handleForLoop(OpExecutionContext& context, Instruction inst) {
 HandlerStatus handleForPrep(OpExecutionContext& context, Instruction inst) {
     i32 a = GETARG_A(inst);
 
-    if (!coerceNumber(context.base[a]) || !coerceNumber(context.base[a + 1]) ||
-        !coerceNumber(context.base[a + 2])) {
+    if (!coerceNumber(context.base[a]) || !coerceNumber(context.base[a + 1]) || !coerceNumber(context.base[a + 2])) {
         throw RuntimeError("VM: FORPREP requires numeric values");
     }
 
@@ -97,7 +95,7 @@ HandlerStatus handleTForLoop(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
-}  // namespace
+} // namespace
 
 void registerLoopHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::CLOSE)].handler = handleClose;
@@ -106,4 +104,4 @@ void registerLoopHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::TFORLOOP)].handler = handleTForLoop;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

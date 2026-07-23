@@ -38,13 +38,13 @@ enum class TraceEventKind : u8 {
  * 栈状态即可写出它们。
  */
 struct TraceRegisterChange {
-    i32         slot       = 0;
-    bool        hasName    = false;
-    Str         name;
-    Str         oldValue;
-    Str         newValue;
-    const char* oldType    = "nil";
-    const char* newType    = "nil";
+    i32 slot = 0;
+    bool hasName = false;
+    Str name;
+    Str oldValue;
+    Str newValue;
+    const char* oldType = "nil";
+    const char* newType = "nil";
 };
 
 /**
@@ -58,46 +58,46 @@ struct TraceRegisterChange {
  */
 struct TraceEvent {
     /** @brief 全局递增序号 */
-    u64             seq       = 0;
-    TraceEventKind  kind      = TraceEventKind::Instruction;
+    u64 seq = 0;
+    TraceEventKind kind = TraceEventKind::Instruction;
 
     // ---- 指令信息 ----
     /** @brief 程序计数器（0-based） */
-    i32             pc        = 0;
-    OpCode          op        = OpCode::MOVE;
-    i32             a         = 0;
-    i32             b         = 0;
-    i32             c         = 0;
-    i32             bx        = 0;
-    i32             sbx       = 0;
+    i32 pc = 0;
+    OpCode op = OpCode::MOVE;
+    i32 a = 0;
+    i32 b = 0;
+    i32 c = 0;
+    i32 bx = 0;
+    i32 sbx = 0;
 
     // ---- 位置信息 ----
     /** @brief 源码行号 */
-    i32             line      = 0;
+    i32 line = 0;
     /** @brief 源文件名（借用指针，不拥有） */
-    const char*     source    = "?";
+    const char* source = "?";
 
     // ---- 调用信息 ----
     /** @brief 当前调用深度 */
-    i32             callDepth = 0;
+    i32 callDepth = 0;
     /** @brief 可读函数名或 source:line 标签 */
-    Str             funcName  = "?";
+    Str funcName = "?";
 
     // ---- 寄存器快照上下文（由输出端读取，不拥有内存）----
     /** @brief 寄存器基地址 */
-    Value*          base      = nullptr;
+    Value* base = nullptr;
     /** @brief 栈帧大小 */
-    i32             maxStack  = 0;
+    i32 maxStack = 0;
     /** @brief 当前函数原型（用于获取局部变量名） */
-    Proto*          proto     = nullptr;
+    Proto* proto = nullptr;
 
     // ---- 追踪差异模式 ----
-    bool            includeChangedRegisters = false;
+    bool includeChangedRegisters = false;
     Vec<TraceRegisterChange> changedRegisters;
 
     // ---- 错误信息 ----
     /** @brief 错误事件的错误消息。 */
-    const char*     errorMsg  = nullptr;
+    const char* errorMsg = nullptr;
 };
 
 } // namespace Lua

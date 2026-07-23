@@ -26,17 +26,17 @@ HandlerStatus handleComparison(OpExecutionContext& context, Instruction inst) {
     bool result = false;
 
     switch (GET_OPCODE(inst)) {
-        case OpCode::EQ:
-            result = detail::equal(state, left, right);
-            break;
-        case OpCode::LT:
-            result = detail::lessThan(state, left, right);
-            break;
-        case OpCode::LE:
-            result = detail::lessEqual(state, left, right);
-            break;
-        default:
-            throw RuntimeError("VM: invalid comparison handler opcode");
+    case OpCode::EQ:
+        result = detail::equal(state, left, right);
+        break;
+    case OpCode::LT:
+        result = detail::lessThan(state, left, right);
+        break;
+    case OpCode::LE:
+        result = detail::lessEqual(state, left, right);
+        break;
+    default:
+        throw RuntimeError("VM: invalid comparison handler opcode");
     }
 
     context.base = refreshBase(state);
@@ -82,7 +82,7 @@ HandlerStatus handleTestSet(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
-}  // namespace
+} // namespace
 
 void registerBranchHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::JMP)].handler = handleJump;
@@ -93,4 +93,4 @@ void registerBranchHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::TESTSET)].handler = handleTestSet;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

@@ -57,11 +57,9 @@ static i32 checkedIntegerArgument(LuaState* L, i32 index, const char* functionNa
     }
     const auto converted = checkedLuaInteger(L->toNumber(index), mode);
     if (!converted) {
-        const char* detail = converted.error() == IntegerConversionError::NotFinite
-                                 ? "finite number expected"
-                             : converted.error() == IntegerConversionError::NotIntegral
-                                 ? "integer expected"
-                                 : "number out of range";
+        const char* detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
+                             : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
+                                                                                        : "number out of range";
         L->error(std::format("bad argument #{} to '{}' ({})", index, functionName, detail).c_str());
     }
     return *converted;
@@ -1081,8 +1079,7 @@ private:
         }
 
         usize constantCount = readSize();
-        consumeCount(constantCount, constantCount_, limits_.maxConstantCount,
-                     "binary chunk constant limit exceeded");
+        consumeCount(constantCount, constantCount_, limits_.maxConstantCount, "binary chunk constant limit exceeded");
         for (usize i = 0; i < constantCount; ++i) {
             proto->appendConstantSlot(readConstant());
         }
@@ -1096,15 +1093,13 @@ private:
         }
 
         usize lineInfoCount = readSize();
-        consumeCount(lineInfoCount, debugEntries_, limits_.maxDebugEntries,
-                     "binary chunk debug-entry limit exceeded");
+        consumeCount(lineInfoCount, debugEntries_, limits_.maxDebugEntries, "binary chunk debug-entry limit exceeded");
         for (usize i = 0; i < lineInfoCount; ++i) {
             proto->addLineInfo(readI32());
         }
 
         usize locVarCount = readSize();
-        consumeCount(locVarCount, debugEntries_, limits_.maxDebugEntries,
-                     "binary chunk debug-entry limit exceeded");
+        consumeCount(locVarCount, debugEntries_, limits_.maxDebugEntries, "binary chunk debug-entry limit exceeded");
         for (usize i = 0; i < locVarCount; ++i) {
             GCString* name = readMaybeString();
             i32 startpc = readI32();
@@ -1212,8 +1207,7 @@ static void settleLoadGC(LuaState* L) {
 }
 
 static Function* loadBinaryChunk(LuaState* L, StrView source) {
-    const ChunkReaderLimits limits =
-        ChunkReaderLimits::fromResourcePolicy(L->getGlobalState().getResourcePolicy());
+    const ChunkReaderLimits limits = ChunkReaderLimits::fromResourcePolicy(L->getGlobalState().getResourcePolicy());
     DumpReader reader(source, L->getGlobalState().getStringPool(), L->getGlobalState().getGC(), limits);
     Proto* proto = reader.readChunk();
     BytecodeVerifierLimits verifierLimits;
@@ -1949,9 +1943,8 @@ static i32 luaB_unpack(LuaState* L) {
 
     Table* table = L->at(1).asTable();
     i32 i = (L->getTop() >= 2 && !L->at(2).isNil()) ? checkedIntegerArgument(L, 2, "unpack") : 1;
-    i32 j = (L->getTop() >= 3 && !L->at(3).isNil())
-                ? checkedIntegerArgument(L, 3, "unpack")
-                : static_cast<i32>(table->length());
+    i32 j = (L->getTop() >= 3 && !L->at(3).isNil()) ? checkedIntegerArgument(L, 3, "unpack")
+                                                    : static_cast<i32>(table->length());
 
     if (i > j)
         return 0; // 空区间
@@ -2005,8 +1998,7 @@ private:
 static i32 luaB_load(LuaState* L) {
     auto& pool = L->getGlobalState().getStringPool();
     const SandboxPolicy& sandbox = L->getGlobalState().getSandboxPolicy();
-    if (!sandbox.allows(SandboxCapability::RuntimeCompilation) &&
-        !sandbox.allows(SandboxCapability::BinaryChunks)) {
+    if (!sandbox.allows(SandboxCapability::RuntimeCompilation) && !sandbox.allows(SandboxCapability::BinaryChunks)) {
         L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
     }
     ScopedAutomaticGCStop gcStop(L->getGlobalState().getGC());
@@ -2180,8 +2172,7 @@ void BaseLibModule::registerFunctions(LuaState* L) {
         .addGlobal("xpcall", luaB_xpcall);
 
     const SandboxPolicy& sandbox = L->getGlobalState().getSandboxPolicy();
-    if (sandbox.allows(SandboxCapability::RuntimeCompilation) ||
-        sandbox.allows(SandboxCapability::BinaryChunks)) {
+    if (sandbox.allows(SandboxCapability::RuntimeCompilation) || sandbox.allows(SandboxCapability::BinaryChunks)) {
         registrar.addGlobal("loadstring", luaB_loadstring).addGlobal("load", luaB_load);
     }
 

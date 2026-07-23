@@ -45,15 +45,13 @@ Str serializeChangedRegisters(const Vec<TraceRegisterChange>& changes) {
     return out;
 }
 
-}  // namespace
+} // namespace
 
 // =========================================================================
 // 构造 / 析构
 // =========================================================================
 
-JsonTraceSink::JsonTraceSink(const Str& filePath, u64 maxEvents)
-    : maxEvents_(maxEvents)
-{
+JsonTraceSink::JsonTraceSink(const Str& filePath, u64 maxEvents) : maxEvents_(maxEvents) {
     file_.open(filePath, std::ios::out | std::ios::trunc);
     if (!file_.is_open()) {
         std::cerr << "[TRACE] Warning: cannot open trace file: " << filePath << std::endl;
@@ -72,89 +70,59 @@ JsonTraceSink::~JsonTraceSink() {
 // =========================================================================
 
 void JsonTraceSink::onInstruction(const TraceEvent& evt) {
-    if (!file_.is_open() || reachedLimit()) return;
+    if (!file_.is_open() || reachedLimit())
+        return;
 
     Str registers;
     if (evt.base && evt.maxStack > 0) {
-        registers = std::format(
-            ",\"registers\":{}",
-            Trace::serializeRegisters(evt.base, evt.maxStack, evt.proto, evt.pc)
-        );
+        registers =
+            std::format(",\"registers\":{}", Trace::serializeRegisters(evt.base, evt.maxStack, evt.proto, evt.pc));
     }
 
     Str changedRegisters;
     if (evt.includeChangedRegisters) {
-        changedRegisters = std::format(
-            ",\"changedRegisters\":{}",
-            serializeChangedRegisters(evt.changedRegisters)
-        );
+        changedRegisters = std::format(",\"changedRegisters\":{}", serializeChangedRegisters(evt.changedRegisters));
     }
 
-    file_ << std::format(
-        "{{\"seq\":{},\"kind\":\"instruction\",\"funcName\":\"{}\",\"pc\":{},\"op\":\"{}\","
-        "\"a\":{},\"b\":{},\"c\":{},\"bx\":{},\"sbx\":{},\"line\":{},"
-        "\"source\":\"{}\",\"callDepth\":{}{}{}}}\n",
-        evt.seq,
-        Trace::jsonEscape(evt.funcName),
-        evt.pc,
-        getOpName(evt.op),
-        evt.a,
-        evt.b,
-        evt.c,
-        evt.bx,
-        evt.sbx,
-        evt.line,
-        Trace::jsonEscape(evt.source ? evt.source : "?"),
-        evt.callDepth,
-        registers,
-        changedRegisters
-    );
+    file_ << std::format("{{\"seq\":{},\"kind\":\"instruction\",\"funcName\":\"{}\",\"pc\":{},\"op\":\"{}\","
+                         "\"a\":{},\"b\":{},\"c\":{},\"bx\":{},\"sbx\":{},\"line\":{},"
+                         "\"source\":\"{}\",\"callDepth\":{}{}{}}}\n",
+                         evt.seq, Trace::jsonEscape(evt.funcName), evt.pc, getOpName(evt.op), evt.a, evt.b, evt.c,
+                         evt.bx, evt.sbx, evt.line, Trace::jsonEscape(evt.source ? evt.source : "?"), evt.callDepth,
+                         registers, changedRegisters);
     ++eventCount_;
 }
 
 void JsonTraceSink::onCall(const TraceEvent& evt) {
-    if (!file_.is_open() || reachedLimit()) return;
+    if (!file_.is_open() || reachedLimit())
+        return;
 
-    file_ << std::format(
-        "{{\"seq\":{},\"kind\":\"call\",\"funcName\":\"{}\","
-        "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
-        evt.seq,
-        Trace::jsonEscape(evt.funcName),
-        Trace::jsonEscape(evt.source ? evt.source : "?"),
-        evt.line,
-        evt.callDepth
-    );
+    file_ << std::format("{{\"seq\":{},\"kind\":\"call\",\"funcName\":\"{}\","
+                         "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
+                         evt.seq, Trace::jsonEscape(evt.funcName), Trace::jsonEscape(evt.source ? evt.source : "?"),
+                         evt.line, evt.callDepth);
     ++eventCount_;
 }
 
 void JsonTraceSink::onReturn(const TraceEvent& evt) {
-    if (!file_.is_open() || reachedLimit()) return;
+    if (!file_.is_open() || reachedLimit())
+        return;
 
-    file_ << std::format(
-        "{{\"seq\":{},\"kind\":\"return\",\"funcName\":\"{}\","
-        "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
-        evt.seq,
-        Trace::jsonEscape(evt.funcName),
-        Trace::jsonEscape(evt.source ? evt.source : "?"),
-        evt.line,
-        evt.callDepth
-    );
+    file_ << std::format("{{\"seq\":{},\"kind\":\"return\",\"funcName\":\"{}\","
+                         "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
+                         evt.seq, Trace::jsonEscape(evt.funcName), Trace::jsonEscape(evt.source ? evt.source : "?"),
+                         evt.line, evt.callDepth);
     ++eventCount_;
 }
 
 void JsonTraceSink::onError(const TraceEvent& evt) {
-    if (!file_.is_open() || reachedLimit()) return;
+    if (!file_.is_open() || reachedLimit())
+        return;
 
-    file_ << std::format(
-        "{{\"seq\":{},\"kind\":\"error\",\"funcName\":\"{}\",\"message\":\"{}\","
-        "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
-        evt.seq,
-        Trace::jsonEscape(evt.funcName),
-        Trace::jsonEscape(evt.errorMsg ? evt.errorMsg : ""),
-        Trace::jsonEscape(evt.source ? evt.source : "?"),
-        evt.line,
-        evt.callDepth
-    );
+    file_ << std::format("{{\"seq\":{},\"kind\":\"error\",\"funcName\":\"{}\",\"message\":\"{}\","
+                         "\"source\":\"{}\",\"line\":{},\"callDepth\":{}}}\n",
+                         evt.seq, Trace::jsonEscape(evt.funcName), Trace::jsonEscape(evt.errorMsg ? evt.errorMsg : ""),
+                         Trace::jsonEscape(evt.source ? evt.source : "?"), evt.line, evt.callDepth);
     ++eventCount_;
 }
 

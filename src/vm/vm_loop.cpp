@@ -22,7 +22,7 @@ Value* refreshBase(LuaState* L) {
     return &L->getStack()[L->getCurrentCallInfo().base];
 }
 
-}  // namespace
+} // namespace
 
 namespace VM::detail {
 
@@ -31,12 +31,13 @@ void tforLoop(LuaState* L, Value*& base, Proto* proto, usize& pc, i32 a, i32 c) 
     CallInfo& ci = L->getCurrentCallInfo();
     Stack& stack = L->getStack();
     usize requiredSize = ci.base + cb + 3 + c;
-    while (stack.size() < requiredSize) stack.push(Value());
+    while (stack.size() < requiredSize)
+        stack.push(Value());
     base = &stack[ci.base];
 
     base[cb + 2] = base[a + 2];
     base[cb + 1] = base[a + 1];
-    base[cb]     = base[a];
+    base[cb] = base[a];
 
     const auto code = proto->getInstructionSpan();
     if (pc < code.size()) {
@@ -66,5 +67,5 @@ void tforLoop(LuaState* L, Value*& base, Proto* proto, usize& pc, i32 a, i32 c) 
     }
 }
 
-}  // namespace VM::detail
-}  // namespace Lua
+} // namespace VM::detail
+} // namespace Lua

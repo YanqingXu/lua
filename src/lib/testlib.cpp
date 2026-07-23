@@ -609,8 +609,7 @@ LuaNumber checkTestLibNumber(LuaState* L, i32 index, const char* functionName) {
     if (value.isNumber()) {
         return value.asNumber();
     }
-    if (value.isString() &&
-        luaStringToNumber(value.asString()->view(), number, L->getGlobalState().getAllocator())) {
+    if (value.isString() && luaStringToNumber(value.asString()->view(), number, L->getGlobalState().getAllocator())) {
         return number;
     }
     L->error(std::format("bad argument #{} to '{}' (number expected)", index, functionName).c_str());

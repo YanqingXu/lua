@@ -31,7 +31,9 @@ namespace Lua {
 /** @brief Lua 包与模块加载库。 */
 class PackageLibModule : public LibModule {
 public:
-    const char* getName() const override { return "package"; }
+    const char* getName() const override {
+        return "package";
+    }
 
     void registerFunctions(LuaState* L) override;
 

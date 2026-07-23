@@ -22,9 +22,7 @@ namespace Lua {
 namespace {
 
 const char* sourceName(Proto* proto) {
-    return proto != nullptr && proto->getSource() != nullptr
-               ? proto->getSource()->c_str()
-               : "?";
+    return proto != nullptr && proto->getSource() != nullptr ? proto->getSource()->c_str() : "?";
 }
 
 Str protoFunctionName(Proto* proto) {
@@ -71,8 +69,8 @@ Value registerValueAt(LuaState* L, usize frameBase, i32 slot) {
     return stack[index];
 }
 
-TraceEvent makeInstructionEvent(TraceRuntime& runtime, Proto* proto, Value* base, usize instructionPc,
-                                Instruction inst, i32 callDepth) {
+TraceEvent makeInstructionEvent(TraceRuntime& runtime, Proto* proto, Value* base, usize instructionPc, Instruction inst,
+                                i32 callDepth) {
     TraceEvent event;
     event.seq = runtime.nextSequence();
     event.kind = TraceEventKind::Instruction;
@@ -93,7 +91,7 @@ TraceEvent makeInstructionEvent(TraceRuntime& runtime, Proto* proto, Value* base
     return event;
 }
 
-}  // namespace
+} // namespace
 
 namespace VM {
 
@@ -129,7 +127,7 @@ bool isTraceDiffEnabled(RuntimeServices& services) {
     return services.globalState.getTraceRuntime().diffEnabled();
 }
 
-}  // namespace VM
+} // namespace VM
 
 namespace VM::detail {
 
@@ -185,8 +183,8 @@ bool shouldDumpBytecode(LuaState* L) {
     return L != nullptr && L->getGlobalState().getTraceRuntime().dumpBytecode();
 }
 
-void emitInstructionTrace(LuaState* L, Proto* proto, Value* base, usize instructionPc,
-                          Instruction inst, i32 callDepth) {
+void emitInstructionTrace(LuaState* L, Proto* proto, Value* base, usize instructionPc, Instruction inst,
+                          i32 callDepth) {
     if (L == nullptr || proto == nullptr) {
         return;
     }
@@ -214,8 +212,8 @@ Vec<Value> captureTraceRegisters(LuaState* L, usize frameBase, i32 maxStack) {
     return snapshot;
 }
 
-void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc,
-                              Instruction inst, i32 callDepth, const Vec<Value>& before) {
+void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize instructionPc, Instruction inst,
+                              i32 callDepth, const Vec<Value>& before) {
     if (proto == nullptr || L == nullptr) {
         return;
     }
@@ -257,8 +255,7 @@ void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize 
     sink->onInstruction(event);
 }
 
-void emitCallTrace(LuaState* L, Proto* proto, Value* base, usize instructionPc,
-                   i32 registerIndex, i32 callDepth) {
+void emitCallTrace(LuaState* L, Proto* proto, Value* base, usize instructionPc, i32 registerIndex, i32 callDepth) {
     if (L == nullptr || proto == nullptr || base == nullptr) {
         return;
     }
@@ -302,6 +299,6 @@ void emitReturnTrace(LuaState* L, Proto* proto, usize instructionPc, i32 callDep
     sink->onReturn(event);
 }
 
-}  // namespace VM::detail
+} // namespace VM::detail
 
-}  // namespace Lua
+} // namespace Lua

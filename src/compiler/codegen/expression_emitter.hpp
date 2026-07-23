@@ -27,8 +27,7 @@ class CodeGenerator;
  */
 class ExpressionEmitter : private ExprVisitor<ExpressionEmitter, ValueResult> {
     friend struct ExprVisitor<ExpressionEmitter, ValueResult>;
-    template <typename Visitor, typename Node, typename R>
-    friend consteval bool detail::canVisitNode();
+    template <typename Visitor, typename Node, typename R> friend consteval bool detail::canVisitNode();
 
 public:
     explicit ExpressionEmitter(CodeGenerator& owner) noexcept;
@@ -98,8 +97,8 @@ private:
     void patchtohere(const PatchList& list);
     void fixjump(i32 pc, i32 dest);
 
-    CompiledFunction compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body,
-                                     i32 linedefined, i32 lastlinedefined);
+    CompiledFunction compileFunction(const Vec<Str>& params, bool isVararg, const Vec<StmtPtr>& body, i32 linedefined,
+                                     i32 lastlinedefined);
     void emitClosureUpvalues(const Vec<UpvalueCapture>& upvalues);
 
     CodeGenerator& owner_;
@@ -110,4 +109,4 @@ private:
     NameBinder& binder_;
 };
 
-}  // namespace Lua
+} // namespace Lua

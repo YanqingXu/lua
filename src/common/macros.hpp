@@ -1,17 +1,17 @@
 ﻿/**
  * @file macros.hpp
  * @brief Lua解释器工具宏定义
- * 
+ *
  * 详细说明：
  * 本文件定义了Lua解释器中使用的各种工具宏，包括断言、日志、
  * 调试、性能统计等功能。
- * 
+ *
  * 设计理念：
  * - 调试友好：提供丰富的调试宏
  * - 性能优化：在发布版本中禁用调试代码
  * - 可读性：清晰的宏命名和注释
  * - 安全性：使用do-while(0)包装多语句宏
- * 
+ *
  * @author Lua C++ 实现团队
  * @version 0.1.0
  * @date 2025-11-11
@@ -42,40 +42,44 @@ namespace Lua {
  * @brief 标准断言（仅在调试模式下有效）
  */
 #ifdef NDEBUG
-    #define LUA_ASSERT(condition) do { } while (false)
+#define LUA_ASSERT(condition)                                                                                          \
+    do {                                                                                                               \
+    } while (false)
 #else
-    #define LUA_ASSERT(condition) assert(condition)
+#define LUA_ASSERT(condition) assert(condition)
 #endif
 
 /**
  * @brief 带消息的断言
  */
 #ifdef NDEBUG
-    #define LUA_ASSERT_MSG(condition, message) do { } while (false)
+#define LUA_ASSERT_MSG(condition, message)                                                                             \
+    do {                                                                                                               \
+    } while (false)
 #else
-    #define LUA_ASSERT_MSG(condition, message) \
-        do { \
-            if (!(condition)) { \
-                std::cerr << "Assertion failed: " << #condition << "\n" \
-                          << "Message: " << message << "\n" \
-                          << "File: " << __FILE__ << "\n" \
-                          << "Line: " << __LINE__ << std::endl; \
-                assert(condition); \
-            } \
-        } while (0)
+#define LUA_ASSERT_MSG(condition, message)                                                                             \
+    do {                                                                                                               \
+        if (!(condition)) {                                                                                            \
+            std::cerr << "Assertion failed: " << #condition << "\n"                                                    \
+                      << "Message: " << message << "\n"                                                                \
+                      << "File: " << __FILE__ << "\n"                                                                  \
+                      << "Line: " << __LINE__ << std::endl;                                                            \
+            assert(condition);                                                                                         \
+        }                                                                                                              \
+    } while (0)
 #endif
 
 /**
  * @brief 始终有效的断言（即使在发布版本中）
  */
-#define LUA_VERIFY(condition) \
-    do { \
-        if (!(condition)) { \
-            std::cerr << "Verification failed: " << #condition << "\n" \
-                      << "File: " << __FILE__ << "\n" \
-                      << "Line: " << __LINE__ << std::endl; \
-            std::abort(); \
-        } \
+#define LUA_VERIFY(condition)                                                                                          \
+    do {                                                                                                               \
+        if (!(condition)) {                                                                                            \
+            std::cerr << "Verification failed: " << #condition << "\n"                                                 \
+                      << "File: " << __FILE__ << "\n"                                                                  \
+                      << "Line: " << __LINE__ << std::endl;                                                            \
+            std::abort();                                                                                              \
+        }                                                                                                              \
     } while (0)
 
 /** @} */
@@ -94,63 +98,66 @@ namespace Lua {
  * @brief 调试日志（仅在调试模式下输出）
  */
 #if DEBUG_MODE
-    #define LUA_LOG_DEBUG(message) \
-        do { \
-            std::cout << "[DEBUG] " << message << " (" \
-                      << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
-        } while (0)
+#define LUA_LOG_DEBUG(message)                                                                                         \
+    do {                                                                                                               \
+        std::cout << "[DEBUG] " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl;                 \
+    } while (0)
 #else
-    #define LUA_LOG_DEBUG(message) do { } while (false)
+#define LUA_LOG_DEBUG(message)                                                                                         \
+    do {                                                                                                               \
+    } while (false)
 #endif
 
 /**
  * @brief 信息日志
  */
-#define LUA_LOG_INFO(message) \
-    do { \
-        std::cout << "[INFO] " << message << std::endl; \
+#define LUA_LOG_INFO(message)                                                                                          \
+    do {                                                                                                               \
+        std::cout << "[INFO] " << message << std::endl;                                                                \
     } while (0)
 
 /**
  * @brief 警告日志
  */
-#define LUA_LOG_WARNING(message) \
-    do { \
-        std::cerr << "[WARNING] " << message << " (" \
-                  << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
+#define LUA_LOG_WARNING(message)                                                                                       \
+    do {                                                                                                               \
+        std::cerr << "[WARNING] " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl;               \
     } while (0)
 
 /**
  * @brief 错误日志
  */
-#define LUA_LOG_ERROR(message) \
-    do { \
-        std::cerr << "[ERROR] " << message << " (" \
-                  << __FILE__ << ":" << __LINE__ << ")" << std::endl; \
+#define LUA_LOG_ERROR(message)                                                                                         \
+    do {                                                                                                               \
+        std::cerr << "[ERROR] " << message << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl;                 \
     } while (0)
 
 /**
  * @brief 详细日志（仅在启用详细日志时输出）
  */
 #if VERBOSE_LOG
-    #define LUA_LOG_VERBOSE(message) \
-        do { \
-            std::cout << "[VERBOSE] " << message << std::endl; \
-        } while (0)
+#define LUA_LOG_VERBOSE(message)                                                                                       \
+    do {                                                                                                               \
+        std::cout << "[VERBOSE] " << message << std::endl;                                                             \
+    } while (0)
 #else
-    #define LUA_LOG_VERBOSE(message) do { } while (false)
+#define LUA_LOG_VERBOSE(message)                                                                                       \
+    do {                                                                                                               \
+    } while (false)
 #endif
 
 /**
  * @brief GC日志（仅在启用GC日志时输出）
  */
 #if GC_LOG
-    #define LUA_LOG_GC(message) \
-        do { \
-            std::cout << "[GC] " << message << std::endl; \
-        } while (0)
+#define LUA_LOG_GC(message)                                                                                            \
+    do {                                                                                                               \
+        std::cout << "[GC] " << message << std::endl;                                                                  \
+    } while (0)
 #else
-    #define LUA_LOG_GC(message) do { } while (false)
+#define LUA_LOG_GC(message)                                                                                            \
+    do {                                                                                                               \
+    } while (false)
 #endif
 
 /** @} */
@@ -168,8 +175,7 @@ namespace Lua {
 /**
  * @brief 标记未使用的参数
  */
-template<typename... Args>
-constexpr void luaUnused(const Args&...) noexcept {}
+template <typename... Args> constexpr void luaUnused(const Args&...) noexcept {}
 
 /** @} */
 
@@ -187,40 +193,40 @@ constexpr void luaUnused(const Args&...) noexcept {}
  * @brief 强制内联
  */
 #if defined(_MSC_VER)
-    #define LUA_FORCE_INLINE __forceinline
+#define LUA_FORCE_INLINE __forceinline
 #elif defined(__GNUC__) || defined(__clang__)
-    #define LUA_FORCE_INLINE inline __attribute__((always_inline))
+#define LUA_FORCE_INLINE inline __attribute__((always_inline))
 #else
-    #define LUA_FORCE_INLINE inline
+#define LUA_FORCE_INLINE inline
 #endif
 
 /**
  * @brief 禁止内联
  */
 #if defined(_MSC_VER)
-    #define LUA_NO_INLINE __declspec(noinline)
+#define LUA_NO_INLINE __declspec(noinline)
 #elif defined(__GNUC__) || defined(__clang__)
-    #define LUA_NO_INLINE __attribute__((noinline))
+#define LUA_NO_INLINE __attribute__((noinline))
 #else
-    #define LUA_NO_INLINE
+#define LUA_NO_INLINE
 #endif
 
 /**
  * @brief 分支预测提示（likely）
  */
 #if defined(__GNUC__) || defined(__clang__)
-    #define LUA_LIKELY(x) __builtin_expect(!!(x), 1)
+#define LUA_LIKELY(x) __builtin_expect(!!(x), 1)
 #else
-    #define LUA_LIKELY(x) (x)
+#define LUA_LIKELY(x) (x)
 #endif
 
 /**
  * @brief 分支预测提示（unlikely）
  */
 #if defined(__GNUC__) || defined(__clang__)
-    #define LUA_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#define LUA_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #else
-    #define LUA_UNLIKELY(x) (x)
+#define LUA_UNLIKELY(x) (x)
 #endif
 
 /** @} */
@@ -238,34 +244,33 @@ constexpr void luaUnused(const Args&...) noexcept {}
 /**
  * @brief 抛出运行时错误
  */
-#define LUA_THROW_ERROR(message) \
-    do { \
-        std::ostringstream oss; \
-        oss << message; \
-        throw std::runtime_error(oss.str()); \
+#define LUA_THROW_ERROR(message)                                                                                       \
+    do {                                                                                                               \
+        std::ostringstream oss;                                                                                        \
+        oss << message;                                                                                                \
+        throw std::runtime_error(oss.str());                                                                           \
     } while (0)
 
 /**
  * @brief 检查条件，失败则抛出错误
  */
-#define LUA_CHECK(condition, message) \
-    do { \
-        if (LUA_UNLIKELY(!(condition))) { \
-            LUA_THROW_ERROR(message); \
-        } \
+#define LUA_CHECK(condition, message)                                                                                  \
+    do {                                                                                                               \
+        if (LUA_UNLIKELY(!(condition))) {                                                                              \
+            LUA_THROW_ERROR(message);                                                                                  \
+        }                                                                                                              \
     } while (0)
 
 /**
  * @brief 检查指针非空
  */
-#define LUA_CHECK_NOT_NULL(ptr, name) \
-    LUA_CHECK((ptr) != nullptr, name " is null")
+#define LUA_CHECK_NOT_NULL(ptr, name) LUA_CHECK((ptr) != nullptr, name " is null")
 
 /**
  * @brief 检查索引范围
  */
-#define LUA_CHECK_RANGE(index, min, max, name) \
-    LUA_CHECK((index) >= (min) && (index) < (max), \
+#define LUA_CHECK_RANGE(index, min, max, name)                                                                         \
+    LUA_CHECK((index) >= (min) && (index) < (max),                                                                     \
               name " out of range: " << (index) << " not in [" << (min) << ", " << (max) << ")")
 
 /** @} */
@@ -281,27 +286,30 @@ constexpr void luaUnused(const Args&...) noexcept {}
  */
 
 #if PERF_STATS
-    #include <chrono>
-    
-    /**
-     * @brief 开始性能计时
-     */
-    #define LUA_PERF_START(name) \
-        auto __perf_start_##name = std::chrono::high_resolution_clock::now()
-    
-    /**
-     * @brief 结束性能计时并输出
-     */
-    #define LUA_PERF_END(name) \
-        do { \
-            auto __perf_end_##name = std::chrono::high_resolution_clock::now(); \
-            auto __perf_duration_##name = std::chrono::duration_cast<std::chrono::microseconds>( \
-                __perf_end_##name - __perf_start_##name).count(); \
-            std::cout << "[PERF] " << #name << ": " << __perf_duration_##name << " us" << std::endl; \
-        } while (0)
+#include <chrono>
+
+/**
+ * @brief 开始性能计时
+ */
+#define LUA_PERF_START(name) auto __perf_start_##name = std::chrono::high_resolution_clock::now()
+
+/**
+ * @brief 结束性能计时并输出
+ */
+#define LUA_PERF_END(name)                                                                                             \
+    do {                                                                                                               \
+        auto __perf_end_##name = std::chrono::high_resolution_clock::now();                                            \
+        auto __perf_duration_##name =                                                                                  \
+            std::chrono::duration_cast<std::chrono::microseconds>(__perf_end_##name - __perf_start_##name).count();    \
+        std::cout << "[PERF] " << #name << ": " << __perf_duration_##name << " us" << std::endl;                       \
+    } while (0)
 #else
-    #define LUA_PERF_START(name) do { } while (false)
-    #define LUA_PERF_END(name) do { } while (false)
+#define LUA_PERF_START(name)                                                                                           \
+    do {                                                                                                               \
+    } while (false)
+#define LUA_PERF_END(name)                                                                                             \
+    do {                                                                                                               \
+    } while (false)
 #endif
 
 /** @} */
@@ -320,26 +328,27 @@ constexpr void luaUnused(const Args&...) noexcept {}
  * @brief 打印变量值（调试用）
  */
 #if DEBUG_MODE
-    #define LUA_DEBUG_PRINT(var) \
-        std::cout << "[DEBUG] " << #var << " = " << (var) << " (" \
-                  << __FILE__ << ":" << __LINE__ << ")" << std::endl
+#define LUA_DEBUG_PRINT(var)                                                                                           \
+    std::cout << "[DEBUG] " << #var << " = " << (var) << " (" << __FILE__ << ":" << __LINE__ << ")" << std::endl
 #else
-    #define LUA_DEBUG_PRINT(var) do { } while (false)
+#define LUA_DEBUG_PRINT(var)                                                                                           \
+    do {                                                                                                               \
+    } while (false)
 #endif
 
 /**
  * @brief 标记未实现的功能
  */
-#define LUA_NOT_IMPLEMENTED() \
+#define LUA_NOT_IMPLEMENTED()                                                                                          \
     LUA_THROW_ERROR("Not implemented: " << __FUNCTION__ << " at " << __FILE__ << ":" << __LINE__)
 
 /**
  * @brief 标记不应到达的代码
  */
-#define LUA_UNREACHABLE() \
-    do { \
-        LUA_LOG_ERROR("Unreachable code reached in " << __FUNCTION__); \
-        std::abort(); \
+#define LUA_UNREACHABLE()                                                                                              \
+    do {                                                                                                               \
+        LUA_LOG_ERROR("Unreachable code reached in " << __FUNCTION__);                                                 \
+        std::abort();                                                                                                  \
     } while (0)
 
 /** @} */
@@ -357,32 +366,28 @@ constexpr void luaUnused(const Args&...) noexcept {}
 /**
  * @brief 设置位
  */
-template<typename T, typename Bit>
-constexpr void luaBitSet(T& value, Bit bit) noexcept {
+template <typename T, typename Bit> constexpr void luaBitSet(T& value, Bit bit) noexcept {
     value = static_cast<T>(value | (T{1} << bit));
 }
 
 /**
  * @brief 清除位
  */
-template<typename T, typename Bit>
-constexpr void luaBitClear(T& value, Bit bit) noexcept {
+template <typename T, typename Bit> constexpr void luaBitClear(T& value, Bit bit) noexcept {
     value = static_cast<T>(value & ~(T{1} << bit));
 }
 
 /**
  * @brief 切换位
  */
-template<typename T, typename Bit>
-constexpr void luaBitToggle(T& value, Bit bit) noexcept {
+template <typename T, typename Bit> constexpr void luaBitToggle(T& value, Bit bit) noexcept {
     value = static_cast<T>(value ^ (T{1} << bit));
 }
 
 /**
  * @brief 检查位
  */
-template<typename T, typename Bit>
-constexpr bool luaBitCheck(T value, Bit bit) noexcept {
+template <typename T, typename Bit> constexpr bool luaBitCheck(T value, Bit bit) noexcept {
     return (value & (T{1} << bit)) != 0;
 }
 
@@ -401,28 +406,24 @@ constexpr bool luaBitCheck(T value, Bit bit) noexcept {
 /**
  * @brief 向上对齐到指定边界
  */
-template<typename T>
-constexpr T luaAlignUp(T value, T alignment) noexcept {
+template <typename T> constexpr T luaAlignUp(T value, T alignment) noexcept {
     return (value + alignment - 1) & ~(alignment - 1);
 }
 
 /**
  * @brief 向下对齐到指定边界
  */
-template<typename T>
-constexpr T luaAlignDown(T value, T alignment) noexcept {
+template <typename T> constexpr T luaAlignDown(T value, T alignment) noexcept {
     return value & ~(alignment - 1);
 }
 
 /**
  * @brief 检查是否对齐
  */
-template<typename T>
-constexpr bool luaIsAligned(T value, T alignment) noexcept {
+template <typename T> constexpr bool luaIsAligned(T value, T alignment) noexcept {
     return (value & (alignment - 1)) == 0;
 }
 
 /** @} */
 
 } // namespace Lua
-

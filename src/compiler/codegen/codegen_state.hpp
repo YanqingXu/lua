@@ -39,18 +39,14 @@ struct CodegenState {
     std::shared_ptr<CompilationBudget> compilationBudget;
 
     explicit CodegenState(RuntimeServices runtimeServices)
-        : services(runtimeServices)
-        , pool(&runtimeServices.strings)
-        , compilationBudget(std::make_shared<CompilationBudget>(
-              runtimeServices.globalState.getCompilationPolicy(),
-              &runtimeServices.globalState.getExecutionPolicy())) {}
+        : services(runtimeServices), pool(&runtimeServices.strings),
+          compilationBudget(std::make_shared<CompilationBudget>(runtimeServices.globalState.getCompilationPolicy(),
+                                                                &runtimeServices.globalState.getExecutionPolicy())) {}
 
     CodegenState(RuntimeServices runtimeServices, StringPool* stringPool)
-        : services(runtimeServices)
-        , pool(stringPool)
-        , compilationBudget(std::make_shared<CompilationBudget>(
-              runtimeServices.globalState.getCompilationPolicy(),
-              &runtimeServices.globalState.getExecutionPolicy())) {}
+        : services(runtimeServices), pool(stringPool),
+          compilationBudget(std::make_shared<CompilationBudget>(runtimeServices.globalState.getCompilationPolicy(),
+                                                                &runtimeServices.globalState.getExecutionPolicy())) {}
 
     void resetForProto(Proto& nextProto, bool isVararg, StrView sourceName = {}) {
         proto = &nextProto;
@@ -71,4 +67,4 @@ struct CodegenState {
     }
 };
 
-}  // namespace Lua
+} // namespace Lua

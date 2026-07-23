@@ -32,11 +32,11 @@ HandlerStatus handleVararg(OpExecutionContext& context, Instruction inst) {
     return HandlerStatus::Continue;
 }
 
-}  // namespace
+} // namespace
 
 void registerClosureHandlers(HandlerTable& table) noexcept {
     table[opcodeIndex(OpCode::CLOSURE)].handler = handleClosure;
     table[opcodeIndex(OpCode::VARARG)].handler = handleVararg;
 }
 
-}  // namespace Lua::VM::handlers
+} // namespace Lua::VM::handlers

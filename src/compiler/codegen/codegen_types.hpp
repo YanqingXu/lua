@@ -12,13 +12,11 @@ namespace Lua {
 constexpr i32 NO_JUMP = -1;
 
 /** @brief 将多个可调用对象组合为 std::visit 使用的访问器。 */
-template <typename... Visitors>
-struct ValueResultVisitor : Visitors... {
+template <typename... Visitors> struct ValueResultVisitor : Visitors... {
     using Visitors::operator()...;
 };
 
-template <typename... Visitors>
-ValueResultVisitor(Visitors...) -> ValueResultVisitor<Visitors...>;
+template <typename... Visitors> ValueResultVisitor(Visitors...) -> ValueResultVisitor<Visitors...>;
 
 /** @brief 保存等待回填的指令位置列表。 */
 struct PatchList {
@@ -67,35 +65,13 @@ struct CondResult {
 /** @brief 表达式降级后的右值通道。 */
 struct ValueResult {
     /** @brief 右值载荷类型。 */
-    enum class Kind {
-        None,
-        Immediate,
-        Constant,
-        Register,
-        PendingLoad,
-        Relocatable,
-        MultiRet,
-        PendingJump
-    };
+    enum class Kind { None, Immediate, Constant, Register, PendingLoad, Relocatable, MultiRet, PendingJump };
 
     /** @brief 立即数的具体类型。 */
-    enum class ImmediateKind {
-        None,
-        Nil,
-        Boolean,
-        Number
-    };
+    enum class ImmediateKind { None, Nil, Boolean, Number };
 
     /** @brief 右值的来源或访问方式。 */
-    enum class AccessKind {
-        None,
-        Local,
-        Upvalue,
-        Global,
-        Indexed,
-        Call,
-        Vararg
-    };
+    enum class AccessKind { None, Local, Upvalue, Global, Indexed, Call, Vararg };
 
     struct None {};
 
@@ -136,8 +112,8 @@ struct ValueResult {
         i32 instructionPc = NO_JUMP;
     };
 
-    using Variant = std::variant<None, Immediate, ConstantRef, RegisterRef, PendingLoad, Relocatable,
-                                 MultiRet, PendingJump>;
+    using Variant =
+        std::variant<None, Immediate, ConstantRef, RegisterRef, PendingLoad, Relocatable, MultiRet, PendingJump>;
 
     ValueResult() = default;
 
@@ -145,13 +121,11 @@ struct ValueResult {
         return payload_;
     }
 
-    template <typename Visitor>
-    decltype(auto) visit(Visitor&& visitor) const {
+    template <typename Visitor> decltype(auto) visit(Visitor&& visitor) const {
         return std::visit(std::forward<Visitor>(visitor), payload_);
     }
 
-    template <typename Visitor>
-    decltype(auto) visit(Visitor&& visitor) {
+    template <typename Visitor> decltype(auto) visit(Visitor&& visitor) {
         return std::visit(std::forward<Visitor>(visitor), payload_);
     }
 
@@ -195,20 +169,12 @@ struct ValueResult {
 private:
     Variant payload_ = None{};
 
-    explicit ValueResult(Variant value)
-        : payload_(std::move(value)) {
-    }
+    explicit ValueResult(Variant value) : payload_(std::move(value)) {}
 };
 
 /** @brief 赋值目标的局部、上值、全局或索引引用。 */
 struct LValueRef {
-    enum class Kind {
-        None,
-        Local,
-        Upvalue,
-        Global,
-        Indexed
-    };
+    enum class Kind { None, Local, Upvalue, Global, Indexed };
 
     Kind kind = Kind::None;
     i32 slot = -1;
@@ -223,11 +189,7 @@ struct LValueRef {
 
 /** @brief 调用或可变参数产生的多返回值通道。 */
 struct CallResultInfo {
-    enum class Kind {
-        None,
-        Call,
-        Vararg
-    };
+    enum class Kind { None, Call, Vararg };
 
     Kind kind = Kind::None;
     i32 baseReg = -1;
@@ -251,20 +213,15 @@ struct CallResultInfo {
  * 消除值发射、左值发射、名称表达式发射和函数语句路径中重复的查找逻辑。
  */
 struct SymbolRef {
-    enum class Kind {
-        None,
-        Local,
-        Upvalue,
-        Global
-    };
+    enum class Kind { None, Local, Upvalue, Global };
 
     Kind kind = Kind::None;
-    i32 index = -1;       // 局部变量：寄存器槽位；上值：上值索引；全局变量：字符串常量索引
-    Str name;             // 原始名称（用于全局变量场景或调试）
+    i32 index = -1; // 局部变量：寄存器槽位；上值：上值索引；全局变量：字符串常量索引
+    Str name;       // 原始名称（用于全局变量场景或调试）
 
     bool valid() const noexcept {
         return kind != Kind::None;
     }
 };
 
-}  // namespace Lua
+} // namespace Lua

@@ -1,11 +1,11 @@
 /**
  * @file mathlib.hpp
  * @brief Lua数学库：标准数学函数集合
- * 
+ *
  * 详细说明：
  * 本模块实现了Lua 5.1.5标准数学库的完整功能，提供了常用的数学运算、
  * 三角函数、对数指数函数、随机数生成等功能。
- * 
+ *
  * 主要功能：
  * 1. 基础数学运算：abs, floor, ceil, sqrt, pow, fmod
  * 2. 三角函数：sin, cos, tan, asin, acos, atan, atan2
@@ -14,7 +14,7 @@
  * 5. 随机数：random, randomseed
  * 6. 角度转换：deg, rad
  * 7. 数值分解：modf
- * 
+ *
  * 数学常量：
  * - math.pi: 圆周率π
  * - math.huge: 正无穷大（HUGE_VAL）
@@ -32,22 +32,24 @@ namespace Lua {
 
 /**
  * @brief 数学库模块
- * 
+ *
  * 实现Lua标准数学库的所有功能。所有函数都注册在全局表"math"中。
  */
 class MathLibModule : public LibModule {
 public:
-	const char* getName() const override { return "math"; }
+    const char* getName() const override {
+        return "math";
+    }
 
-	void registerFunctions(LuaState* L) override;
+    void registerFunctions(LuaState* L) override;
 
-	void initialize(LuaState* L) override;
+    void initialize(LuaState* L) override;
 };
 
 /**
  * @brief 注册数学库到全局环境
  * @param L Lua状态机指针
- * 
+ *
  * 创建全局"math"表并注册所有数学函数和常量。
  */
 void openMathLib(LuaState* L);
@@ -227,12 +229,12 @@ i32 math_max(LuaState* L);
 
 /**
  * @brief math.random([m [, n]]) - 生成伪随机数
- * 
+ *
  * 三种调用方式：
  * - math.random(): 返回[0,1)之间的随机浮点数
  * - math.random(m): 返回[1,m]之间的随机整数
  * - math.random(m, n): 返回[m,n]之间的随机整数
- * 
+ *
  * @param L Lua状态机指针
  * @return 返回值数量（1个：随机数）
  */

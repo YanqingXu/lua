@@ -13,6 +13,6 @@ namespace Lua::REPL::detail {
 /** @brief 获取首行或续行使用的 REPL 提示符。 */
 Str getPrompt(LuaState* L, bool firstLine, usize lineNumber);
 
-}  // namespace Lua::REPL::detail
+} // namespace Lua::REPL::detail
 
-#endif  // LUA_REPL_PROMPT_HPP
+#endif // LUA_REPL_PROMPT_HPP

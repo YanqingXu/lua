@@ -12,7 +12,9 @@ namespace Lua {
 /** @brief 向测试环境注册辅助函数的标准库模块。 */
 class TestLibModule : public LibModule {
 public:
-    const char* getName() const override { return "T"; }
+    const char* getName() const override {
+        return "T";
+    }
 
     void registerFunctions(LuaState* L) override;
     void initialize(LuaState* L) override;

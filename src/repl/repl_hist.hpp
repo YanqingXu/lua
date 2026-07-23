@@ -17,6 +17,6 @@ bool loadHistory(const Str& path, Vec<Str>& history);
 /** @brief 将 REPL 历史记录保存到文件。 */
 bool saveHistory(const Str& path, const Vec<Str>& history);
 
-}  // namespace Lua::REPL
+} // namespace Lua::REPL
 
-#endif  // LUA_REPL_HIST_HPP
+#endif // LUA_REPL_HIST_HPP

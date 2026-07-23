@@ -81,11 +81,11 @@ void GarbageCollector::reconcileWeakTableModes() {
         const WeakMode mode = readWeakMode(table, globalState_);
         setWeakBits(table, mode);
 
-    /**
-     * @brief 使用当前模式重新扫描。
-     *
-     * 若传播期间为弱引用的边在原子阶段前变为强引用，此操作必不可少。
-     */
+        /**
+         * @brief 使用当前模式重新扫描。
+         *
+         * 若传播期间为弱引用的边在原子阶段前变为强引用，此操作必不可少。
+         */
         table->markContents(*this, mode.keys, mode.values);
         if (mode.keys || mode.values) {
             weakTables_[writeIndex++] = table;

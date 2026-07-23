@@ -273,8 +273,8 @@ std::expected<void, Str> NativeModuleRegistry::verifyAbi(Handle handle) const {
     using AbiVersionFunction = u32 (*)();
     void* rawSymbol = nullptr;
 #ifdef _WIN32
-    rawSymbol = reinterpret_cast<void*>(
-        GetProcAddress(reinterpret_cast<HMODULE>(handle), policy_.abiVersionSymbol.c_str()));
+    rawSymbol =
+        reinterpret_cast<void*>(GetProcAddress(reinterpret_cast<HMODULE>(handle), policy_.abiVersionSymbol.c_str()));
 #else
     dlerror();
     rawSymbol = dlsym(handle, policy_.abiVersionSymbol.c_str());

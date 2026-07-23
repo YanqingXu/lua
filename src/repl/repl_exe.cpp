@@ -64,7 +64,7 @@ Function* createFunction(LuaState* L, Proto* proto) {
     return func;
 }
 
-}  // namespace
+} // namespace
 
 Str tryAsExpression(const Str& source, bool& wasExplicitReturn) {
     if (!source.empty() && source[0] == '=') {
@@ -76,15 +76,13 @@ Str tryAsExpression(const Str& source, bool& wasExplicitReturn) {
 }
 
 bool isIncompleteInput(const Str& errorMessage) {
-    return errorMessage.find("<eof>") != Str::npos ||
-           errorMessage.find("unexpected end of input") != Str::npos ||
+    return errorMessage.find("<eof>") != Str::npos || errorMessage.find("unexpected end of input") != Str::npos ||
            errorMessage.find("Unterminated string") != Str::npos ||
            errorMessage.find("Unterminated long string") != Str::npos ||
            errorMessage.find("Unterminated long comment") != Str::npos;
 }
 
-std::expected<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, const Str& source,
-                                                                 bool isExpression) {
+std::expected<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, const Str& source, bool isExpression) {
     RuntimeServices services(L->getGlobalState());
     Parser parser(source, services);
     auto parsed = parser.parse();
@@ -99,8 +97,8 @@ std::expected<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, c
     return input;
 }
 
-int executePreparedInput(ReplContext& context, LuaState* L, PreparedInput&& input,
-                         std::ostream& out, std::ostream& err) {
+int executePreparedInput(ReplContext& context, LuaState* L, PreparedInput&& input, std::ostream& out,
+                         std::ostream& err) {
     try {
         RuntimeServices services(L->getGlobalState());
         CodeGenerator codegen(services);
@@ -136,4 +134,4 @@ int executePreparedInput(ReplContext& context, LuaState* L, PreparedInput&& inpu
     }
 }
 
-}  // namespace Lua::REPL::detail
+} // namespace Lua::REPL::detail

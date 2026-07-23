@@ -84,11 +84,9 @@ static i32 getIntegerArg(LuaState* L, i32 idx, const char* funcName,
                          IntegerConversion mode = IntegerConversion::Truncate) {
     const auto converted = checkedLuaInteger(getNumberArg(L, idx, funcName), mode);
     if (!converted) {
-        const char* detail = converted.error() == IntegerConversionError::NotFinite
-                                 ? "finite number expected"
-                             : converted.error() == IntegerConversionError::NotIntegral
-                                 ? "integer expected"
-                                 : "number out of range";
+        const char* detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
+                             : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
+                                                                                        : "number out of range";
         L->error(std::format("bad argument #{} to 'string.{}' ({})", idx, funcName, detail).c_str());
     }
     return *converted;
@@ -155,8 +153,7 @@ static void ensureStringOutput(LuaState* L, usize current, usize addition, const
 }
 
 template <typename String>
-static void appendStringOutput(LuaState* L, String& output, const char* bytes, usize count,
-                               const char* functionName) {
+static void appendStringOutput(LuaState* L, String& output, const char* bytes, usize count, const char* functionName) {
     ensureStringOutput(L, output.size(), count, functionName);
     output.append(bytes, count);
 }
@@ -817,8 +814,7 @@ static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e)
         } else if (cl == CAP_POSITION) {
             L->pushNumber(static_cast<f64>(ms->capture[i].init - ms->src_init + 1));
         } else {
-            L->pushString(L->getGlobalState().getStringPool().intern(ms->capture[i].init,
-                                                                     static_cast<usize>(cl)));
+            L->pushString(L->getGlobalState().getStringPool().intern(ms->capture[i].init, static_cast<usize>(cl)));
         }
     }
 }
@@ -993,12 +989,11 @@ static void addStringReplacement(MatchState* ms, LuaString& result, const char* 
                         ms->L->error("invalid capture index");
                     }
                 } else if (ms->capture[ci].len == CAP_POSITION) {
-                    const Str position = luaNumberToString(
-                        static_cast<f64>(ms->capture[ci].init - ms->src_init + 1));
+                    const Str position = luaNumberToString(static_cast<f64>(ms->capture[ci].init - ms->src_init + 1));
                     appendStringOutput(ms->L, result, position.data(), position.size(), "gsub");
                 } else if (ms->capture[ci].len >= 0) {
-                    appendStringOutput(ms->L, result, ms->capture[ci].init,
-                                       static_cast<usize>(ms->capture[ci].len), "gsub");
+                    appendStringOutput(ms->L, result, ms->capture[ci].init, static_cast<usize>(ms->capture[ci].len),
+                                       "gsub");
                 } else {
                     ms->L->error("unfinished capture");
                 }
@@ -1114,8 +1109,7 @@ i32 str_gsub(LuaState* L) {
                 break;
             }
             if (!replaced) {
-                appendStringOutput(L, result, s + srcPos,
-                                   static_cast<usize>(matchEnd - (s + srcPos)), "gsub");
+                appendStringOutput(L, result, s + srcPos, static_cast<usize>(matchEnd - (s + srcPos)), "gsub");
             }
             // 若为空匹配，则前进一个位置
             if (matchEnd == s + srcPos) {
@@ -1443,7 +1437,9 @@ public:
         bytes(encoded, sizeof(encoded));
     }
 
-    void i32Value(i32 value) { u32Value(static_cast<u32>(value)); }
+    void i32Value(i32 value) {
+        u32Value(static_cast<u32>(value));
+    }
 
     void u64Value(u64 value) {
         char encoded[8];
@@ -1506,13 +1502,17 @@ public:
         byte(function->getNumUpvalues());
 
         size(function->getInstructionCount());
-        for (Instruction instruction : function->getCode()) u32Value(instruction);
+        for (Instruction instruction : function->getCode())
+            u32Value(instruction);
         size(function->getConstantCount());
-        for (usize i = 0; i < function->getConstantCount(); ++i) constant(function->getConstant(i));
+        for (usize i = 0; i < function->getConstantCount(); ++i)
+            constant(function->getConstant(i));
         size(function->getSubProtoCount());
-        for (usize i = 0; i < function->getSubProtoCount(); ++i) proto(function->getSubProto(i), depth + 1);
+        for (usize i = 0; i < function->getSubProtoCount(); ++i)
+            proto(function->getSubProto(i), depth + 1);
         size(function->getLineInfo().size());
-        for (i32 line : function->getLineInfo()) i32Value(line);
+        for (i32 line : function->getLineInfo())
+            i32Value(line);
         size(function->getLocVarCount());
         for (usize i = 0; i < function->getLocVarCount(); ++i) {
             const LocVar& local = function->getLocVar(i);
@@ -1522,7 +1522,8 @@ public:
             i32Value(local.reg);
         }
         size(function->getUpvalueNameCount());
-        for (usize i = 0; i < function->getUpvalueNameCount(); ++i) maybeString(function->getUpvalueName(i));
+        for (usize i = 0; i < function->getUpvalueNameCount(); ++i)
+            maybeString(function->getUpvalueName(i));
     }
 
 private:

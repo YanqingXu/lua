@@ -33,11 +33,11 @@ Str getConfiguredPrompt(LuaState* L, bool firstLine) {
     return defaultPrompt;
 }
 
-}  // namespace
+} // namespace
 
 Str getPrompt(LuaState* L, bool firstLine, usize lineNumber) {
     (void)lineNumber;
     return getConfiguredPrompt(L, firstLine);
 }
 
-}  // namespace Lua::REPL::detail
+} // namespace Lua::REPL::detail

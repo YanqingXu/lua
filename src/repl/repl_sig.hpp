@@ -58,11 +58,10 @@ bool isInputTerminal();
  * @param completionHandler 补全回调
  * @return 控制台读取状态
  */
-ConsoleReadStatus readInteractiveConsoleLine(LuaState* L, const Str& prompt, Str& line,
-                                             std::ostream& out,
+ConsoleReadStatus readInteractiveConsoleLine(LuaState* L, const Str& prompt, Str& line, std::ostream& out,
                                              CompletionHandler completionHandler);
 
-}  // namespace REPL::detail
-}  // namespace Lua
+} // namespace REPL::detail
+} // namespace Lua
 
-#endif  // LUA_REPL_SIG_HPP
+#endif // LUA_REPL_SIG_HPP

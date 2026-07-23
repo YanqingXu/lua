@@ -20,8 +20,8 @@ namespace Lua {
 Stack::Stack(usize initialSize, LuaAllocator* allocator, const ResourcePolicy* resourcePolicy)
     : stack_(LuaStdAllocator<Value>(allocator)), top_(0), resourcePolicy_(resourcePolicy) {
     const usize requested = std::max(initialSize, MIN_STACK_SIZE);
-    const usize limit = resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE)
-                                                   : MAX_STACK_SIZE;
+    const usize limit =
+        resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE) : MAX_STACK_SIZE;
     stack_.resize(std::min(requested, limit));
 }
 
@@ -30,8 +30,8 @@ Stack::Stack(usize initialSize, LuaAllocator* allocator, const ResourcePolicy* r
 // =====================================================================
 
 void Stack::checkSpace(usize needed) {
-    const usize limit = resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE)
-                                                   : MAX_STACK_SIZE;
+    const usize limit =
+        resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE) : MAX_STACK_SIZE;
     if (top_ > limit || needed > limit - top_) {
         throw StackOverflowError("stack overflow: resource stack slot limit exceeded");
     }
@@ -44,8 +44,8 @@ void Stack::checkSpace(usize needed) {
 }
 
 void Stack::checkLimit(usize newTop) const {
-    const usize limit = resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE)
-                                                   : MAX_STACK_SIZE;
+    const usize limit =
+        resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE) : MAX_STACK_SIZE;
     if (newTop > limit) {
         throw StackOverflowError("stack overflow: resource stack slot limit exceeded");
     }
@@ -109,8 +109,8 @@ const Value& Stack::at(usize index) const {
 // =====================================================================
 
 void Stack::ensureSpace(usize needed) {
-    const usize limit = resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE)
-                                                   : MAX_STACK_SIZE;
+    const usize limit =
+        resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE) : MAX_STACK_SIZE;
     if (top_ > limit || needed > limit - top_) {
         throw StackOverflowError("stack overflow: resource stack slot limit exceeded");
     }
@@ -129,8 +129,8 @@ void Stack::ensureSpace(usize needed) {
 void Stack::setTop(usize newTop) {
     checkLimit(newTop);
     if (newTop > stack_.size()) {
-        const usize limit = resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE)
-                                                       : MAX_STACK_SIZE;
+        const usize limit =
+            resourcePolicy_ != nullptr ? std::min(resourcePolicy_->maxStackSlots, MAX_STACK_SIZE) : MAX_STACK_SIZE;
         const usize newCapacity = newTop > limit - std::min(limit, EXTRA_STACK) ? limit : newTop + EXTRA_STACK;
 
         // 需要扩展栈
