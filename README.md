@@ -330,7 +330,7 @@ using ValueData = std::variant<
 质量门统一编排 `clang-format`、`clang-tidy`、文档漂移检查和测试执行，并由 GitHub Actions 在持续集成中复用；`tools/run_quality_gate.ps1` 是本地与 CI 的共同入口。
 本地发布前应使用 `-Strict`：环境中缺少 `git`、格式/静态分析工具、MSBuild 或测试产物时会立即失败；`-SkipBuild`、`-SkipClangTidy` 和 `-FormatScope Off` 仍是调用者可见的显式裁剪，不会被误报为环境完整。
 仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan/TSan、严格兼容性、fuzz、coverage、ARM64/macOS 和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，普通指标先计算每次独立运行的样本中位数，再计算每个相邻 base/head pair 的相对变化，并以配对变化的中位数判定；GC P99 池化各次运行的 pause 样本后使用最近秩。若 `CMakeLists.txt`、`cmake/` 与 `src/` 在 base/head 完全等价，比较仍保留全部样本和越线记录，但以 `equivalent-runtime-inputs` 给出确定性结论；若运行时输入确有变化且三对样本同时出现阈值内/阈值外结果，则自动增加两对确认采样，再以五对中位数作最终判定。现有 VM 指令吞吐、C++↔Lua、coroutine、closure/upvalue 与 GC P99 的版本化预算均未放宽，持续回归仍直接失败。私有仓库当前套餐无法启用 required-check 分支保护；branch-protection 与 rulesets API 均返回需升级 GitHub Pro 或公开仓库，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
-[Actions run 30000455395](https://github.com/YanqingXu/lua/actions/runs/30000455395) 为 `main` 提交 `94b694b` 保留了 17/17 jobs 全绿证据。首轮唯一失败是运行时源码完全等价时由 Hosted Runner 非对称调度造成的 benchmark 误报，原阈值下的独立重跑通过；失败与成功 artifact 均保留，该真实模式由 [#15](https://github.com/YanqingXu/lua/issues/15) 及上述确认策略跟踪。
+[Actions run 30000455395](https://github.com/YanqingXu/lua/actions/runs/30000455395) 在提交 `94b694b` 上保留了运行时源码等价却发生 benchmark 非对称误报的失败/成功对照 artifact。随后提交 `6f571cc` 引入上述 schema v3 策略，并在 [Actions run 30004681771](https://github.com/YanqingXu/lua/actions/runs/30004681771) 首轮取得 17/17 jobs 全绿；benchmark artifact `8562573583` 明确记录 `equivalent-runtime-inputs`、空输入差异和三对样本。对应 [#15](https://github.com/YanqingXu/lua/issues/15) 已关闭。
 
 ```powershell
 bin\lua_test.exe
