@@ -1,10 +1,18 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "minimumRunsPerRevision": 3,
+  "confirmationRunsPerRevision": 2,
+  "maximumRunsPerRevision": 5,
   "executionOrder": "alternating-base-head-on-the-same-runner",
   "sampleAggregation": "median-of-run-medians",
   "regressionAggregation": "median-of-paired-run-regressions",
   "gcPauseAggregation": "pooled-nearest-rank-p99",
+  "noisePolicy": "confirm-mixed-paired-threshold-outcomes",
+  "runtimeInputPaths": [
+    "CMakeLists.txt",
+    "cmake",
+    "src"
+  ],
   "metrics": [
     {
       "name": "vm_instructions_per_second",

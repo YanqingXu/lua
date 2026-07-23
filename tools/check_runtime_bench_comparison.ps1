@@ -13,7 +13,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutputPath,
 
-    [switch]$AllowSameRevision
+    [switch]$AllowSameRevision,
+
+    [switch]$DoNotThrowOnRegression
 )
 
 $ErrorActionPreference = "Stop"
@@ -145,7 +147,7 @@ function Get-PairedRegression {
 }
 
 $policy = Get-Content -Raw -LiteralPath (Resolve-Path -LiteralPath $PolicyPath).Path | ConvertFrom-Json
-Assert-Comparison ($policy.schemaVersion -eq 2) "policy schemaVersion must be 2"
+Assert-Comparison ($policy.schemaVersion -eq 3) "policy schemaVersion must be 3"
 Assert-Comparison ($policy.executionOrder -eq "alternating-base-head-on-the-same-runner") `
     "policy must require alternating execution on one runner"
 Assert-Comparison ($policy.sampleAggregation -eq "median-of-run-medians") `
@@ -154,12 +156,25 @@ Assert-Comparison ($policy.regressionAggregation -eq "median-of-paired-run-regre
     "policy must require median-of-paired-run-regressions"
 Assert-Comparison ($policy.gcPauseAggregation -eq "pooled-nearest-rank-p99") `
     "policy must require pooled nearest-rank GC P99 aggregation"
+Assert-Comparison ($policy.noisePolicy -eq "confirm-mixed-paired-threshold-outcomes") `
+    "policy must require mixed-outcome confirmation sampling"
 $minimumRuns = [int]$policy.minimumRunsPerRevision
+$confirmationRuns = [int]$policy.confirmationRunsPerRevision
+$maximumRuns = [int]$policy.maximumRunsPerRevision
 Assert-Comparison ($minimumRuns -ge 3) "policy must require at least three runs per revision"
+Assert-Comparison ($confirmationRuns -ge 2) "policy must require at least two confirmation runs"
+Assert-Comparison ($maximumRuns -eq ($minimumRuns + $confirmationRuns)) `
+    "policy maximum runs must equal initial plus confirmation runs"
+$runtimeInputPaths = @($policy.runtimeInputPaths | ForEach-Object { [string]$_ })
+Assert-Comparison ($runtimeInputPaths.Count -gt 0) "policy must define runtime input paths"
+Assert-Comparison ((@($runtimeInputPaths | Select-Object -Unique)).Count -eq $runtimeInputPaths.Count) `
+    "policy contains duplicate runtime input paths"
 
 $baseReports = @(Read-Reports -Paths $BaseResultPath -RevisionName "base" -MinimumRuns $minimumRuns)
 $headReports = @(Read-Reports -Paths $HeadResultPath -RevisionName "head" -MinimumRuns $minimumRuns)
 Assert-Comparison ($baseReports.Count -eq $headReports.Count) "base and head run counts differ"
+Assert-Comparison (($baseReports.Count -eq $minimumRuns) -or ($baseReports.Count -eq $maximumRuns)) `
+    "comparison must contain either initial or fully confirmed run counts"
 
 $baseSha = [string]$baseReports[0].git_sha
 $headSha = [string]$headReports[0].git_sha
@@ -184,10 +199,23 @@ foreach ($report in @($baseReports) + @($headReports)) {
 }
 
 $manifest = Get-Content -Raw -LiteralPath (Resolve-Path -LiteralPath $RunManifestPath).Path | ConvertFrom-Json
-Assert-Comparison ($manifest.schemaVersion -eq 1) "run manifest schemaVersion must be 1"
+Assert-Comparison ($manifest.schemaVersion -eq 2) "run manifest schemaVersion must be 2"
 Assert-Comparison ($manifest.baseSha -eq $baseSha) "run manifest base SHA differs from evidence"
 Assert-Comparison ($manifest.headSha -eq $headSha) "run manifest head SHA differs from evidence"
 Assert-Comparison ([int64]$manifest.runnerPid -gt 0) "run manifest is missing its orchestrator process identity"
+$manifestRuntimeInputPaths = @($manifest.runtimeInputPaths | ForEach-Object { [string]$_ })
+Assert-Comparison (($manifestRuntimeInputPaths -join "`n") -eq ($runtimeInputPaths -join "`n")) `
+    "run manifest runtime input paths differ from policy"
+$runtimeInputDiffPaths = @($manifest.runtimeInputDiffPaths | ForEach-Object { [string]$_ } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+$runtimeInputsEquivalent = [bool]$manifest.runtimeInputsEquivalent
+$confirmationTriggered = [bool]$manifest.confirmationTriggered
+Assert-Comparison (($runtimeInputsEquivalent -and ($runtimeInputDiffPaths.Count -eq 0)) -or
+    ((-not $runtimeInputsEquivalent) -and ($runtimeInputDiffPaths.Count -gt 0))) `
+    "run manifest runtime input equivalence contradicts its diff paths"
+Assert-Comparison ((($baseReports.Count -eq $minimumRuns) -and (-not $confirmationTriggered)) -or
+    (($baseReports.Count -eq $maximumRuns) -and $confirmationTriggered)) `
+    "run manifest confirmation state contradicts its sample count"
 $manifestRuns = @($manifest.runs)
 Assert-Comparison ($manifestRuns.Count -eq (2 * $baseReports.Count)) "run manifest has the wrong sample count"
 $manifestBasePaths = @()
@@ -226,7 +254,8 @@ Assert-Comparison (($manifestHeadPaths -join "`n") -eq ($resolvedHeadPaths -join
     "run manifest head result paths differ from the compared evidence"
 
 $metricResults = @()
-$failures = @()
+$thresholdFailures = @()
+$mixedFailingMetrics = @()
 $seenMetrics = @{}
 foreach ($metricPolicy in @($policy.metrics)) {
     $name = [string]$metricPolicy.name
@@ -247,16 +276,25 @@ foreach ($metricPolicy in @($policy.metrics)) {
         $regression = Get-RegressionRatio -Base $base.Value -Head $head.Value -Direction $direction
         $pairedRunCount = 0
         $pairedRegressionRatios = @()
+        $pairedRunsWithinLimit = 0
+        $pairedRunsOverLimit = 0
+        $pairedOutcomeMixed = $false
     } else {
         $paired = Get-PairedRegression -BaseReports $baseReports -HeadReports $headReports -Name $name `
             -Direction $direction
         $regression = $paired.Value
         $pairedRunCount = $paired.SampleCount
         $pairedRegressionRatios = @($paired.Ratios)
+        $pairedRunsWithinLimit = @($pairedRegressionRatios | Where-Object { $_ -le $limit }).Count
+        $pairedRunsOverLimit = @($pairedRegressionRatios | Where-Object { $_ -gt $limit }).Count
+        $pairedOutcomeMixed = ($pairedRunsWithinLimit -gt 0) -and ($pairedRunsOverLimit -gt 0)
     }
     $passed = $regression -le $limit
     if (-not $passed) {
-        $failures += "$name regression $([Math]::Round(100.0 * $regression, 2))% exceeds $([Math]::Round(100.0 * $limit, 2))%"
+        $thresholdFailures += "$name regression $([Math]::Round(100.0 * $regression, 2))% exceeds $([Math]::Round(100.0 * $limit, 2))%"
+        if ($pairedOutcomeMixed) {
+            $mixedFailingMetrics += $name
+        }
     }
     $metricResults += [ordered]@{
         name                    = $name
@@ -268,25 +306,55 @@ foreach ($metricPolicy in @($policy.metrics)) {
         regressionRatio         = $regression
         pairedRunCount          = $pairedRunCount
         pairedRegressionRatios  = $pairedRegressionRatios
+        pairedRunsWithinLimit    = $pairedRunsWithinLimit
+        pairedRunsOverLimit      = $pairedRunsOverLimit
+        pairedOutcomeMixed       = $pairedOutcomeMixed
         maximumRegressionRatio  = $limit
         passed                  = $passed
     }
 }
 
+$confirmationRecommended = (-not $runtimeInputsEquivalent) -and
+    ($baseReports.Count -eq $minimumRuns) -and ($mixedFailingMetrics.Count -gt 0)
+$effectiveFailures = @($thresholdFailures)
+if ($runtimeInputsEquivalent) {
+    $effectiveFailures = @()
+}
+$decision = if ($runtimeInputsEquivalent) {
+    "equivalent-runtime-inputs"
+} elseif ($thresholdFailures.Count -eq 0) {
+    "thresholds-passed"
+} elseif ($confirmationRecommended) {
+    "confirmation-required"
+} else {
+    "thresholds-failed"
+}
+
 $evidence = [ordered]@{
-    schemaVersion          = 2
-    success                = $failures.Count -eq 0
+    schemaVersion          = 3
+    success                = $effectiveFailures.Count -eq 0
+    decision               = $decision
     baseSha                = $baseSha
     headSha                = $headSha
     compiler               = $referenceCompiler
     os                     = $referenceOs
     runsPerRevision        = $baseReports.Count
+    minimumRunsPerRevision = $minimumRuns
+    maximumRunsPerRevision = $maximumRuns
     executionOrder         = $policy.executionOrder
     sampleAggregation      = $policy.sampleAggregation
     regressionAggregation = $policy.regressionAggregation
     gcPauseAggregation     = $policy.gcPauseAggregation
+    noisePolicy            = $policy.noisePolicy
+    runtimeInputPaths      = $runtimeInputPaths
+    runtimeInputDiffPaths  = $runtimeInputDiffPaths
+    runtimeInputsEquivalent = $runtimeInputsEquivalent
+    confirmationTriggered  = $confirmationTriggered
+    confirmationRecommended = $confirmationRecommended
+    mixedFailingMetrics    = $mixedFailingMetrics
     metrics                = $metricResults
-    failures               = $failures
+    observedThresholdFailures = $thresholdFailures
+    failures               = $effectiveFailures
 }
 $outputParent = Split-Path -Parent $OutputPath
 if (-not [string]::IsNullOrWhiteSpace($outputParent)) {
@@ -294,11 +362,11 @@ if (-not [string]::IsNullOrWhiteSpace($outputParent)) {
 }
 $evidence | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $OutputPath -Encoding utf8
 
-if ($failures.Count -gt 0) {
-    throw "Runtime benchmark comparison failed: $($failures -join '; ')"
+if (($effectiveFailures.Count -gt 0) -and (-not $DoNotThrowOnRegression)) {
+    throw "Runtime benchmark comparison failed: $($effectiveFailures -join '; ')"
 }
 
-Write-Host "Runtime benchmark base-vs-head comparison passed."
+Write-Host "Runtime benchmark base-vs-head comparison decision: $decision"
 Write-Host "  Base: $baseSha"
 Write-Host "  Head: $headSha"
 Write-Host "  Runs per revision: $($baseReports.Count)"
