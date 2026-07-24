@@ -424,6 +424,19 @@ public:
     void clearAll(StringPool& stringPool);
 
     /**
+     * @brief Run every remaining userdata finalizer during runtime shutdown.
+     *
+     * Unlike an ordinary
+     * collection, shutdown must visit reachable userdata
+     * as well.  The implementation consumes its existing
+     * queues in place so
+     * lua_close can remain noexcept even while the host allocator is failing.
+     * Errors
+     * from one finalizer are contained and do not suppress the rest.
+     */
+    void finalizeAll(LuaState* state) noexcept;
+
+    /**
      * @brief 打印GC统计信息（调试用）
      */
     void printStatistics() const;
@@ -585,6 +598,11 @@ private:
      * @brief 运行本轮收集期间排队的终结器
      */
     void runFinalizers(LuaState* state);
+
+    /**
+     * @brief Invoke one userdata finalizer and restore the caller state.
+     */
+    void callFinalizer(LuaState* state, Userdata* userdata);
 
     // =====================================================================
     // 数据成员

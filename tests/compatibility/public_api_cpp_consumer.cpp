@@ -18,6 +18,7 @@ int main() {
     static_assert(noexcept(lua_checkstack(nullptr, 0)));
     static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
     static_assert(noexcept(lua_newthread(nullptr)));
+    static_assert(noexcept(lua_close(nullptr)));
     static_assert(noexcept(lua_resume(nullptr, 0)));
     static_assert(noexcept(lua_load(nullptr, nullptr, nullptr, nullptr)));
     static_assert(noexcept(lua_dump(nullptr, nullptr, nullptr)));

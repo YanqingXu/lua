@@ -49,7 +49,7 @@ typedef int (*lua_Writer)(lua_State* L, const void* data, size_t size, void* use
 
 lua_State* lua_newstate(lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;
 lua_State* lua_open(void) LUA_CXX_MAY_THROW;
-void lua_close(lua_State* L) LUA_CXX_MAY_THROW;
+void lua_close(lua_State* L) LUA_CXX_NOEXCEPT;
 lua_Alloc lua_getallocf(lua_State* L, void** ud) LUA_CXX_MAY_THROW;
 void lua_setallocf(lua_State* L, lua_Alloc f, void* ud) LUA_CXX_MAY_THROW;
 

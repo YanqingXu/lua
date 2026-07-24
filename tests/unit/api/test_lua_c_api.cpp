@@ -34,6 +34,7 @@ static_assert(!noexcept(lua_xmove(nullptr, nullptr, 0)));
 static_assert(!noexcept(lua_call(nullptr, 0, 0)));
 static_assert(!noexcept(lua_error(nullptr)));
 static_assert(!noexcept(luaL_error(nullptr, "%s", "error")));
+static_assert(noexcept(lua_close(nullptr)));
 static_assert(noexcept(lua_checkstack(nullptr, 0)));
 static_assert(noexcept(lua_pcall(nullptr, 0, 0, 0)));
 static_assert(noexcept(lua_newthread(nullptr)));
@@ -48,6 +49,9 @@ constexpr const char* kProtectedApiExceptionMessage = "unhandled C++ exception i
 
 int gApiFinalizerCalls = 0;
 int gApiFinalizerPayload = 0;
+int gCloseFinalizerCalls = 0;
+int gCloseFinalizerPayload = 0;
+int gFailingCloseFinalizerCalls = 0;
 int gApiErrorToken = 0;
 int gApiHandlerCalls = 0;
 void* gApiHandlerErrorObject = nullptr;
@@ -201,6 +205,31 @@ int recordUserdataFinalizer(lua_State* L) {
         gApiFinalizerPayload = *static_cast<int*>(payload);
     }
     return 0;
+}
+
+int recordCloseUserdataFinalizer(lua_State* L) {
+    ++gCloseFinalizerCalls;
+    void* payload = lua_touserdata(L, 1);
+    if (payload != nullptr && lua_objlen(L, 1) >= sizeof(int)) {
+        gCloseFinalizerPayload += *static_cast<int*>(payload);
+    }
+    return 0;
+}
+
+int failCloseUserdataFinalizer(lua_State* L) {
+    ++gFailingCloseFinalizerCalls;
+    lua_pushstring(L, "intentional close finalizer failure");
+    return lua_error(L);
+}
+
+void pushCloseFinalizedUserdata(lua_State* L, int payload, lua_CFunction finalizer) {
+    void* storage = lua_newuserdata(L, sizeof(payload));
+    *static_cast<int*>(storage) = payload;
+    lua_newtable(L);
+    lua_pushstring(L, "__gc");
+    lua_pushcclosure(L, finalizer, 0);
+    lua_settable(L, -3);
+    (void)lua_setmetatable(L, -2);
 }
 
 int raiseLightUserdataError(lua_State* L) {
@@ -841,6 +870,92 @@ void testUserdataFinalizerThroughCApi(TestSuite& suite) {
     ASSERT_EQ(suite, 1, gApiFinalizerCalls, "userdata finalizer does not run twice");
 
     lua_close(L);
+}
+
+void testCloseFinalizerSemantics(TestSuite& suite) {
+    gCloseFinalizerCalls = 0;
+    gCloseFinalizerPayload = 0;
+    {
+        lua_State* L = lua_open();
+        pushCloseFinalizedUserdata(L, 101, recordCloseUserdataFinalizer);
+
+        // Keep the userdata reachable.  lua_close finalizes the whole runtime,
+        // not only objects that an ordinary collection considers garbage.
+        lua_close(L);
+    }
+    ASSERT_EQ(suite, 1, gCloseFinalizerCalls, "lua_close runs an uncollected reachable userdata finalizer once");
+    ASSERT_EQ(suite, 101, gCloseFinalizerPayload, "close-time finalizer receives its userdata payload");
+
+    gCloseFinalizerCalls = 0;
+    gCloseFinalizerPayload = 0;
+    gFailingCloseFinalizerCalls = 0;
+    {
+        lua_State* L = lua_open();
+        pushCloseFinalizedUserdata(L, 202, recordCloseUserdataFinalizer);
+        pushCloseFinalizedUserdata(L, 0, failCloseUserdataFinalizer);
+        lua_close(L);
+    }
+    ASSERT_EQ(suite, 1, gFailingCloseFinalizerCalls, "lua_close invokes a failing finalizer once");
+    ASSERT_EQ(suite, 1, gCloseFinalizerCalls, "one close-time finalizer error does not suppress later finalizers");
+    ASSERT_EQ(suite, 202, gCloseFinalizerPayload, "later close-time finalizer still receives its payload");
+
+    gCloseFinalizerCalls = 0;
+    gCloseFinalizerPayload = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* mainState = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, mainState != nullptr, "coroutine close test creates allocator-backed state");
+        pushCloseFinalizedUserdata(mainState, 303, recordCloseUserdataFinalizer);
+        lua_State* coroutine = lua_newthread(mainState);
+        ASSERT_TRUE(suite, coroutine != nullptr, "coroutine close test creates child state");
+
+        bool closeThrew = false;
+        try {
+            lua_close(coroutine);
+        } catch (...) {
+            closeThrew = true;
+        }
+        ASSERT_TRUE(suite, !closeThrew, "lua_close(coroutine) safely closes the owning runtime");
+        ASSERT_EQ(suite, 1, gCloseFinalizerCalls, "coroutine close runs runtime finalizers");
+        ASSERT_EQ(suite, 303, gCloseFinalizerPayload, "coroutine close finalizer receives its payload");
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "coroutine close releases the main state and every child allocation");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
+                  "coroutine close returns allocator live bytes to zero");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "coroutine close preserves allocator old-size contracts");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
+                  "coroutine close frees each allocator block once");
+    }
+
+    gCloseFinalizerCalls = 0;
+    gCloseFinalizerPayload = 0;
+    {
+        AllocatorLedger ledger;
+        AllocatorProbe probe{&ledger};
+        lua_State* L = lua_newstate(trackingLuaAllocator, &probe);
+        ASSERT_TRUE(suite, L != nullptr, "persistent-OOM close test creates allocator-backed state");
+        pushCloseFinalizedUserdata(L, 404, recordCloseUserdataFinalizer);
+        probe.failFromAllocation = probe.allocationAttempts + 1;
+
+        bool closeThrew = false;
+        try {
+            lua_close(L);
+        } catch (...) {
+            closeThrew = true;
+        }
+        ASSERT_TRUE(suite, !closeThrew, "persistent allocator OOM cannot escape lua_close");
+        ASSERT_EQ(suite, 1, gCloseFinalizerCalls,
+                  "already-owned close stack storage runs a C finalizer during persistent OOM");
+        ASSERT_EQ(suite, 404, gCloseFinalizerPayload, "persistent-OOM finalizer receives its payload");
+        ASSERT_TRUE(suite, ledger.blocks.empty(), "persistent-OOM close releases every allocator-backed block");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.liveBytes,
+                  "persistent-OOM close returns allocator live bytes to zero");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.sizeMismatches,
+                  "persistent-OOM close preserves allocator old-size contracts");
+        ASSERT_EQ(suite, static_cast<size_t>(0), ledger.unknownFrees,
+                  "persistent-OOM close frees each allocator block once");
+    }
 }
 
 void testProtectedCallRestoresStackAndPreservesErrorObject(TestSuite& suite) {
@@ -2036,6 +2151,7 @@ void registerLuaCApiTests() {
     registry.registerTest(kSuiteName, "previously unprobed public contract symbols",
                           testPreviouslyUnprobedPublicContractSymbols);
     registry.registerTest(kSuiteName, "userdata finalizer through C API", testUserdataFinalizerThroughCApi);
+    registry.registerTest(kSuiteName, "lua_close finalizer and coroutine semantics", testCloseFinalizerSemantics);
     registry.registerTest(kSuiteName, "protected call stack and error object",
                           testProtectedCallRestoresStackAndPreservesErrorObject);
     registry.registerTest(kSuiteName, "protected call error handlers", testProtectedCallErrorHandlers);

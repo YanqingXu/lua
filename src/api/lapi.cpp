@@ -364,8 +364,23 @@ lua_State* lua_open(void) LUA_CXX_MAY_THROW {
     return lua_newstate(nullptr, nullptr);
 }
 
-void lua_close(lua_State* L) LUA_CXX_MAY_THROW {
-    Lua::LuaState::destroyState(fromC(L));
+void lua_close(lua_State* L) LUA_CXX_NOEXCEPT {
+    Lua::LuaState* state = fromC(L);
+    if (state == nullptr) {
+        return;
+    }
+
+    Lua::GlobalState& globalState = state->getGlobalState();
+    Lua::LuaState* mainState = globalState.getMainThread();
+    if (mainState == nullptr) {
+        mainState = state;
+    }
+
+    // Lua 5.1 closes the whole runtime even when the caller supplies a
+    // coroutine state.  Run every remaining __gc while the main state and
+    // native module registry are still alive, then release the root owner.
+    globalState.getGC().finalizeAll(mainState);
+    Lua::LuaState::destroyState(mainState);
 }
 
 lua_Alloc lua_getallocf(lua_State* L, void** userData) LUA_CXX_MAY_THROW {
