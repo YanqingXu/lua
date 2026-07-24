@@ -1298,7 +1298,7 @@ static bool stopOnDefinitiveReaderSyntaxError(LuaState* L, StringPool& pool, Run
 // loadstring(string [, chunkname]) - 编译字符串为函数
 // =====================================================================
 
-i32 luaB_loadstring(LuaState* L) {
+static i32 loadstringImpl(LuaState* L, bool enforceSandbox) {
     auto& pool = L->getGlobalState().getStringPool();
     i32 nargs = L->getTop();
     if (nargs < 1) {
@@ -1331,7 +1331,9 @@ i32 luaB_loadstring(LuaState* L) {
 
     try {
         if (isProjectBinaryChunk(StrView(code.data(), code.size()))) {
-            L->requireSandboxCapability(SandboxCapability::BinaryChunks);
+            if (enforceSandbox) {
+                L->requireSandboxCapability(SandboxCapability::BinaryChunks);
+            }
             Function* func = loadBinaryChunk(L, StrView(code.data(), code.size()));
             L->setTop(0);
             L->pushValue(Value(func));
@@ -1339,7 +1341,9 @@ i32 luaB_loadstring(LuaState* L) {
             return 1;
         }
 
-        L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
+        if (enforceSandbox) {
+            L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
+        }
 
         RuntimeServices services(L->getGlobalState());
 
@@ -1395,12 +1399,22 @@ i32 luaB_loadstring(LuaState* L) {
     }
 }
 
+i32 luaB_loadstring(LuaState* L) {
+    return loadstringImpl(L, true);
+}
+
+i32 luaB_loadstringTrusted(LuaState* L) {
+    return loadstringImpl(L, false);
+}
+
 // =====================================================================
 // loadfile([filename]) - 编译文件为函数
 // =====================================================================
 
-i32 luaB_loadfile(LuaState* L) {
-    L->requireSandboxCapability(SandboxCapability::Filesystem);
+static i32 loadfileImpl(LuaState* L, bool enforceSandbox) {
+    if (enforceSandbox) {
+        L->requireSandboxCapability(SandboxCapability::Filesystem);
+    }
     auto& pool = L->getGlobalState().getStringPool();
     i32 nargs = L->getTop();
     Str displayName = (nargs < 1 || L->isNil(1)) ? Str("stdin") : Str();
@@ -1500,14 +1514,18 @@ i32 luaB_loadfile(LuaState* L) {
         StrView loadSource(source.data(), source.size());
         StrView binarySource = skipInitialHashCommentLine(loadSource);
         if (isProjectBinaryChunk(binarySource)) {
-            L->requireSandboxCapability(SandboxCapability::BinaryChunks);
+            if (enforceSandbox) {
+                L->requireSandboxCapability(SandboxCapability::BinaryChunks);
+            }
             Function* func = loadBinaryChunk(L, binarySource);
             L->setTop(0);
             L->pushValue(Value(func));
             return 1;
         }
 
-        L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
+        if (enforceSandbox) {
+            L->requireSandboxCapability(SandboxCapability::RuntimeCompilation);
+        }
 
         RuntimeServices services(L->getGlobalState());
 
@@ -1558,6 +1576,14 @@ i32 luaB_loadfile(LuaState* L) {
         L->pushString(pool.intern(errorMsg.c_str()));
         return 2;
     }
+}
+
+i32 luaB_loadfile(LuaState* L) {
+    return loadfileImpl(L, true);
+}
+
+i32 luaB_loadfileTrusted(LuaState* L) {
+    return loadfileImpl(L, false);
 }
 
 // =====================================================================

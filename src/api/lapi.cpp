@@ -5,6 +5,7 @@
 
 #include "lua.h"
 #include "lauxlib.h"
+#include "lua_runtime.h"
 #include "lualib.h"
 
 #include "common/lua_error.hpp"
@@ -19,12 +20,15 @@
 #include "lib/lib_manager.hpp"
 #include "lib/baselib.hpp"
 #include "lib/stringlib.hpp"
+#include "runtime/runtime_configuration.hpp"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
 #include "vm/vm_internal.hpp"
 
 #include <algorithm>
+#include <chrono>
+#include <cstdint>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -57,6 +61,12 @@ static lua_State* toC(Lua::LuaState* L) {
     return reinterpret_cast<lua_State*>(L);
 }
 
+struct lua_CancellationHandle {
+    explicit lua_CancellationHandle(Lua::ExecutionCancellationHandle value) noexcept : value(std::move(value)) {}
+
+    Lua::ExecutionCancellationHandle value;
+};
+
 namespace {
 
 void* defaultLuaAllocator(void*, void* pointer, size_t, size_t newSize) {
@@ -65,6 +75,132 @@ void* defaultLuaAllocator(void*, void* pointer, size_t, size_t newSize) {
         return {};
     }
     return std::realloc(pointer, newSize);
+}
+
+void setRuntimeStatus(int* runtimeStatus, int value) noexcept {
+    if (runtimeStatus != nullptr) {
+        *runtimeStatus = value;
+    }
+}
+
+Lua::ExecutionPolicy::Clock::time_point deadlineFromTimeout(std::uint64_t timeoutMilliseconds) noexcept {
+    using Clock = Lua::ExecutionPolicy::Clock;
+    if (timeoutMilliseconds == LUA_RUNTIME_NO_TIMEOUT) {
+        return Clock::time_point::max();
+    }
+
+    const Clock::time_point now = Clock::now();
+    const auto available = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::time_point::max() - now);
+    const auto availableCount = available.count();
+    if (availableCount < 0 || timeoutMilliseconds > static_cast<std::uint64_t>(availableCount)) {
+        return Clock::time_point::max();
+    }
+    return now + std::chrono::milliseconds(static_cast<std::chrono::milliseconds::rep>(timeoutMilliseconds));
+}
+
+int validateRuntimeConfig(const lua_RuntimeConfig* config) noexcept {
+    if (config == nullptr) {
+        return LUA_RUNTIME_ERR_ARGUMENT;
+    }
+    if (config->struct_size != sizeof(lua_RuntimeConfig) || config->api_version != LUA_RUNTIME_API_VERSION) {
+        return LUA_RUNTIME_ERR_VERSION;
+    }
+    if ((config->standard_libraries & ~static_cast<std::uint32_t>(LUA_RUNTIME_LIB_ALL)) != 0 ||
+        (config->capabilities & ~static_cast<std::uint32_t>(LUA_RUNTIME_CAP_ALL)) != 0) {
+        return LUA_RUNTIME_ERR_ARGUMENT;
+    }
+    if (config->max_stack_slots < static_cast<size_t>(LUA_MINSTACK + 1)) {
+        return LUA_RUNTIME_ERR_ARGUMENT;
+    }
+    return LUA_RUNTIME_OK;
+}
+
+int validateExecutionLimits(const lua_RuntimeExecutionLimits* limits) noexcept {
+    if (limits == nullptr) {
+        return LUA_RUNTIME_ERR_ARGUMENT;
+    }
+    if (limits->struct_size != sizeof(lua_RuntimeExecutionLimits) || limits->api_version != LUA_RUNTIME_API_VERSION) {
+        return LUA_RUNTIME_ERR_VERSION;
+    }
+    return LUA_RUNTIME_OK;
+}
+
+int validateRuntimeMetrics(const lua_RuntimeMetrics* metrics) noexcept {
+    if (metrics == nullptr) {
+        return LUA_RUNTIME_ERR_ARGUMENT;
+    }
+    if (metrics->struct_size != sizeof(lua_RuntimeMetrics) || metrics->api_version != LUA_RUNTIME_API_VERSION) {
+        return LUA_RUNTIME_ERR_VERSION;
+    }
+    return LUA_RUNTIME_OK;
+}
+
+std::uint32_t publicStopReason(Lua::ExecutionStopReason reason) noexcept {
+    switch (reason) {
+    case Lua::ExecutionStopReason::None:
+        return LUA_RUNTIME_STOP_NONE;
+    case Lua::ExecutionStopReason::InstructionBudgetExceeded:
+        return LUA_RUNTIME_STOP_INSTRUCTION_BUDGET;
+    case Lua::ExecutionStopReason::NativeWorkBudgetExceeded:
+        return LUA_RUNTIME_STOP_NATIVE_WORK_BUDGET;
+    case Lua::ExecutionStopReason::DeadlineExceeded:
+        return LUA_RUNTIME_STOP_DEADLINE;
+    case Lua::ExecutionStopReason::Cancelled:
+        return LUA_RUNTIME_STOP_CANCELLED;
+    }
+    return LUA_RUNTIME_STOP_NONE;
+}
+
+Lua::RuntimeConfiguration makeRuntimeConfiguration(const lua_RuntimeConfig& config) noexcept {
+    Lua::RuntimeConfiguration result;
+
+    result.sandbox.standardLibraries = static_cast<Lua::StandardLibrarySet>(config.standard_libraries);
+    result.sandbox.filesystem = (config.capabilities & LUA_RUNTIME_CAP_FILESYSTEM) != 0;
+    result.sandbox.process = (config.capabilities & LUA_RUNTIME_CAP_PROCESS) != 0;
+    result.sandbox.nativeModules = (config.capabilities & LUA_RUNTIME_CAP_NATIVE_MODULES) != 0;
+    result.sandbox.runtimeCompilation = (config.capabilities & LUA_RUNTIME_CAP_RUNTIME_COMPILATION) != 0;
+    result.sandbox.binaryChunks = (config.capabilities & LUA_RUNTIME_CAP_BINARY_CHUNKS) != 0;
+    result.sandbox.gcControl = (config.capabilities & LUA_RUNTIME_CAP_GC_CONTROL) != 0;
+
+    result.execution.instructionBudget = config.instruction_budget;
+    result.execution.nativeWorkBudget = config.native_work_budget;
+    result.execution.finalizerBudgetPerDrain = config.finalizer_budget_per_drain;
+    result.execution.deadline = deadlineFromTimeout(config.execution_timeout_ms);
+
+    result.resources.maxStringBytes = config.max_string_bytes;
+    result.resources.maxOutputBytes = config.max_output_bytes;
+    result.resources.maxSourceBytes = config.max_source_bytes;
+    result.resources.maxProtoBytes = config.max_proto_bytes;
+    result.resources.maxTableArraySlots = config.max_table_array_slots;
+    result.resources.maxTableHashEntries = config.max_table_hash_entries;
+    result.resources.maxStackSlots = config.max_stack_slots;
+    result.resources.maxReturnValues = config.max_return_values;
+    result.resources.maxSortElements = config.max_sort_elements;
+    result.resources.maxSortComparisons = config.max_sort_comparisons;
+    result.resources.maxPatternSteps = config.max_pattern_steps;
+    result.resources.maxReaderPieces = config.max_reader_pieces;
+
+    result.compilation.maxSourceBytes = config.max_source_bytes;
+    result.compilation.maxReaderPieces = config.max_reader_pieces;
+    result.compilation.maxTokens = config.max_compilation_tokens;
+    result.compilation.maxAstNodes = config.max_compilation_ast_nodes;
+    result.compilation.maxFunctions = config.max_compilation_functions;
+    result.compilation.maxConstants = config.max_compilation_constants;
+    result.compilation.maxInstructions = config.max_compilation_instructions;
+    result.compilation.maxStringBytes = config.max_string_bytes;
+    result.compilation.maxNesting = config.max_compilation_nesting;
+    result.compilation.deadline.reset();
+
+    return result;
+}
+
+Lua::ExecutionPolicy::Limits makeExecutionLimits(const lua_RuntimeExecutionLimits& limits) noexcept {
+    Lua::ExecutionPolicy::Limits result;
+    result.instructionBudget = limits.instruction_budget;
+    result.nativeWorkBudget = limits.native_work_budget;
+    result.finalizerBudgetPerDrain = limits.finalizer_budget_per_drain;
+    result.deadline = deadlineFromTimeout(limits.timeout_ms);
+    return result;
 }
 
 enum class ApiIndexKind {
@@ -406,9 +542,130 @@ int prepareCFunctionCoroutineEntry(lua_State* L, int nargs) {
 
 extern "C" {
 
+void lua_runtime_config_init(lua_RuntimeConfig* config) LUA_CXX_NOEXCEPT {
+    if (config == nullptr) {
+        return;
+    }
+
+    const Lua::ResourcePolicy resources;
+    const Lua::CompilationPolicy compilation;
+    *config = lua_RuntimeConfig{};
+    config->struct_size = sizeof(lua_RuntimeConfig);
+    config->api_version = LUA_RUNTIME_API_VERSION;
+    config->standard_libraries = LUA_RUNTIME_LIB_ALL;
+    config->capabilities = LUA_RUNTIME_CAP_ALL;
+    config->instruction_budget = LUA_RUNTIME_UNLIMITED;
+    config->native_work_budget = LUA_RUNTIME_UNLIMITED;
+    config->finalizer_budget_per_drain = LUA_RUNTIME_UNLIMITED;
+    config->execution_timeout_ms = LUA_RUNTIME_NO_TIMEOUT;
+    config->max_string_bytes = resources.maxStringBytes;
+    config->max_output_bytes = resources.maxOutputBytes;
+    config->max_source_bytes = resources.maxSourceBytes;
+    config->max_proto_bytes = resources.maxProtoBytes;
+    config->max_table_array_slots = resources.maxTableArraySlots;
+    config->max_table_hash_entries = resources.maxTableHashEntries;
+    config->max_stack_slots = resources.maxStackSlots;
+    config->max_return_values = resources.maxReturnValues;
+    config->max_sort_elements = resources.maxSortElements;
+    config->max_sort_comparisons = resources.maxSortComparisons;
+    config->max_pattern_steps = resources.maxPatternSteps;
+    config->max_reader_pieces = resources.maxReaderPieces;
+    config->max_compilation_tokens = compilation.maxTokens;
+    config->max_compilation_ast_nodes = compilation.maxAstNodes;
+    config->max_compilation_functions = compilation.maxFunctions;
+    config->max_compilation_constants = compilation.maxConstants;
+    config->max_compilation_instructions = compilation.maxInstructions;
+    config->max_compilation_nesting = compilation.maxNesting;
+}
+
+void lua_runtime_config_init_gameserver(lua_RuntimeConfig* config) LUA_CXX_NOEXCEPT {
+    lua_runtime_config_init(config);
+    if (config == nullptr) {
+        return;
+    }
+
+    constexpr size_t Megabyte = 1024U * 1024U;
+    config->standard_libraries = LUA_RUNTIME_LIB_BASE | LUA_RUNTIME_LIB_MATH | LUA_RUNTIME_LIB_STRING |
+                                 LUA_RUNTIME_LIB_TABLE | LUA_RUNTIME_LIB_COROUTINE | LUA_RUNTIME_LIB_PACKAGE;
+    config->capabilities = 0;
+    config->instruction_budget = 10'000'000;
+    config->native_work_budget = 64U * Megabyte;
+    config->finalizer_budget_per_drain = 1024;
+    config->execution_timeout_ms = 5000;
+    config->max_string_bytes = 8U * Megabyte;
+    config->max_output_bytes = 8U * Megabyte;
+    config->max_source_bytes = 8U * Megabyte;
+    config->max_proto_bytes = 8U * Megabyte;
+    config->max_table_array_slots = 250'000;
+    config->max_table_hash_entries = 250'000;
+    config->max_stack_slots = 250'000;
+    config->max_return_values = 100'000;
+    config->max_sort_elements = 250'000;
+    config->max_sort_comparisons = 8'000'000;
+    config->max_pattern_steps = 4'000'000;
+    config->max_reader_pieces = 100'000;
+    config->max_compilation_tokens = 250'000;
+    config->max_compilation_ast_nodes = 250'000;
+    config->max_compilation_functions = 4096;
+    config->max_compilation_constants = 250'000;
+    config->max_compilation_instructions = 250'000;
+    config->max_compilation_nesting = 128;
+}
+
+void lua_runtime_execution_limits_init(lua_RuntimeExecutionLimits* limits) LUA_CXX_NOEXCEPT {
+    if (limits == nullptr) {
+        return;
+    }
+
+    *limits = lua_RuntimeExecutionLimits{};
+    limits->struct_size = sizeof(lua_RuntimeExecutionLimits);
+    limits->api_version = LUA_RUNTIME_API_VERSION;
+    limits->instruction_budget = LUA_RUNTIME_UNLIMITED;
+    limits->native_work_budget = LUA_RUNTIME_UNLIMITED;
+    limits->finalizer_budget_per_drain = LUA_RUNTIME_UNLIMITED;
+    limits->timeout_ms = LUA_RUNTIME_NO_TIMEOUT;
+}
+
+void lua_runtime_metrics_init(lua_RuntimeMetrics* metrics) LUA_CXX_NOEXCEPT {
+    if (metrics == nullptr) {
+        return;
+    }
+    *metrics = lua_RuntimeMetrics{};
+    metrics->struct_size = sizeof(lua_RuntimeMetrics);
+    metrics->api_version = LUA_RUNTIME_API_VERSION;
+}
+
 lua_State* lua_newstate(lua_Alloc allocator, void* userData) LUA_CXX_MAY_THROW {
     lua_Alloc effectiveAllocator = allocator != nullptr ? allocator : defaultLuaAllocator;
     return toC(Lua::LuaState::newAllocatedState(effectiveAllocator, userData));
+}
+
+lua_State* lua_newstate_configured(lua_Alloc allocator, void* allocatorUserData, const lua_RuntimeConfig* config,
+                                   int* runtimeStatus) LUA_CXX_NOEXCEPT {
+    setRuntimeStatus(runtimeStatus, LUA_RUNTIME_OK);
+    const int validation = validateRuntimeConfig(config);
+    if (validation != LUA_RUNTIME_OK) {
+        setRuntimeStatus(runtimeStatus, validation);
+        return nullptr;
+    }
+
+    try {
+        const Lua::RuntimeConfiguration configuration = makeRuntimeConfiguration(*config);
+        lua_Alloc effectiveAllocator = allocator != nullptr ? allocator : defaultLuaAllocator;
+        Lua::LuaState* state = Lua::LuaState::newAllocatedState(effectiveAllocator, allocatorUserData, &configuration);
+        if (state == nullptr) {
+            setRuntimeStatus(runtimeStatus, LUA_RUNTIME_ERR_CREATE);
+            return nullptr;
+        }
+        return toC(state);
+    } catch (...) {
+        setRuntimeStatus(runtimeStatus, LUA_RUNTIME_ERR_CREATE);
+        return nullptr;
+    }
+}
+
+lua_State* luaL_newstate_configured(const lua_RuntimeConfig* config, int* runtimeStatus) LUA_CXX_NOEXCEPT {
+    return lua_newstate_configured(nullptr, nullptr, config, runtimeStatus);
 }
 
 lua_State* lua_open(void) LUA_CXX_MAY_THROW {
@@ -445,6 +702,93 @@ int lua_tryclose(lua_State* L) LUA_CXX_NOEXCEPT {
     globalState.getGC().finalizeAll(mainState);
     Lua::LuaState::destroyState(mainState);
     return LUA_OK;
+}
+
+int lua_runtime_begin_execution(lua_State* L, const lua_RuntimeExecutionLimits* limits) LUA_CXX_NOEXCEPT {
+    const int validation = validateExecutionLimits(limits);
+    if (validation != LUA_RUNTIME_OK) {
+        return validation;
+    }
+
+    Lua::LuaState* state = fromCUnchecked(L);
+    if (state == nullptr) {
+        return LUA_RUNTIME_ERR_ARGUMENT;
+    }
+    if (!state->getGlobalState().isOwnerThread()) {
+        return LUA_RUNTIME_ERR_THREAD;
+    }
+    if (state->getGlobalState().getRunningThread() != nullptr || state->getCurrentCI() != 0) {
+        return LUA_RUNTIME_ERR_BUSY;
+    }
+
+    state->getGlobalState().getExecutionPolicy().configure(makeExecutionLimits(*limits));
+    return LUA_RUNTIME_OK;
+}
+
+int lua_runtime_get_metrics(lua_State* L, lua_RuntimeMetrics* metrics) LUA_CXX_NOEXCEPT {
+    const int validation = validateRuntimeMetrics(metrics);
+    if (validation != LUA_RUNTIME_OK) {
+        return validation;
+    }
+
+    Lua::LuaState* state = fromCUnchecked(L);
+    if (state == nullptr) {
+        return LUA_RUNTIME_ERR_ARGUMENT;
+    }
+    if (!state->getGlobalState().isOwnerThread()) {
+        return LUA_RUNTIME_ERR_THREAD;
+    }
+    if (state->getGlobalState().getRunningThread() != nullptr || state->getCurrentCI() != 0) {
+        return LUA_RUNTIME_ERR_BUSY;
+    }
+
+    const Lua::ExecutionPolicy& policy = state->getGlobalState().getExecutionPolicy();
+    metrics->initial_instruction_budget = policy.initialInstructionBudget();
+    metrics->remaining_instruction_budget = policy.remainingInstructions();
+    metrics->consumed_instructions = policy.consumedInstructions();
+    metrics->initial_native_work_budget = policy.initialNativeWorkBudget();
+    metrics->remaining_native_work_budget = policy.remainingNativeWork();
+    metrics->consumed_native_work = policy.consumedNativeWork();
+    metrics->finalizer_budget_per_drain = policy.finalizerBudgetPerDrain();
+    metrics->deadline_configured = policy.hasDeadline() ? 1U : 0U;
+    metrics->cancellation_requested = policy.isCancellationRequested() ? 1U : 0U;
+    metrics->last_stop_reason = publicStopReason(policy.lastStopReason());
+    return LUA_RUNTIME_OK;
+}
+
+lua_CancellationHandle* lua_runtime_get_cancellation_handle(lua_State* L, int* runtimeStatus) LUA_CXX_NOEXCEPT {
+    setRuntimeStatus(runtimeStatus, LUA_RUNTIME_OK);
+    Lua::LuaState* state = fromCUnchecked(L);
+    if (state == nullptr) {
+        setRuntimeStatus(runtimeStatus, LUA_RUNTIME_ERR_ARGUMENT);
+        return nullptr;
+    }
+    if (!state->getGlobalState().isOwnerThread()) {
+        setRuntimeStatus(runtimeStatus, LUA_RUNTIME_ERR_THREAD);
+        return nullptr;
+    }
+
+    try {
+        lua_CancellationHandle* handle = new (std::nothrow)
+            lua_CancellationHandle(state->getGlobalState().getExecutionPolicy().cancellationHandle());
+        if (handle == nullptr) {
+            setRuntimeStatus(runtimeStatus, LUA_RUNTIME_ERR_MEMORY);
+        }
+        return handle;
+    } catch (...) {
+        setRuntimeStatus(runtimeStatus, LUA_RUNTIME_ERR_MEMORY);
+        return nullptr;
+    }
+}
+
+void lua_runtime_request_cancellation(lua_CancellationHandle* handle) LUA_CXX_NOEXCEPT {
+    if (handle != nullptr) {
+        handle->value.requestCancellation();
+    }
+}
+
+void lua_runtime_release_cancellation_handle(lua_CancellationHandle* handle) LUA_CXX_NOEXCEPT {
+    delete handle;
 }
 
 lua_CFunction lua_atpanic(lua_State* L, lua_CFunction panicFunction) LUA_CXX_MAY_THROW {
@@ -1475,7 +1819,7 @@ int luaL_loadbuffer(lua_State* L, const char* buffer, size_t size, const char* n
     return apiStatusBoundary(
         state,
         [&]() {
-            pushInternalCFunction(state, Lua::luaB_loadstring);
+            pushInternalCFunction(state, Lua::luaB_loadstringTrusted);
             lua_pushlstring(L, buffer != nullptr ? buffer : "", size);
             lua_pushstring(L, name != nullptr ? name : "=(loadbuffer)");
             return normalizeLoadResult(L, base, lua_pcall(L, 2, LUA_MULTRET, 0), LUA_ERRSYNTAX);
@@ -1505,7 +1849,7 @@ int luaL_loadfile(lua_State* L, const char* filename) LUA_CXX_NOEXCEPT {
     return apiStatusBoundary(
         state,
         [&]() {
-            pushInternalCFunction(state, Lua::luaB_loadfile);
+            pushInternalCFunction(state, Lua::luaB_loadfileTrusted);
             if (filename == nullptr) {
                 lua_pushnil(L);
             } else {

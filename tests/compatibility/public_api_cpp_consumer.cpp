@@ -1,6 +1,7 @@
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
+#include "lua_runtime.h"
 
 #include <cstddef>
 #include <stdexcept>
@@ -22,6 +23,7 @@ extern "C" int lua_public_c_header_probe(void);
 #define REQUIRE_PUBLIC_TYPE(name) static_assert(std::is_same_v<name*, name*>, #name " type is required")
 
 REQUIRE_SIGNATURE(lua_newstate, lua_State* (*)(lua_Alloc, void*) noexcept(false));
+REQUIRE_SIGNATURE(lua_newstate_configured, lua_State* (*)(lua_Alloc, void*, const lua_RuntimeConfig*, int*) noexcept);
 REQUIRE_SIGNATURE(lua_open, lua_State* (*)() noexcept(false));
 REQUIRE_SIGNATURE(lua_close, void (*)(lua_State*) noexcept);
 REQUIRE_SIGNATURE(lua_tryclose, int (*)(lua_State*) noexcept);
@@ -32,6 +34,15 @@ REQUIRE_SIGNATURE(lua_gettop, int (*)(lua_State*) noexcept(false));
 REQUIRE_SIGNATURE(lua_settop, void (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_checkstack, int (*)(lua_State*, int) noexcept);
 REQUIRE_SIGNATURE(lua_checkexecution, void (*)(lua_State*) noexcept(false));
+REQUIRE_SIGNATURE(lua_runtime_config_init, void (*)(lua_RuntimeConfig*) noexcept);
+REQUIRE_SIGNATURE(lua_runtime_config_init_gameserver, void (*)(lua_RuntimeConfig*) noexcept);
+REQUIRE_SIGNATURE(lua_runtime_execution_limits_init, void (*)(lua_RuntimeExecutionLimits*) noexcept);
+REQUIRE_SIGNATURE(lua_runtime_metrics_init, void (*)(lua_RuntimeMetrics*) noexcept);
+REQUIRE_SIGNATURE(lua_runtime_begin_execution, int (*)(lua_State*, const lua_RuntimeExecutionLimits*) noexcept);
+REQUIRE_SIGNATURE(lua_runtime_get_metrics, int (*)(lua_State*, lua_RuntimeMetrics*) noexcept);
+REQUIRE_SIGNATURE(lua_runtime_get_cancellation_handle, lua_CancellationHandle* (*)(lua_State*, int*) noexcept);
+REQUIRE_SIGNATURE(lua_runtime_request_cancellation, void (*)(lua_CancellationHandle*) noexcept);
+REQUIRE_SIGNATURE(lua_runtime_release_cancellation_handle, void (*)(lua_CancellationHandle*) noexcept);
 REQUIRE_SIGNATURE(lua_xmove, void (*)(lua_State*, lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_pushvalue, void (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(lua_remove, void (*)(lua_State*, int) noexcept(false));
@@ -145,6 +156,7 @@ REQUIRE_SIGNATURE(luaL_loadfile, int (*)(lua_State*, const char*) noexcept);
 REQUIRE_SIGNATURE(luaL_ref, int (*)(lua_State*, int) noexcept(false));
 REQUIRE_SIGNATURE(luaL_unref, void (*)(lua_State*, int, int) noexcept(false));
 REQUIRE_SIGNATURE(luaL_newstate, lua_State* (*)(void) noexcept(false));
+REQUIRE_SIGNATURE(luaL_newstate_configured, lua_State* (*)(const lua_RuntimeConfig*, int*) noexcept);
 REQUIRE_SIGNATURE(luaL_gsub, const char* (*)(lua_State*, const char*, const char*, const char*) noexcept(false));
 REQUIRE_SIGNATURE(luaL_findtable, const char* (*)(lua_State*, int, const char*, int) noexcept(false));
 REQUIRE_SIGNATURE(luaL_buffinit, void (*)(lua_State*, luaL_Buffer*) noexcept(false));
@@ -203,6 +215,9 @@ REQUIRE_PUBLIC_MACRO(LUA_MASKRET);
 REQUIRE_PUBLIC_MACRO(LUA_MASKLINE);
 REQUIRE_PUBLIC_MACRO(LUA_MASKCOUNT);
 REQUIRE_PUBLIC_MACRO(LUA_FILEHANDLE);
+REQUIRE_PUBLIC_MACRO(LUA_RUNTIME_API_VERSION);
+REQUIRE_PUBLIC_MACRO(LUA_RUNTIME_UNLIMITED);
+REQUIRE_PUBLIC_MACRO(LUA_RUNTIME_NO_TIMEOUT);
 REQUIRE_PUBLIC_MACRO(LUA_COLIBNAME);
 REQUIRE_PUBLIC_MACRO(LUA_TABLIBNAME);
 REQUIRE_PUBLIC_MACRO(LUA_IOLIBNAME);
@@ -239,6 +254,35 @@ REQUIRE_PUBLIC_CONSTANT(LUA_GCCOUNTB);
 REQUIRE_PUBLIC_CONSTANT(LUA_GCSTEP);
 REQUIRE_PUBLIC_CONSTANT(LUA_GCSETPAUSE);
 REQUIRE_PUBLIC_CONSTANT(LUA_GCSETSTEPMUL);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_OK);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_ERR_ARGUMENT);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_ERR_VERSION);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_ERR_THREAD);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_ERR_BUSY);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_ERR_CREATE);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_ERR_MEMORY);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_STOP_NONE);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_STOP_INSTRUCTION_BUDGET);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_STOP_NATIVE_WORK_BUDGET);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_STOP_DEADLINE);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_STOP_CANCELLED);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_BASE);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_MATH);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_IO);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_STRING);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_TABLE);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_OS);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_COROUTINE);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_DEBUG);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_PACKAGE);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_LIB_ALL);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_CAP_FILESYSTEM);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_CAP_PROCESS);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_CAP_NATIVE_MODULES);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_CAP_RUNTIME_COMPILATION);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_CAP_BINARY_CHUNKS);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_CAP_GC_CONTROL);
+REQUIRE_PUBLIC_CONSTANT(LUA_RUNTIME_CAP_ALL);
 
 REQUIRE_PUBLIC_TYPE(lua_State);
 REQUIRE_PUBLIC_TYPE(lua_Number);
@@ -251,6 +295,10 @@ REQUIRE_PUBLIC_TYPE(luaL_Reg);
 REQUIRE_PUBLIC_TYPE(luaL_Buffer);
 REQUIRE_PUBLIC_TYPE(lua_Debug);
 REQUIRE_PUBLIC_TYPE(lua_Hook);
+REQUIRE_PUBLIC_TYPE(lua_RuntimeConfig);
+REQUIRE_PUBLIC_TYPE(lua_RuntimeExecutionLimits);
+REQUIRE_PUBLIC_TYPE(lua_RuntimeMetrics);
+REQUIRE_PUBLIC_TYPE(lua_CancellationHandle);
 
 static_assert(std::string_view(LUA_VERSION) == "Lua 5.1");
 static_assert(std::string_view(LUA_RELEASE) == "Lua 5.1.5");
@@ -271,6 +319,16 @@ static_assert(LUA_GCSTOP == 0 && LUA_GCRESTART == 1 && LUA_GCCOLLECT == 2 && LUA
               LUA_GCSTEP == 5 && LUA_GCSETPAUSE == 6 && LUA_GCSETSTEPMUL == 7);
 static_assert(LUA_HOOKCALL == 0 && LUA_HOOKRET == 1 && LUA_HOOKLINE == 2 && LUA_HOOKCOUNT == 3 && LUA_HOOKTAILRET == 4);
 static_assert(LUA_MASKCALL == 1 && LUA_MASKRET == 2 && LUA_MASKLINE == 4 && LUA_MASKCOUNT == 8);
+static_assert(LUA_RUNTIME_API_VERSION == 1U);
+static_assert(LUA_RUNTIME_UNLIMITED == UINT64_MAX && LUA_RUNTIME_NO_TIMEOUT == UINT64_MAX);
+static_assert(LUA_RUNTIME_OK == 0 && LUA_RUNTIME_ERR_ARGUMENT == 1 && LUA_RUNTIME_ERR_VERSION == 2 &&
+              LUA_RUNTIME_ERR_THREAD == 3 && LUA_RUNTIME_ERR_BUSY == 4 && LUA_RUNTIME_ERR_CREATE == 5 &&
+              LUA_RUNTIME_ERR_MEMORY == 6);
+static_assert(LUA_RUNTIME_STOP_NONE == 0 && LUA_RUNTIME_STOP_INSTRUCTION_BUDGET == 1 &&
+              LUA_RUNTIME_STOP_NATIVE_WORK_BUDGET == 2 && LUA_RUNTIME_STOP_DEADLINE == 3 &&
+              LUA_RUNTIME_STOP_CANCELLED == 4);
+static_assert(LUA_RUNTIME_LIB_ALL == 0x1ffU);
+static_assert(LUA_RUNTIME_CAP_ALL == 0x3fU);
 static_assert(LUA_NOREF == -2 && LUA_REFNIL == -1);
 static_assert(LUAL_BUFFERSIZE == BUFSIZ);
 static_assert(std::string_view(LUA_FILEHANDLE) == "FILE*");
@@ -313,6 +371,12 @@ static_assert(std::is_same_v<decltype(luaL_Buffer::p), char*>);
 static_assert(std::is_same_v<decltype(luaL_Buffer::lvl), int>);
 static_assert(std::is_same_v<decltype(luaL_Buffer::L), lua_State*>);
 static_assert(sizeof(luaL_Buffer::buffer) == LUAL_BUFFERSIZE);
+static_assert(std::is_standard_layout_v<lua_RuntimeConfig>);
+static_assert(std::is_standard_layout_v<lua_RuntimeExecutionLimits>);
+static_assert(std::is_standard_layout_v<lua_RuntimeMetrics>);
+static_assert(offsetof(lua_RuntimeConfig, struct_size) == 0);
+static_assert(offsetof(lua_RuntimeExecutionLimits, struct_size) == 0);
+static_assert(offsetof(lua_RuntimeMetrics, struct_size) == 0);
 
 #undef REQUIRE_PUBLIC_TYPE
 #undef REQUIRE_PUBLIC_CONSTANT
@@ -390,7 +454,7 @@ int main() {
     static_assert(!noexcept(lua_call(nullptr, 0, 0)));
     static_assert(!noexcept(lua_error(nullptr)));
 
-    if (lua_public_c_header_probe() != 132) {
+    if (lua_public_c_header_probe() != 143) {
         return 1;
     }
 

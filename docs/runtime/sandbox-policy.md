@@ -1,8 +1,8 @@
 ---
 status: current
-verified_against: src/runtime/sandbox_policy.hpp; src/runtime/runtime_services.hpp; src/runtime/native_module_registry.cpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/lib/lib_manager.cpp; src/lib/baselib.cpp; src/lib/iolib.cpp; src/lib/oslib.cpp; src/lib/packagelib.cpp; src/lib/debuglib.cpp; tests/unit/vm/test_runtime_services.cpp
-last_checked: 2026-07-15
-applies_to: context-owned standard-library exposure and script-visible filesystem, process, and native-module capabilities
+verified_against: src/lua_runtime.h; src/api/lapi.cpp; src/runtime/sandbox_policy.hpp; src/runtime/runtime_services.hpp; src/runtime/native_module_registry.cpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/lib/lib_manager.cpp; src/lib/baselib.cpp; src/lib/iolib.cpp; src/lib/oslib.cpp; src/lib/packagelib.cpp; src/lib/debuglib.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/api/test_lua_c_api.cpp; tests/packaging/consumer/main.c
+last_checked: 2026-07-23
+applies_to: context-owned standard-library exposure and script-visible filesystem, process, native-module, compilation, binary-chunk, and GC-control capabilities
 ---
 
 # SandboxPolicy 脚本能力合同
@@ -35,17 +35,23 @@ StandardLibrary::openAll(state.get());
 | `Filesystem` | base 文件加载、io 文件操作、os 文件操作、package Lua 文件搜索 | `loadfile`/`dofile` 不注册；相关 io/os/package 操作在入口拒绝 |
 | `Process` | `io.popen`、`os.execute/exit/getenv/setlocale`、`debug.debug` | 相应函数不注册；已捕获函数在入口拒绝 |
 | `NativeModules` | `package.loadlib`、C/C-all-in-one searcher、context module registry 新加载 | `package.loadlib` 和 C searcher 不注册；registry 在 OS loader 前拒绝 |
+| `RuntimeCompilation` | 脚本可使用 `load`/`loadstring` 编译新源码 | 函数不注册；已捕获函数在编译前拒绝 |
+| `BinaryChunks` | 脚本 loader 可接受受格式与资源校验的 binary chunk | binary 输入在反序列化前拒绝 |
+| `GCControl` | 脚本可调用 `collectgarbage` | 函数不注册；已捕获函数在操作前拒绝 |
 
 在 game-server profile 中，`package.path` 与 `package.cpath` 为空，`package.loaders` 只保留 preload searcher。宿主写入 `package.preload` 的模块仍可由 `require` 加载；这些回调与其闭包捕获的宿主能力被视为可信代码。
 
 ## 稳定错误
 
-四类拒绝使用 context 初始化时预分配并 fixed 的 Lua 字符串，不在拒绝路径临时分配：
+七类拒绝使用 context 初始化时预分配并 fixed 的 Lua 字符串，不在拒绝路径临时分配：
 
 - `sandbox: standard library disabled`
 - `sandbox: filesystem access denied`
 - `sandbox: process access denied`
 - `sandbox: native module access denied`
+- `sandbox: runtime compilation denied`
+- `sandbox: binary chunk loading denied`
+- `sandbox: GC control denied`
 
 Lua protected call 返回 `LUA_ERRRUN` 并保留对应错误对象；内部可抛入口使用携带同一 `Value` 的 `RuntimeError`。拒绝发生在文件、进程或 OS loader 副作用之前。
 
@@ -53,9 +59,10 @@ Lua protected call 返回 `LUA_ERRRUN` 并保留对应错误对象；内部可�
 
 该策略是脚本能力边界，不是操作系统容器，也不防御恶意宿主或已经加载的原生代码：
 
-- 公开 C API 的 `luaL_loadfile` 是可信宿主入口，不受脚本文件系统能力控制；脚本可见的 base `loadfile`/`dofile` 受控。
+- 公开 C API 的 `luaL_loadbuffer` / `luaL_loadstring` / `luaL_loadfile` 是可信宿主入口，不受脚本 runtime-compilation、binary-chunk 或 filesystem capability 控制，但仍受创建期资源与编译上限约束；脚本可见的 `load*` / `dofile` 受控。
 - 宿主注册的 C callback 可以直接调用操作系统或公开 C API；它必须自行遵守宿主安全合同。
 - 禁止 `NativeModules` 只阻止新的动态加载，不能撤销已执行模块代码、已有函数指针或动态库静态状态。
 - 多 context 之间策略与 module registry 独立，但动态库的进程静态数据仍可能由 OS loader 共享。
 
 owner-thread、指令预算、deadline、取消和 finalizer 预算见 [ExecutionPolicy](execution-policy.md)。完整 allocator hard limit 仍是独立的未完成边界，见 [内存合同](memory-contract.md)。
+已安装 C SDK 的创建期配置和 game-server 预置见 [生产运行时公开 C API](public-runtime-api.md)。

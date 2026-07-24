@@ -26,6 +26,7 @@ LUA_5_1 {
         luaL_loadstring;
         luaL_newmetatable;
         luaL_newstate;
+        luaL_newstate_configured;
         luaL_openlib;
         luaL_openlibs;
         luaL_optinteger;
@@ -72,6 +73,7 @@ LUA_5_1 {
         lua_lessthan;
         lua_load;
         lua_newstate;
+        lua_newstate_configured;
         lua_newthread;
         lua_newuserdata;
         lua_next;
@@ -98,6 +100,15 @@ LUA_5_1 {
         lua_remove;
         lua_replace;
         lua_resume;
+        lua_runtime_begin_execution;
+        lua_runtime_config_init;
+        lua_runtime_config_init_gameserver;
+        lua_runtime_execution_limits_init;
+        lua_runtime_metrics_init;
+        lua_runtime_get_cancellation_handle;
+        lua_runtime_get_metrics;
+        lua_runtime_release_cancellation_handle;
+        lua_runtime_request_cancellation;
         lua_setallocf;
         lua_setfenv;
         lua_setfield;

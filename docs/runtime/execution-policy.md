@@ -1,8 +1,8 @@
 ---
 status: current
-verified_against: src/lua.h; src/api/lapi.cpp; src/runtime/execution_policy.hpp; src/runtime/sandbox_policy.hpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/vm.cpp; src/vm/state/lua_state.cpp; src/core/thread.cpp; src/gc/gc_finalize.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/gc/test_gc.cpp; tests/unit/api/test_lua_c_api.cpp; benchmarks/runtime_bench.cpp; tests/compatibility/runtime-benchmark-regression-policy.json
-last_checked: 2026-07-16
-applies_to: owner-thread access, instruction budget, monotonic deadline, external cancellation, cooperative native callback polling, per-drain finalizer budget, and context sandbox policy
+verified_against: src/lua.h; src/lua_runtime.h; src/api/lapi.cpp; src/runtime/execution_policy.hpp; src/runtime/sandbox_policy.hpp; src/runtime/runtime_services.hpp; src/vm/state/global_state.hpp; src/vm/state/global_state.cpp; src/vm/vm.cpp; src/vm/state/lua_state.cpp; src/core/thread.cpp; src/gc/gc_finalize.cpp; tests/unit/vm/test_runtime_services.cpp; tests/unit/gc/test_gc.cpp; tests/unit/api/test_lua_c_api.cpp; tests/packaging/consumer/main.c; benchmarks/runtime_bench.cpp; tests/compatibility/runtime-benchmark-regression-policy.json
+last_checked: 2026-07-23
+applies_to: owner-thread access, instruction/native-work budgets, monotonic deadline, external cancellation, cooperative native callback polling, per-drain finalizer budget, and context sandbox policy
 ---
 
 # ExecutionPolicy 执行治理合同
@@ -14,6 +14,7 @@ applies_to: owner-thread access, instruction budget, monotonic deadline, externa
 宿主 owner thread 在没有 Lua 代码执行时调用 `EngineContext::executionPolicy().configure(limits)`。`Limits` 包含：
 
 - `instructionBudget`：值为 `N` 时恰好允许执行 `N` 条 Lua VM 指令；默认 `UnlimitedInstructions`。
+- `nativeWorkBudget`：标准库与其他计量原生路径共享的工作单位上限；默认 `UnlimitedNativeWork`。操作按请求单位原子扣减，余量不足时变为 0 并以 `execution native work budget exceeded` 停止。
 - `deadline`：`std::chrono::steady_clock::time_point`，默认 `time_point::max()`。它不受系统墙钟或时区调整影响。
 - `finalizerBudgetPerDrain`：一次完整 GC、增量 finalize 阶段或 `lua_close` drain 最多进入的用户 `__gc` 回调数；默认 `UnlimitedFinalizers`，因此不改变 Lua 5.1 默认行为。值为 `0` 时该 drain 不进入任何用户 finalizer。
 
@@ -49,11 +50,12 @@ static int do_work(lua_State* L) {
 
 ## 错误与保护调用
 
-三种停止原因分别使用 context 初始化时预分配并 fixed 的字符串：
+四种停止原因分别使用 context 初始化时预分配并 fixed 的字符串：
 
 - `execution cancelled`
 - `execution deadline exceeded`
 - `execution instruction budget exceeded`
+- `execution native work budget exceeded`
 
 VM 抛出携带该 Lua `Value` 的 `RuntimeError`。`pcall`/`lua_pcall` 返回 `LUA_ERRRUN` 并保留同一对象，不需要在故障路径再次分配字符串；coroutine resume 返回 `false, error`。错误不会自动 reset 策略，owner 必须显式配置下一执行窗口。
 
@@ -76,3 +78,5 @@ finalizer 预算按 drain 重新补充，不像 instruction budget 那样跨执�
 默认策略仍经过一个 relaxed atomic cancellation load 和快速未启用分支。Release `vm_instructions_per_second` 已纳入 base-vs-head 相对回归策略，允许的最大退化比例为 20%。deadline 只有启用时才读取 `steady_clock`。
 
 当前页闭环固定 owner-thread、instruction budget、monotonic deadline、atomic cancellation、原生 callback 协作式轮询、finalizer 单轮预算与 context sandbox/module policy。原生 C 函数仍不能被 VM 异步抢占，callback 必须遵守上述轮询与阻塞合同；不得把执行策略或脚本能力策略解释为 OS 级隔离。
+
+安装后的纯 C 宿主通过 `lua_runtime_begin_execution` 启动相同的每请求窗口，并通过生命周期安全的 opaque cancellation handle 发出跨线程请求；完整用法见 [生产运行时公开 C API](public-runtime-api.md)。

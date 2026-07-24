@@ -9,6 +9,7 @@
 #include "core/upvalue.hpp"
 #include "lua.h"
 #include "lauxlib.h"
+#include "lua_runtime.h"
 #include "lualib.h"
 #include "runtime/runtime_services.hpp"
 #include "vm/state/lua_state.hpp"
@@ -116,6 +117,17 @@ static_assert(noexcept(lua_dump(nullptr, nullptr, nullptr)));
 static_assert(noexcept(luaL_loadbuffer(nullptr, nullptr, 0, nullptr)));
 static_assert(noexcept(luaL_loadstring(nullptr, nullptr)));
 static_assert(noexcept(luaL_loadfile(nullptr, nullptr)));
+static_assert(noexcept(lua_runtime_config_init(nullptr)));
+static_assert(noexcept(lua_runtime_config_init_gameserver(nullptr)));
+static_assert(noexcept(lua_runtime_execution_limits_init(nullptr)));
+static_assert(noexcept(lua_runtime_metrics_init(nullptr)));
+static_assert(noexcept(lua_newstate_configured(nullptr, nullptr, nullptr, nullptr)));
+static_assert(noexcept(luaL_newstate_configured(nullptr, nullptr)));
+static_assert(noexcept(lua_runtime_begin_execution(nullptr, nullptr)));
+static_assert(noexcept(lua_runtime_get_metrics(nullptr, nullptr)));
+static_assert(noexcept(lua_runtime_get_cancellation_handle(nullptr, nullptr)));
+static_assert(noexcept(lua_runtime_request_cancellation(nullptr)));
+static_assert(noexcept(lua_runtime_release_cancellation_handle(nullptr)));
 static_assert(sizeof(((lua_Debug*)nullptr)->short_src) == LUA_IDSIZE);
 static_assert(offsetof(lua_Debug, name) > offsetof(lua_Debug, event));
 static_assert(offsetof(lua_Debug, currentline) > offsetof(lua_Debug, source));
@@ -336,6 +348,13 @@ int returnCapturedUpvalues(lua_State* L) {
 int pollNativeExecutionOnce(lua_State* L) {
     lua_checkexecution(L);
     return 0;
+}
+
+int queryRuntimeMetricsWhileBusy(lua_State* L) {
+    lua_RuntimeMetrics metrics{};
+    lua_runtime_metrics_init(&metrics);
+    lua_pushinteger(L, lua_runtime_get_metrics(L, &metrics));
+    return 1;
 }
 
 int pollNativeExecutionUntilCancelled(lua_State* L) {
@@ -5167,6 +5186,187 @@ void testPublicDebugHooks(TestSuite& suite) {
     lua_close(L);
 }
 
+void testPublicRuntimeConfigurationApi(TestSuite& suite) {
+    lua_runtime_config_init(nullptr);
+    lua_runtime_config_init_gameserver(nullptr);
+    lua_runtime_execution_limits_init(nullptr);
+    lua_runtime_metrics_init(nullptr);
+    lua_runtime_request_cancellation(nullptr);
+    lua_runtime_release_cancellation_handle(nullptr);
+
+    lua_RuntimeConfig unrestricted{};
+    lua_runtime_config_init(&unrestricted);
+    ASSERT_EQ(suite, sizeof(lua_RuntimeConfig), unrestricted.struct_size,
+              "unrestricted runtime config publishes its ABI size");
+    ASSERT_EQ(suite, LUA_RUNTIME_API_VERSION, unrestricted.api_version,
+              "unrestricted runtime config publishes its API version");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(LUA_RUNTIME_LIB_ALL), unrestricted.standard_libraries,
+              "unrestricted runtime config enables every standard library");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(LUA_RUNTIME_CAP_ALL), unrestricted.capabilities,
+              "unrestricted runtime config enables every capability");
+    ASSERT_EQ(suite, static_cast<std::uint64_t>(LUA_RUNTIME_UNLIMITED), unrestricted.instruction_budget,
+              "unrestricted runtime config has no instruction budget");
+
+    lua_RuntimeConfig config{};
+    lua_runtime_config_init_gameserver(&config);
+    ASSERT_EQ(suite, sizeof(lua_RuntimeConfig), config.struct_size,
+              "game-server runtime config publishes its ABI size");
+    ASSERT_EQ(suite, LUA_RUNTIME_API_VERSION, config.api_version,
+              "game-server runtime config publishes its API version");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(0), config.capabilities,
+              "game-server runtime config denies privileged capabilities");
+    ASSERT_TRUE(suite, config.instruction_budget != LUA_RUNTIME_UNLIMITED,
+                "game-server runtime config has a finite instruction budget");
+    ASSERT_TRUE(suite, config.max_string_bytes != std::numeric_limits<size_t>::max(),
+                "game-server runtime config has finite resource limits");
+
+    int runtimeStatus = -1;
+    ASSERT_TRUE(suite, luaL_newstate_configured(nullptr, &runtimeStatus) == nullptr,
+                "configured state rejects a null config");
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_ARGUMENT, runtimeStatus, "configured state reports a null-config error");
+
+    lua_RuntimeConfig invalid = config;
+    invalid.api_version += 1;
+    ASSERT_TRUE(suite, luaL_newstate_configured(&invalid, &runtimeStatus) == nullptr,
+                "configured state rejects an unknown config version");
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_VERSION, runtimeStatus, "configured state reports config version mismatch");
+
+    invalid = config;
+    invalid.standard_libraries |= 1U << 31U;
+    ASSERT_TRUE(suite, luaL_newstate_configured(&invalid, &runtimeStatus) == nullptr,
+                "configured state rejects unknown library bits");
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_ARGUMENT, runtimeStatus, "configured state reports unknown library bits");
+
+    invalid = config;
+    invalid.max_stack_slots = LUA_MINSTACK;
+    ASSERT_TRUE(suite, luaL_newstate_configured(&invalid, &runtimeStatus) == nullptr,
+                "configured state rejects an unusable stack limit");
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_ARGUMENT, runtimeStatus, "configured state reports an unusable stack limit");
+
+    config.max_string_bytes = 512;
+    config.max_output_bytes = 64;
+    lua_State* L = luaL_newstate_configured(&config, &runtimeStatus);
+    ASSERT_TRUE(suite, L != nullptr, "game-server runtime creates a configured state");
+    ASSERT_EQ(suite, LUA_RUNTIME_OK, runtimeStatus, "configured state creation reports success");
+    if (L == nullptr) {
+        return;
+    }
+
+    luaL_openlibs(L);
+    const char* deniedGlobals[] = {"io", "os", "debug", "load", "loadstring", "loadfile", "dofile", "collectgarbage"};
+    for (const char* name : deniedGlobals) {
+        lua_getglobal(L, name);
+        ASSERT_TRUE(suite, lua_isnil(L, -1), std::string("game-server sandbox omits ") + name);
+        lua_pop(L, 1);
+    }
+    lua_getglobal(L, "package");
+    ASSERT_TRUE(suite, lua_istable(L, -1), "game-server sandbox retains the inert package table");
+    lua_pop(L, 1);
+
+    ASSERT_EQ(suite, LUA_OK, luaL_loadstring(L, "return string.rep('x', 65)"),
+              "trusted host loader bypasses script runtime-compilation denial");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0), "configured output policy rejects oversized library results");
+    const char* resourceError = lua_tostring(L, -1);
+    ASSERT_TRUE(suite,
+                resourceError != nullptr &&
+                    std::string(resourceError).find("result exceeds resource limit") != std::string::npos,
+                "configured output policy publishes a stable diagnostic");
+    lua_pop(L, 1);
+
+    lua_RuntimeExecutionLimits limits{};
+    lua_runtime_execution_limits_init(&limits);
+    ASSERT_EQ(suite, sizeof(lua_RuntimeExecutionLimits), limits.struct_size, "execution limits publish their ABI size");
+    ASSERT_EQ(suite, LUA_RUNTIME_API_VERSION, limits.api_version, "execution limits publish their API version");
+    limits.instruction_budget = 32;
+    limits.native_work_budget = 1024;
+    limits.finalizer_budget_per_drain = 16;
+    limits.timeout_ms = 1000;
+
+    lua_RuntimeExecutionLimits invalidLimits = limits;
+    invalidLimits.struct_size = 0;
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_VERSION, lua_runtime_begin_execution(L, &invalidLimits),
+              "execution window rejects an incompatible structure");
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_ARGUMENT, lua_runtime_begin_execution(nullptr, &limits),
+              "execution window rejects a null state");
+
+    int foreignThreadStatus = LUA_RUNTIME_OK;
+    std::thread foreignThread([&]() { foreignThreadStatus = lua_runtime_begin_execution(L, &limits); });
+    foreignThread.join();
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_THREAD, foreignThreadStatus, "execution window enforces owner-thread mutation");
+
+    lua_RuntimeMetrics metrics{};
+    lua_runtime_metrics_init(&metrics);
+    ASSERT_EQ(suite, sizeof(lua_RuntimeMetrics), metrics.struct_size, "runtime metrics publish their ABI size");
+    ASSERT_EQ(suite, LUA_RUNTIME_API_VERSION, metrics.api_version, "runtime metrics publish their API version");
+    lua_RuntimeMetrics invalidMetrics = metrics;
+    invalidMetrics.api_version += 1;
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_VERSION, lua_runtime_get_metrics(L, &invalidMetrics),
+              "runtime metrics reject an incompatible structure");
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_ARGUMENT, lua_runtime_get_metrics(nullptr, &metrics),
+              "runtime metrics reject a null state");
+    int foreignMetricsStatus = LUA_RUNTIME_OK;
+    std::thread foreignMetricsThread([&]() { foreignMetricsStatus = lua_runtime_get_metrics(L, &metrics); });
+    foreignMetricsThread.join();
+    ASSERT_EQ(suite, LUA_RUNTIME_ERR_THREAD, foreignMetricsStatus, "runtime metrics enforce owner-thread snapshots");
+    lua_pushcclosure(L, queryRuntimeMetricsWhileBusy, 0);
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0), "runtime metrics busy probe returns through its active callback");
+    ASSERT_EQ(suite, static_cast<lua_Integer>(LUA_RUNTIME_ERR_BUSY), lua_tointeger(L, -1),
+              "runtime metrics reject a non-coherent in-flight snapshot");
+    lua_pop(L, 1);
+
+    ASSERT_EQ(suite, LUA_OK, luaL_loadstring(L, "while true do end"), "trusted host loads an instruction-budget probe");
+    ASSERT_EQ(suite, LUA_RUNTIME_OK, lua_runtime_begin_execution(L, &limits), "host starts a finite execution window");
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0), "finite execution window stops an infinite loop");
+    const char* budgetError = lua_tostring(L, -1);
+    ASSERT_EQ(suite, std::string("execution instruction budget exceeded"),
+              budgetError != nullptr ? std::string(budgetError) : std::string(),
+              "instruction budget publishes a stable diagnostic");
+    lua_pop(L, 1);
+    ASSERT_EQ(suite, LUA_RUNTIME_OK, lua_runtime_get_metrics(L, &metrics),
+              "host reads metrics after an execution window stops");
+    ASSERT_EQ(suite, static_cast<std::uint64_t>(32), metrics.initial_instruction_budget,
+              "metrics preserve the initial instruction budget");
+    ASSERT_EQ(suite, static_cast<std::uint64_t>(0), metrics.remaining_instruction_budget,
+              "metrics report an exhausted instruction budget");
+    ASSERT_EQ(suite, static_cast<std::uint64_t>(32), metrics.consumed_instructions,
+              "metrics report exact consumed instructions");
+    ASSERT_EQ(suite, static_cast<std::uint64_t>(1024), metrics.initial_native_work_budget,
+              "metrics preserve the initial native-work budget");
+    ASSERT_EQ(suite, static_cast<std::uint64_t>(0), metrics.consumed_native_work,
+              "pure VM loops do not consume native work");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(1), metrics.deadline_configured,
+              "metrics report an active monotonic deadline");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(LUA_RUNTIME_STOP_INSTRUCTION_BUDGET), metrics.last_stop_reason,
+              "metrics classify an instruction-budget stop");
+
+    lua_CancellationHandle* cancellation = lua_runtime_get_cancellation_handle(L, &runtimeStatus);
+    ASSERT_TRUE(suite, cancellation != nullptr, "host obtains a lifecycle-safe cancellation handle");
+    ASSERT_EQ(suite, LUA_RUNTIME_OK, runtimeStatus, "cancellation handle acquisition reports success");
+    ASSERT_EQ(suite, LUA_OK, luaL_loadstring(L, "return 42"), "trusted host loads a cancellation probe");
+    ASSERT_EQ(suite, LUA_RUNTIME_OK, lua_runtime_begin_execution(L, &limits),
+              "host resets the execution window before cancellation");
+    std::thread cancellationThread([&]() { lua_runtime_request_cancellation(cancellation); });
+    cancellationThread.join();
+    ASSERT_EQ(suite, LUA_ERRRUN, lua_pcall(L, 0, 1, 0),
+              "cross-thread cancellation token stops the next execution poll");
+    const char* cancellationError = lua_tostring(L, -1);
+    ASSERT_EQ(suite, std::string("execution cancelled"),
+              cancellationError != nullptr ? std::string(cancellationError) : std::string(),
+              "cancellation publishes a stable diagnostic");
+    lua_pop(L, 1);
+    ASSERT_EQ(suite, LUA_RUNTIME_OK, lua_runtime_get_metrics(L, &metrics), "host reads metrics after cancellation");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(1), metrics.cancellation_requested,
+              "metrics report the cancellation flag");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(LUA_RUNTIME_STOP_CANCELLED), metrics.last_stop_reason,
+              "metrics classify a cancellation stop");
+    ASSERT_EQ(suite, static_cast<std::uint64_t>(0), metrics.consumed_instructions,
+              "pre-dispatch cancellation consumes no VM instructions");
+
+    lua_close(L);
+    lua_runtime_request_cancellation(cancellation);
+    lua_runtime_release_cancellation_handle(cancellation);
+}
+
 } // namespace
 
 void registerLuaCApiTests() {
@@ -5243,4 +5443,5 @@ void registerLuaCApiTests() {
                           testPublicPanicFormatEnvironmentAndCpcall);
     registry.registerTest(kSuiteName, "public debug stack info and locals", testPublicDebugStackInfoAndLocals);
     registry.registerTest(kSuiteName, "public debug hooks", testPublicDebugHooks);
+    registry.registerTest(kSuiteName, "public production runtime configuration", testPublicRuntimeConfigurationApi);
 }

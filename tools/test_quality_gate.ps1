@@ -460,12 +460,14 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "build_type: Debug",
     "build_type: Release",
     "ctest --test-dir build --output-on-failure",
-    "Configure CMake API and native-module evidence",
+    "Configure CMake API, native-module, and production-worker evidence",
     "lua_public_api_consumer",
     "lua_public_native_module_host",
     "lua_public_native_module_app",
     "lua_public_native_module_embedding",
-    "-L api-contract",
+    "lua_production_worker",
+    "lua_runtime_soak",
+    '-L "api-contract\|production-contract\|soak-smoke"',
     "LUA_CPP_SANITIZER",
     "sanitizer: \[address, undefined, thread\]",
     "Linux libFuzzer security boundaries",
@@ -538,7 +540,13 @@ Assert-FileContains "CMakeLists.txt" @(
     "COMPATIBILITY SameMinorVersion",
     "lua_public_native_module_host",
     "lua_public_native_module_app",
-    "lua_public_native_module_embedding"
+    "lua_public_native_module_embedding",
+    "production_worker_success",
+    "production_worker_instruction_limit",
+    "production_worker_resource_limit",
+    "production_worker_allocator_limit",
+    "production_worker_json_encoding",
+    "verify_worker_json\.py"
 )
 
 Assert-FileContains "src/lua_cpp_version.h" @(
@@ -577,7 +585,15 @@ Assert-FileContains "tools/check_runtime_bench.ps1" @(
     'gc_pause_p99_us',
     'gc_pause_max_us',
     'heap_growth_bytes_per_million_frames',
-    'allocator_live_after_close'
+    'allocator_live_after_close',
+    'check_runtime_bench_absolute_slo\.ps1'
+)
+
+Assert-FileContains "tools/check_runtime_bench_absolute_slo.ps1" @(
+    'Runtime benchmark absolute SLO failed',
+    'policy\.schemaVersion',
+    'metric.*below minimum',
+    'metric.*above maximum'
 )
 
 Assert-FileContains "tools/run_runtime_bench_comparison.ps1" @(
@@ -631,6 +647,55 @@ Assert-FileContains "tests/compatibility/runtime-benchmark-regression-policy.jso
     '"coroutine_resume_yield_ns"',
     '"closure_upvalue_lifecycle_per_second"',
     '"gc_pause_p99_us"'
+)
+
+Assert-FileContains "tests/coverage/component-thresholds.json" @(
+    '"schemaVersion":\s*1',
+    '"bytecode_verifier"',
+    '"c_api"',
+    '"gc_phases"',
+    '"opcode_handlers"',
+    '"parser_codegen"',
+    '"sandbox_denied_paths"'
+)
+
+Assert-FileContains ".github/workflows/nightly.yml" @(
+    "Nightly endurance",
+    "runtime-soak",
+    "lua_runtime_soak",
+    "native_module_iterations",
+    "Validate endurance inputs",
+    "SOAK_MINUTES <= 80",
+    "long-fuzz",
+    "Validate fuzz input",
+    "FUZZ_SECONDS_PER_TARGET <= 1200",
+    "max_total_time",
+    "long-fuzz-evidence"
+)
+
+Assert-FileContains ".github/workflows/release.yml" @(
+    "Release candidate packages",
+    "LUA_RELEASE_GOVERNANCE_APPROVED",
+    "check_release_readiness\.ps1",
+    "package_release\.ps1",
+    "Publish immutable candidate",
+    "gh run download",
+    "\*\.SHA256SUMS",
+    "release create"
+)
+
+Assert-FileContains "tools/package_release.ps1" @(
+    "generate_sbom\.py",
+    "validate_release_artifacts\.py",
+    "SHA256SUMS",
+    "schemaVersion"
+)
+
+Assert-FileContains "tools/validate_release_artifacts.py" @(
+    "archive member uses an unsafe path",
+    "release checksum manifest does not exactly match",
+    "external SBOM is not byte-identical",
+    "SBOM file set mismatch"
 )
 
 function Invoke-RuntimeBenchmarkComparisonSmokeTest {

@@ -6,6 +6,7 @@
  */
 
 #include "runtime/lua_allocator.hpp"
+#include "runtime/runtime_configuration.hpp"
 #include "vm/state/global_state.hpp"
 
 #include <exception>
@@ -55,6 +56,14 @@ class EngineContext {
 public:
     explicit EngineContext(LuaAllocatorFunction allocator = nullptr, void* allocatorUserData = nullptr)
         : allocator_(allocator, allocatorUserData), strings_(&allocator_), globalState_(strings_, &allocator_) {}
+
+    EngineContext(LuaAllocatorFunction allocator, void* allocatorUserData, const RuntimeConfiguration& configuration)
+        : allocator_(allocator, allocatorUserData), strings_(&allocator_), globalState_(strings_, &allocator_) {
+        globalState_.getSandboxPolicy().configure(configuration.sandbox);
+        globalState_.getExecutionPolicy().configure(configuration.execution);
+        globalState_.getResourcePolicy() = configuration.resources;
+        globalState_.getCompilationPolicy() = configuration.compilation;
+    }
 
     EngineContext(const EngineContext&) = delete;
     EngineContext& operator=(const EngineContext&) = delete;

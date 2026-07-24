@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; src/lua_cpp_version.h; tests/packaging/consumer/; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
-last_checked: 2026-07-22
+verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
+last_checked: 2026-07-23
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
@@ -54,7 +54,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - 核心运行时对象包括 `Table`、`Function`、`Proto`、`GCString`、`Userdata`、`Thread` 和 `Upvalue`。
 - 项目统一使用 `src/common/types.hpp` 中的类型别名，如 `Vec<T>`、`HashMap<K, V>`、`Str`、`StrView`、`usize`、`i32`、`u32` 和 `f64`。
 - `RuntimeServices` 和 `EngineContext` 为嵌入式运行时隔离、测试夹具和多上下文执行提供清晰边界；每个 context 固定构造线程为 owner，跨线程只能使用预先取得的原子取消 handle；context-owned sandbox 可按库与文件系统、进程、原生模块能力限制脚本，原生模块 handle/cache 也已进入同一生命周期。
-- `src/api/lapi.cpp`、`src/api/lauxlib.cpp` 与 `src/lib/debuglib.cpp` 已形成完整的 Lua 5.1 公共函数面：protected status API 不泄漏 C++ 异常，官方 123/123 个公共函数均为机器合同 `PASS`，纯 C consumer 与独立 `.dll/.so` 模块通过公开头文件编译/链接/加载。项目公开面为 132 个真实函数（含 9 个兼容/安全扩展，其中 `lua_checkexecution` 为长期原生 callback 提供 cooperative cancellation/deadline 轮询）；核心表、遍历、比较、拼接、类型转换、线程身份、GC 控制、完整 auxlib、panic/格式化/环境/cpcall/setlevel、stack/info/local/hook 调试 API，以及 8 个 `luaopen_*` 标准库入口均由同一纯 C probe 对官方 Lua 5.1 做差分。allocator-backed hard limit 仍不宣称完成，边界见 [内存合同](docs/runtime/memory-contract.md)。
+- `src/api/lapi.cpp`、`src/api/lauxlib.cpp` 与 `src/lib/debuglib.cpp` 已形成完整的 Lua 5.1 公共函数面：protected status API 不泄漏 C++ 异常，官方 123/123 个公共函数均为机器合同 `PASS`，纯 C consumer 与独立 `.dll/.so` 模块通过公开头文件编译/链接/加载。项目公开面为 143 个真实函数（官方面之外包含兼容/安全扩展与 11 个生产运行时入口）；`lua_runtime.h` 允许已安装的纯 C 宿主在 State 创建时设置 sandbox、执行/资源/编译上限，在每个请求重置预算，以生命周期安全句柄跨线程取消，并在请求结束后读取消费量与停止分类。核心 Lua 5.1 API 仍由同一纯 C probe 对官方 Lua 5.1 做差分。allocator-backed hard limit 仍不宣称完成，边界见 [内存合同](docs/runtime/memory-contract.md)。
 
 ### 内存管理与 GC
 
@@ -135,7 +135,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-23 的当前本地 Release 基线为 **789 registered tests, 6686 assertion results, 0 failures**；其中 `Lua C API` suite 为 59 个测试、2822 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。当前 `main` 的 [Actions run 29923089152](https://github.com/YanqingXu/lua/actions/runs/29923089152) 为 14/17 jobs 通过，失败限于 clang-format 和由格式化行位移触发的 Windows C-style baseline；修复提交 `4b0bc71` 已在 [PR #14 的 Actions run 29993098262](https://github.com/YanqingXu/lua/actions/runs/29993098262) 取得 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 lint。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-24 的当前本地 Release 基线为 **790 registered tests, 6752 assertion results, 0 failures**；其中 `Lua C API` suite 为 61 个测试、2910 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。修复提交 `4b0bc71` 已在 [PR #14 的 Actions run 29993098262](https://github.com/YanqingXu/lua/actions/runs/29993098262) 取得此前基线的 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 lint；本次生产配置扩展的候选提交仍须重新取得同等级 required checks 才可发布。
 
 ### CMake / CTest 与 SDK 安装
 
@@ -153,7 +153,7 @@ cmake --build build\cmake --config Debug
 ctest --test-dir build\cmake -C Debug --output-on-failure
 ```
 
-Release 安装会发布 `lua.h`、`lauxlib.h`、`lualib.h`、`lua_cpp_version.h`，以及静态目标 `LuaCpp::Lua` 和共享 ABI 目标 `LuaCpp::Shared`：
+Release 安装会发布 `lua.h`、`lauxlib.h`、`lualib.h`、`lua_runtime.h`、`lua_cpp_version.h`，以及静态目标 `LuaCpp::Lua` 和共享 ABI 目标 `LuaCpp::Shared`：
 
 ```powershell
 cmake -S . -B build\sdk -A x64 -DCMAKE_INSTALL_PREFIX=out\lua-cpp
@@ -169,6 +169,23 @@ target_link_libraries(my_host PRIVATE LuaCpp::Lua) # 或 LuaCpp::Shared
 ```
 
 CTest 的 `cmake_package_consumer` 会先安装当前构建，再用一个独立纯 C 源码 consumer 分别链接静态库和共享库并执行，防止安装/导出配置漂移。静态目标由 C++ 实现，外部 CMake 工程需启用 C++ linker language。
+
+不可信游戏逻辑应从有限预置开始，并在每个请求前建立新的执行窗口：
+
+```c
+lua_RuntimeConfig config;
+lua_runtime_config_init_gameserver(&config);
+int runtime_status = LUA_RUNTIME_OK;
+lua_State* L = luaL_newstate_configured(&config, &runtime_status);
+
+lua_RuntimeExecutionLimits limits;
+lua_runtime_execution_limits_init(&limits);
+limits.instruction_budget = 1000000;
+limits.timeout_ms = 50;
+lua_runtime_begin_execution(L, &limits);
+```
+
+完整字段、可信宿主 loader 边界与取消合同见 [生产运行时公开 C API](docs/runtime/public-runtime-api.md)。
 
 ## 项目结构
 
@@ -246,6 +263,10 @@ CTest 的 `cmake_package_consumer` 会先安装当前构建，再用一个独立
 | [docs/runtime/functions/overview.md](docs/runtime/functions/overview.md) | 函数、闭包、upvalue 和调用帧 |
 | [docs/runtime/memory-contract.md](docs/runtime/memory-contract.md) | GC managed budget、lua_Alloc 与 hard-limit 支持边界 |
 | [docs/runtime/sandbox-policy.md](docs/runtime/sandbox-policy.md) | 标准库暴露、脚本能力、固定拒绝错误与可信宿主边界 |
+| [docs/runtime/public-runtime-api.md](docs/runtime/public-runtime-api.md) | 已安装 C SDK 的创建期配置、每请求预算与跨线程取消 |
+| [docs/operations/production-deployment.md](docs/operations/production-deployment.md) | 不可信脚本 worker 的 allocator/进程隔离、观测、容量与回滚合同 |
+| [docs/quality/endurance.md](docs/quality/endurance.md) | runtime/native-module soak、取消延迟 SLO 与 scheduled 长 fuzz |
+| [docs/release/release-checklist.md](docs/release/release-checklist.md) | RC 治理、跨平台制品、SPDX SBOM、SHA-256 与回滚 |
 | [docs/gc/implementation.md](docs/gc/implementation.md) | GC 对象模型、根集和标记清除实现 |
 | [docs/stdlib/overview.md](docs/stdlib/overview.md) | 标准库 catalog 和注册架构 |
 | [docs/compatibility/lua51/overview.md](docs/compatibility/lua51/overview.md) | Lua 5.1 技术兼容边界与实现策略对比 |

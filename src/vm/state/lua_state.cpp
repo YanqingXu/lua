@@ -196,7 +196,8 @@ LuaState* LuaState::newIsolatedState() {
     return createIsolated().release();
 }
 
-LuaState* LuaState::newAllocatedState(LuaAllocatorFunction allocatorFunction, void* userData) {
+LuaState* LuaState::newAllocatedState(LuaAllocatorFunction allocatorFunction, void* userData,
+                                      const RuntimeConfiguration* configuration) {
     if (allocatorFunction == nullptr) {
         return {};
     }
@@ -209,7 +210,12 @@ LuaState* LuaState::newAllocatedState(LuaAllocatorFunction allocatorFunction, vo
 
     EngineContext* context = nullptr;
     try {
-        context = std::construct_at(static_cast<EngineContext*>(contextMemory), allocatorFunction, userData);
+        if (configuration != nullptr) {
+            context = std::construct_at(static_cast<EngineContext*>(contextMemory), allocatorFunction, userData,
+                                        *configuration);
+        } else {
+            context = std::construct_at(static_cast<EngineContext*>(contextMemory), allocatorFunction, userData);
+        }
     } catch (...) {
         bootstrapAllocator.deallocate(contextMemory, sizeof(EngineContext));
         return {};

@@ -1,0 +1,165 @@
+name: Nightly endurance
+
+on:
+  schedule:
+    - cron: "31 18 * * *"
+  workflow_dispatch:
+    inputs:
+      soak_minutes:
+        description: Runtime soak duration in minutes
+        required: false
+        default: "45"
+      fuzz_seconds_per_target:
+        description: libFuzzer seconds per target
+        required: false
+        default: "600"
+      native_module_iterations:
+        description: Native module lifecycle iterations
+        required: false
+        default: "1000"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-endurance-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runtime-soak:
+    name: Runtime and native-module soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SOAK_MINUTES: ${{ inputs.soak_minutes || '45' }}
+      NATIVE_MODULE_ITERATIONS: ${{ inputs.native_module_iterations || '1000' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate endurance inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOAK_MINUTES" =~ ^[0-9]+$ ]] &&
+            ((SOAK_MINUTES >= 1 && SOAK_MINUTES <= 80))
+          [[ "$NATIVE_MODULE_ITERATIONS" =~ ^[0-9]+$ ]] &&
+            ((NATIVE_MODULE_ITERATIONS >= 1 && NATIVE_MODULE_ITERATIONS <= 100000))
+
+      - name: Configure Release endurance targets
+        run: >-
+          cmake -S . -B build/soak
+          -DCMAKE_BUILD_TYPE=Release
+          -DLUA_CPP_BUILD_TOOLS=OFF
+
+      - name: Build endurance targets
+        run: >-
+          cmake --build build/soak --parallel 2 --target
+          lua_runtime_soak
+          lua_public_module_host
+          lua_public_native_module_host
+
+      - name: Run runtime soak
+        shell: bash
+        run: |
+          set -euo pipefail
+          duration_seconds=$((SOAK_MINUTES * 60))
+          build/soak/lua_runtime_soak \
+            --iterations 0 \
+            --duration-seconds "$duration_seconds" \
+            --max-cancel-latency-ms 250 \
+            --json build/soak/runtime-soak.json
+
+      - name: Run native-module lifecycle soak
+        shell: bash
+        run: |
+          set -euo pipefail
+          build/soak/lua_public_module_host \
+            "$PWD/build/soak/publicfixture_host.so" \
+            "$NATIVE_MODULE_ITERATIONS"
+          printf '{"schema":1,"status":"passed","iterations":%s}\n' \
+            "$NATIVE_MODULE_ITERATIONS" > build/soak/native-module-soak.json
+
+      - name: Upload endurance evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-soak-evidence
+          path: |
+            build/soak/runtime-soak.json
+            build/soak/native-module-soak.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  long-fuzz:
+    name: Long sanitizer fuzz
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CC: clang-19
+      CXX: clang++-19
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      FUZZ_SECONDS_PER_TARGET: ${{ inputs.fuzz_seconds_per_target || '600' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate fuzz input
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$FUZZ_SECONDS_PER_TARGET" =~ ^[0-9]+$ ]] &&
+            ((FUZZ_SECONDS_PER_TARGET >= 1 && FUZZ_SECONDS_PER_TARGET <= 1200))
+
+      - name: Install Clang
+        run: >-
+          sudo apt-get update && sudo apt-get install --yes
+          clang-19 libfuzzer-19-dev
+
+      - name: Configure fuzzers
+        run: >-
+          cmake -S . -B build/fuzz
+          -DCMAKE_BUILD_TYPE=Debug
+          -DLUA_CPP_BUILD_FUZZERS=ON
+          -DLUA_CPP_BUILD_TESTS=OFF
+          -DLUA_CPP_BUILD_TOOLS=OFF
+
+      - name: Build fuzzers
+        run: >-
+          cmake --build build/fuzz --parallel 2 --target
+          fuzz_undump
+          fuzz_bytecode_verifier
+          fuzz_parser
+          fuzz_stdlib_numeric_arguments
+
+      - name: Run long fuzz campaign
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/fuzz-artifacts build/fuzz-corpus
+          targets=(undump bytecode_verifier parser stdlib_numeric_arguments)
+          for target in "${targets[@]}"; do
+            cp -R "tests/fuzz/corpus/${target}" "build/fuzz-corpus/${target}"
+            "build/fuzz/fuzz_${target}" "build/fuzz-corpus/${target}" \
+              -max_total_time="$FUZZ_SECONDS_PER_TARGET" \
+              -timeout=5 \
+              -max_len=1048576 \
+              -rss_limit_mb=2048 \
+              -print_final_stats=1 \
+              -artifact_prefix="build/fuzz-artifacts/${target}-" \
+              2>&1 | tee "build/fuzz-artifacts/${target}.log"
+          done
+
+      - name: Upload fuzz evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: long-fuzz-evidence
+          path: |
+            build/fuzz-artifacts/
+            build/fuzz-corpus/
+          if-no-files-found: warn
+          retention-days: 30

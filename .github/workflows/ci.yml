@@ -34,11 +34,11 @@ jobs:
         shell: powershell
         run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=${{ matrix.configuration }} /p:Platform=x64
 
-      - name: Configure CMake API and native-module evidence
+      - name: Configure CMake API, native-module, and production-worker evidence
         shell: powershell
         run: cmake -S . -B build/windows-cmake -A x64
 
-      - name: Build CMake API and native-module evidence
+      - name: Build CMake API, native-module, and production-worker evidence
         shell: powershell
         run: >-
           cmake --build build/windows-cmake
@@ -51,13 +51,15 @@ jobs:
           lua_public_native_module_host
           lua_public_native_module_app
           lua_public_native_module_embedding
+          lua_production_worker
+          lua_runtime_soak
 
-      - name: Run CMake API and native-module evidence
+      - name: Run CMake API, native-module, and production-worker evidence
         shell: powershell
         run: >-
           ctest --test-dir build/windows-cmake
           -C ${{ matrix.configuration }}
-          -L api-contract
+          -L "api-contract|production-contract|soak-smoke"
           --output-on-failure
 
       - name: Documentation drift
@@ -396,7 +398,8 @@ jobs:
             > build/coverage/coverage.json
           python3 tools/summarize_coverage.py \
             build/coverage/coverage.json \
-            build/coverage/coverage-components.json
+            build/coverage/coverage-components.json \
+            --thresholds tests/coverage/component-thresholds.json
           llvm-cov-18 show build/coverage/lua_test \
             -instr-profile=build/coverage/merged.profdata \
             -format=html \

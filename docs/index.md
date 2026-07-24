@@ -16,7 +16,10 @@ applies_to: technical documentation entry point
 | Architecture | 分层、端到端数据流、跨模块不变量和完整 walkthrough | [架构总览](architecture/overview.md)、[执行流水线](architecture/execution-pipeline/overview.md) |
 | Compiler | Lexer、Parser、AST、binding、CodeGen、控制流、寄存器与字节码格式 | [Lexer](compiler/lexer.md)、[Parser](compiler/parser.md)、[字节码生成](compiler/bytecode-generation.md) |
 | VM | opcode 语义、dispatch、寄存器窗口、调用/返回、native call 和 trace | [指令集](vm/instruction-set.md)、[VM Runtime](vm/runtime/overview.md)、[Trace](vm/trace-system.md) |
-| Runtime | Value、Table、Metatable、Function、Closure、Upvalue、RuntimeServices、执行治理、脚本能力与内存合同 | [Value](runtime/value/overview.md)、[Table](runtime/table/overview.md)、[Function](runtime/functions/overview.md)、[Services](runtime/services.md)、[ExecutionPolicy](runtime/execution-policy.md)、[SandboxPolicy](runtime/sandbox-policy.md)、[内存合同](runtime/memory-contract.md) |
+| Runtime | Value、Table、Metatable、Function、Closure、Upvalue、RuntimeServices、公开生产配置、执行治理、脚本能力与内存合同 | [Value](runtime/value/overview.md)、[Table](runtime/table/overview.md)、[Function](runtime/functions/overview.md)、[Services](runtime/services.md)、[生产运行时 C API](runtime/public-runtime-api.md)、[ExecutionPolicy](runtime/execution-policy.md)、[SandboxPolicy](runtime/sandbox-policy.md)、[内存合同](runtime/memory-contract.md) |
+| Operations | 不可信脚本 worker 的 allocator/进程隔离、结构化结果、容量与回滚 | [生产部署合同](operations/production-deployment.md) |
+| Quality | PR 快速门禁与 scheduled runtime/native-module soak、长 fuzz 分层 | [长稳与 Fuzz 合同](quality/endurance.md) |
+| Release | RC/正式版本的同 SHA 证据、仓库治理、SBOM、校验和与回滚 | [发布门禁](release/release-checklist.md) |
 | GC | root/object graph、mark/sweep、barrier、weak table、finalizer 和 StringPool | [GC 总览](gc/overview.md)、[GC 实现](gc/implementation.md)、[周期 walkthrough](gc/cycle-walkthrough.md) |
 | Standard Library | native function 注册、公共栈协议和 Lua 5.1 库语义 | [注册架构](stdlib/overview.md)、[库实现边界](stdlib/library-reference/overview.md) |
 | Compatibility | Lua 5.1 支持面、实现自由度、高风险差异和验证门槛 | [兼容性边界](compatibility/lua51/overview.md) |

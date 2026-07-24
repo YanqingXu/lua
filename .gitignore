@@ -11,5 +11,7 @@ lua/tmp/
 x64/
 *.pdb
 *.tlog
+__pycache__/
+*.py[cod]
 build_refactor/
 .workbuddy/

@@ -151,6 +151,8 @@ i32 luaB_xpcall(LuaState* L);
  * @return 返回值数量（成功时返回函数，失败时返回 nil + 错误消息）
  */
 i32 luaB_loadstring(LuaState* L);
+/** @brief 可信宿主 C API 使用的 loadstring 路径；仍执行资源限制，但不应用脚本能力策略。 */
+i32 luaB_loadstringTrusted(LuaState* L);
 
 /**
  * @brief loadfile([filename]) - 编译文件为函数
@@ -158,6 +160,8 @@ i32 luaB_loadstring(LuaState* L);
  * @return 返回值数量（成功时返回函数，失败时返回 nil + 错误消息）
  */
 i32 luaB_loadfile(LuaState* L);
+/** @brief 可信宿主 C API 使用的 loadfile 路径；仍执行资源限制，但不应用脚本能力策略。 */
+i32 luaB_loadfileTrusted(LuaState* L);
 
 /**
  * @brief dofile([filename]) - 加载并执行文件
