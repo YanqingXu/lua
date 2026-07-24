@@ -58,7 +58,7 @@ struct ConstantKey {
     /**
      * @brief 键的内部表示：monostate=nil, bool, f64(number), GCString*(string)
      */
-    using KeyVariant = std::variant<std::monostate, bool, f64, GCString*>;
+    using KeyVariant = Var<std::monostate, bool, f64, GCString*>;
     KeyVariant key;
 
     /**
@@ -91,9 +91,9 @@ struct ConstantKey {
  * @brief ConstantKey的哈希函数
  */
 struct ConstantKeyHash {
-    std::size_t operator()(const ConstantKey& ck) const noexcept {
+    usize operator()(const ConstantKey& ck) const noexcept {
         return std::visit(
-            [](const auto& val) -> std::size_t {
+            [](const auto& val) -> usize {
                 using T = std::decay_t<decltype(val)>;
                 if constexpr (std::is_same_v<T, std::monostate>) {
                     // nil的哈希值使用固定值
@@ -518,7 +518,7 @@ public:
      *
      * 对应Lua C实现中的luaF_getlocalname函数
      */
-    const char* getLocalName(i32 localNumber, i32 pc) const;
+    CharPtr getLocalName(i32 localNumber, i32 pc) const;
 
     /**
      * @brief 获取指定PC位置的局部变量调试信息

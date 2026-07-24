@@ -6,11 +6,11 @@
  *
  * 设计说明：
  * Value类是Lua解释器中所有值的统一表示。
- * 使用C++17的std::variant替代C的union，提供类型安全的动态类型系统。
+ * 使用C++17的Var（std::variant别名）替代C的union，提供类型安全的动态类型系统。
  *
  * 核心特性：
- * - 类型安全：使用std::variant避免未定义行为
- * - 高效表示：依赖std::variant进行类型分派
+ * - 类型安全：使用Var避免未定义行为
+ * - 高效表示：依赖Var进行类型分派
  * - 现代C++：支持移动语义、RAII等特性
  * - 易于调试：提供丰富的类型检查和转换方法
  *
@@ -36,7 +36,7 @@ class Thread;
  * @brief Value类 - Lua动态类型系统的核心
  *
  * 详细说明：
- * Value类使用std::variant实现tagged union，每个Value对象可以存储
+ * Value类使用Var实现tagged union，每个Value对象可以存储
  * Lua支持的任意一种类型的值。variant会自动管理类型标签和值的生命周期。
  *
  * 支持的类型：
@@ -51,7 +51,7 @@ class Thread;
  * 9. Thread      - 线程/协程（Thread*，受GC管理）
  *
  * 内存布局：
- * std::variant会选择最大类型的大小，并添加一个类型标签（通常1字节）。
+ * Var的底层std::variant会选择最大类型的大小，并添加一个类型标签（通常1字节）。
  * 在64位系统上，大小约为16字节（8字节指针 + 8字节double + 类型标签）。
  */
 class Value {
@@ -63,19 +63,19 @@ public:
     /**
      * @brief 值的内部表示类型
      *
-     * 使用std::variant实现类型安全的tagged union。
+     * 使用Var实现类型安全的tagged union。
      * variant的索引顺序对应ValueType枚举的值。
      */
-    using ValueVariant = std::variant<std::monostate, // 0: Nil - 空值类型
-                                      bool,           // 1: Boolean - 布尔值
-                                      void*,          // 2: LightUserdata - 轻量级用户数据（C指针）
-                                      LuaNumber,      // 3: Number - 数值（double）
-                                      GCString*,      // 4: String - 字符串（GC对象）
-                                      Table*,         // 5: Table - 表（GC对象）
-                                      Function*,      // 6: Function - 函数（GC对象）
-                                      Userdata*,      // 7: Userdata - 完整用户数据（GC对象）
-                                      Thread*         // 8: Thread - 线程/协程（GC对象）
-                                      >;
+    using ValueVariant = Var<std::monostate, // 0: Nil - 空值类型
+                             bool,            // 1: Boolean - 布尔值
+                             void*,           // 2: LightUserdata - 轻量级用户数据（C指针）
+                             LuaNumber,       // 3: Number - 数值（double）
+                             GCString*,       // 4: String - 字符串（GC对象）
+                             Table*,          // 5: Table - 表（GC对象）
+                             Function*,       // 6: Function - 函数（GC对象）
+                             Userdata*,       // 7: Userdata - 完整用户数据（GC对象）
+                             Thread*          // 8: Thread - 线程/协程（GC对象）
+                             >;
 
     // =====================================================================
     // 构造函数和析构函数
@@ -307,14 +307,14 @@ public:
     }
 
     // =====================================================================
-    // 安全的值访问方法（返回std::optional）
+    // 安全的值访问方法（返回Opt）
     // =====================================================================
 
     /**
      * @brief 安全地尝试获取布尔值
-     * @return std::optional<bool> 如果类型匹配返回值，否则返回空
+     * @return Opt<bool> 如果类型匹配返回值，否则返回空
      */
-    std::optional<bool> tryGetBoolean() const {
+    Opt<bool> tryGetBoolean() const {
         if (isBoolean()) {
             return asBoolean();
         }
@@ -323,9 +323,9 @@ public:
 
     /**
      * @brief 安全地尝试获取数值
-     * @return std::optional<LuaNumber> 如果类型匹配返回值，否则返回空
+     * @return Opt<LuaNumber> 如果类型匹配返回值，否则返回空
      */
-    std::optional<LuaNumber> tryGetNumber() const {
+    Opt<LuaNumber> tryGetNumber() const {
         if (isNumber()) {
             return asNumber();
         }
@@ -334,9 +334,9 @@ public:
 
     /**
      * @brief 安全地尝试获取整数值
-     * @return std::optional<LuaInteger> 如果类型匹配返回值，否则返回空
+     * @return Opt<LuaInteger> 如果类型匹配返回值，否则返回空
      */
-    std::optional<LuaInteger> tryGetInteger() const {
+    Opt<LuaInteger> tryGetInteger() const {
         if (isNumber()) {
             return asInteger();
         }
@@ -409,7 +409,7 @@ public:
      * @brief 获取值的字符串表示（用于调试）
      * @return 值的字符串描述
      */
-    std::string toString() const;
+    Str toString() const;
 
 private:
     /** @brief 值的内部存储 */

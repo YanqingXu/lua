@@ -18,6 +18,7 @@
  * 相关文档：lua/docs/architecture/overview.md
  */
 
+#include "common/types.hpp"
 #include "core/gc_object.hpp"
 #include "runtime/lua_allocator.hpp"
 #include <array>
@@ -112,7 +113,7 @@ public:
      * @brief 获取C风格字符串
      * @return 指向以null结尾的字符串的指针
      */
-    const char* c_str() const noexcept {
+    CharPtr c_str() const noexcept {
         return storageData();
     }
 
@@ -207,7 +208,7 @@ public:
     static usize computeHash(StrView str) noexcept;
 
 private:
-    [[nodiscard]] const char* storageData() const noexcept {
+    [[nodiscard]] CharPtr storageData() const noexcept {
         return externalData_ != nullptr ? externalData_ : inlineData_.data();
     }
 

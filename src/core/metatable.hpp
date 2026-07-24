@@ -354,7 +354,7 @@ Value fastMetamethod(GlobalState& globalState, Table* metatable, TMS event);
  * @param event 元方法类型
  * @return 元方法名称字符串（如"__add"）
  */
-inline const char* getMetamethodName(TMS event) {
+inline CharPtr getMetamethodName(TMS event) {
     return kMetamethodNames[static_cast<usize>(event)].data();
 }
 

@@ -229,7 +229,7 @@ const LocVar* Proto::getLocalVarInfo(i32 localNumber, i32 pc) const {
     return nullptr; // 未找到对应的局部变量
 }
 
-const char* Proto::getLocalName(i32 localNumber, i32 pc) const {
+CharPtr Proto::getLocalName(i32 localNumber, i32 pc) const {
     const LocVar* locvar = getLocalVarInfo(localNumber, pc);
     if (locvar == nullptr) {
         return nullptr;

@@ -16,7 +16,7 @@ namespace Lua {
  * 这个方法主要用于调试和日志输出，提供值的可读表示。
  * 对于GC对象，只显示类型和指针地址，不访问对象内容。
  */
-std::string Value::toString() const {
+Str Value::toString() const {
     std::ostringstream oss;
 
     switch (getType()) {

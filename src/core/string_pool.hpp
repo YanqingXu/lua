@@ -17,6 +17,7 @@
  * 相关文档：lua/docs/architecture/overview.md
  */
 
+#include "common/types.hpp"
 #include "core/gc_string.hpp"
 #include "runtime/lua_allocator.hpp"
 #include "runtime/resource_policy.hpp"
@@ -111,7 +112,7 @@ public:
      *
      * @note 这是一个便利方法，会自动计算字符串长度
      */
-    GCString* intern(const char* str) {
+    GCString* intern(CharPtr str) {
         return intern(StrView(str));
     }
 
@@ -121,7 +122,7 @@ public:
      * @param len 字符串长度
      * @return GCString指针
      */
-    GCString* intern(const char* str, usize len) {
+    GCString* intern(CharPtr str, usize len) {
         return intern(StrView(str, len));
     }
 
@@ -157,7 +158,7 @@ public:
      * @param str C风格字符串（以null结尾）
      * @return GCString指针，如果不存在返回nullptr
      */
-    GCString* find(const char* str) const {
+    GCString* find(CharPtr str) const {
         return find(StrView(str));
     }
 
@@ -167,7 +168,7 @@ public:
      * @param len 字符串长度
      * @return GCString指针，如果不存在返回nullptr
      */
-    GCString* find(const char* str, usize len) const {
+    GCString* find(CharPtr str, usize len) const {
         return find(StrView(str, len));
     }
 

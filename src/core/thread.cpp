@@ -197,7 +197,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         return false;
     };
 
-    auto failRuntimeMessage = [&](const char* message, bool canonicalizeCoroutine) noexcept {
+    auto failRuntimeMessage = [&](CharPtr message, bool canonicalizeCoroutine) noexcept {
         try {
             return failRuntimeValue(Value(globalState.getStringPool().intern(message)), canonicalizeCoroutine);
         } catch (...) {
@@ -205,7 +205,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         }
     };
 
-    auto failMessage = [&](const char* message, bool canonicalizeCoroutine) noexcept {
+    auto failMessage = [&](CharPtr message, bool canonicalizeCoroutine) noexcept {
         try {
             Value errorValue(globalState.getStringPool().intern(message));
             return failResume(errorValue, ThreadStatus::ErrRun, canonicalizeCoroutine);
