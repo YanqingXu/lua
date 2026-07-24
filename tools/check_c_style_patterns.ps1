@@ -192,7 +192,12 @@ foreach ($rule in $rules) {
 
     foreach ($file in $sourceFiles) {
         $lineNumber = 0
-        foreach ($line in Get-Content -LiteralPath $file.FullName) {
+        # Windows PowerShell 5 can omit empty records when Get-Content reads an
+        # LF-only file, while the same checkout may be CRLF on a Windows runner.
+        # Split the raw text explicitly so position baselines are independent
+        # of checkout line endings and PowerShell version.
+        $fileLines = [regex]::Split([System.IO.File]::ReadAllText($file.FullName), "\r?\n")
+        foreach ($line in $fileLines) {
             $lineNumber += 1
             if ($rule.SkipCommentLines -and (Test-SkippableCommentLine $line)) {
                 continue

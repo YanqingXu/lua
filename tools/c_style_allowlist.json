@@ -5108,21 +5108,21 @@
                     {
                         "rule":  "simple #define",
                         "path":  "src\\lua_runtime.h",
-                        "line":  14,
+                        "line":  16,
                         "textHash":  "e2fb08ac99ad650ede8d4741188b2a3cd2fd8df1c61b1f9bb126381a74a394ed",
                         "rationale":  "The installed C header requires an include guard and compile-time ABI constants."
                     },
                     {
                         "rule":  "simple #define",
                         "path":  "src\\lua_runtime.h",
-                        "line":  15,
+                        "line":  17,
                         "textHash":  "21305f909b0abe59a79cbff1bcb9315134bbe3308b7b29ccbcba4b83f29a6c94",
                         "rationale":  "The installed C header requires an include guard and compile-time ABI constants."
                     },
                     {
                         "rule":  "simple #define",
                         "path":  "src\\lua_runtime.h",
-                        "line":  16,
+                        "line":  18,
                         "textHash":  "9779902ef82fd1dac5b4a5ad2a08401d0db42caf998e55198371efe0dd5be249",
                         "rationale":  "The installed C header requires an include guard and compile-time ABI constants."
                     },
