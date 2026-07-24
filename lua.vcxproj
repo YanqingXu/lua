@@ -230,6 +230,8 @@
     <ClInclude Include="src\runtime\resource_policy.hpp" />
     <ClInclude Include="src\runtime\runtime_random.hpp" />
     <ClInclude Include="src\runtime\trace_runtime.hpp" />
+    <ClInclude Include="src\lua_runtime.h" />
+    <ClInclude Include="src\runtime\runtime_configuration.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\compiler\ast.cpp" />

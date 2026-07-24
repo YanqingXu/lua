@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$ResultPath
+    [string]$ResultPath,
+
+    [switch]$SkipAbsoluteSlo
 )
 
 $ErrorActionPreference = "Stop"
@@ -282,6 +284,10 @@ $recomputedStable = $finalSizeStable -and $trendStable
 Assert-Contract ($result.heap.stable -eq $recomputedStable) `
     "heap.stable does not match the reported sizes and trend policy"
 Assert-Contract ($result.heap.stable -eq $true) "heap stability result is false"
+
+if (-not $SkipAbsoluteSlo) {
+    & (Join-Path $PSScriptRoot "check_runtime_bench_absolute_slo.ps1") -ResultPath $resolvedResult
+}
 
 Write-Host "Runtime benchmark contract passed."
 Write-Host "  Metrics: $($result.metrics.Count)"

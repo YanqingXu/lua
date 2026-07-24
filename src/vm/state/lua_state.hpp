@@ -42,6 +42,7 @@ class Upvalue;
 class Userdata;
 class Thread;
 class EngineContext;
+struct RuntimeConfiguration;
 struct RuntimeServices;
 
 /** @brief 按分配方式销毁拥有型运行时上下文的删除器。 */
@@ -178,7 +179,8 @@ public:
     /**
      * @brief 创建上下文与状态内存块均使用 lua_Alloc 的 C API 状态
      */
-    static LuaState* newAllocatedState(LuaAllocatorFunction allocator, void* userData);
+    static LuaState* newAllocatedState(LuaAllocatorFunction allocator, void* userData,
+                                       const RuntimeConfiguration* configuration = nullptr);
 
     /**
      * @brief 正确销毁普通状态或由分配器支撑的状态

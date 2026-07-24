@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "scope": {
+    "profile": "ci",
+    "buildType": "Release",
+    "runner": "Linux x86_64 hosted or better"
+  },
+  "metrics": [
+    {
+      "name": "parse_compile_mib_per_second",
+      "direction": "higher",
+      "threshold": 1.0
+    },
+    {
+      "name": "vm_instructions_per_second",
+      "direction": "higher",
+      "threshold": 10000000.0
+    },
+    {
+      "name": "cpp_to_lua_ns_per_call",
+      "direction": "lower",
+      "threshold": 2000.0
+    },
+    {
+      "name": "lua_to_cpp_ns_per_call",
+      "direction": "lower",
+      "threshold": 1500.0
+    },
+    {
+      "name": "coroutine_resume_yield_ns",
+      "direction": "lower",
+      "threshold": 2500.0
+    },
+    {
+      "name": "table_operations_per_second",
+      "direction": "higher",
+      "threshold": 1000000.0
+    },
+    {
+      "name": "closure_upvalue_lifecycle_per_second",
+      "direction": "higher",
+      "threshold": 100000.0
+    },
+    {
+      "name": "allocation_mib_per_second",
+      "direction": "higher",
+      "threshold": 50.0
+    },
+    {
+      "name": "gc_pause_p99_us",
+      "direction": "lower",
+      "threshold": 250.0
+    },
+    {
+      "name": "gc_pause_max_us",
+      "direction": "lower",
+      "threshold": 5000.0
+    }
+  ]
+}

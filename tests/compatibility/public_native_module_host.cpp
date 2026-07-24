@@ -124,80 +124,94 @@ long currentProcessId() noexcept {
 } // namespace
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::cerr << "usage: lua_public_module_host <module-path>\n";
+    if (argc != 2 && argc != 3) {
+        std::cerr << "usage: lua_public_module_host <module-path> [iterations]\n";
         return 2;
     }
 
     try {
+        int iterations = 1;
+        if (argc == 3) {
+            try {
+                iterations = std::stoi(argv[2]);
+            } catch (...) {
+                throw std::runtime_error("native module soak iterations must be a positive integer");
+            }
+            if (iterations <= 0) {
+                throw std::runtime_error("native module soak iterations must be a positive integer");
+            }
+        }
         const std::string modulePath = std::filesystem::canonical(argv[1]).string();
-        {
-            Lua::EngineContext survivorContext;
-            Lua::UPtr<Lua::LuaState> survivor = Lua::LuaState::create(survivorContext);
-            luaL_openlibs(apiState(survivor.get()));
+        for (int iteration = 0; iteration < iterations; ++iteration) {
+            {
+                Lua::EngineContext survivorContext;
+                Lua::UPtr<Lua::LuaState> survivor = Lua::LuaState::create(survivorContext);
+                luaL_openlibs(apiState(survivor.get()));
+
+                {
+                    Lua::EngineContext firstContext;
+                    Lua::UPtr<Lua::LuaState> first = Lua::LuaState::create(firstContext);
+                    luaL_openlibs(apiState(first.get()));
+
+                    const FixtureResult firstCall = callFixture(apiState(first.get()), modulePath.c_str());
+                    const FixtureResult firstAgain = callFixture(apiState(first.get()), modulePath.c_str());
+                    if (firstCall.stateCalls != 1 || firstCall.moduleCalls != 1 || firstAgain.stateCalls != 2 ||
+                        firstAgain.moduleCalls != 2) {
+                        throw std::runtime_error("first EngineContext did not keep isolated module state");
+                    }
+
+                    const FixtureResult survivorCall = callFixture(apiState(survivor.get()), argv[1]);
+                    if (survivorCall.stateCalls != 1 || survivorCall.moduleCalls != 3) {
+                        throw std::runtime_error("second EngineContext did not start with isolated Lua state");
+                    }
+                    if (firstContext.nativeModules().loadedCount() != 1 ||
+                        !firstContext.nativeModules().contains(modulePath) ||
+                        survivorContext.nativeModules().loadedCount() != 1) {
+                        throw std::runtime_error("repeated canonical module path created a second context lease");
+                    }
+                }
+
+                const FixtureResult afterFirstClose = callFixture(apiState(survivor.get()), modulePath.c_str());
+                if (afterFirstClose.stateCalls != 2 || afterFirstClose.moduleCalls != 4 ||
+                    survivorContext.nativeModules().loadedCount() != 1) {
+                    throw std::runtime_error("surviving EngineContext lost its module lease or state");
+                }
+            }
 
             {
-                Lua::EngineContext firstContext;
-                Lua::UPtr<Lua::LuaState> first = Lua::LuaState::create(firstContext);
-                luaL_openlibs(apiState(first.get()));
-
-                const FixtureResult firstCall = callFixture(apiState(first.get()), modulePath.c_str());
-                const FixtureResult firstAgain = callFixture(apiState(first.get()), modulePath.c_str());
-                if (firstCall.stateCalls != 1 || firstCall.moduleCalls != 1 || firstAgain.stateCalls != 2 ||
-                    firstAgain.moduleCalls != 2) {
-                    throw std::runtime_error("first EngineContext did not keep isolated module state");
-                }
-
-                const FixtureResult survivorCall = callFixture(apiState(survivor.get()), argv[1]);
-                if (survivorCall.stateCalls != 1 || survivorCall.moduleCalls != 3) {
-                    throw std::runtime_error("second EngineContext did not start with isolated Lua state");
-                }
-                if (firstContext.nativeModules().loadedCount() != 1 ||
-                    !firstContext.nativeModules().contains(modulePath) ||
-                    survivorContext.nativeModules().loadedCount() != 1) {
-                    throw std::runtime_error("repeated canonical module path created a second context lease");
+                Lua::EngineContext reloadedContext;
+                Lua::UPtr<Lua::LuaState> reloaded = Lua::LuaState::create(reloadedContext);
+                luaL_openlibs(apiState(reloaded.get()));
+                const FixtureResult afterLastClose = callFixture(apiState(reloaded.get()), modulePath.c_str());
+                if (afterLastClose.stateCalls != 1 || afterLastClose.moduleCalls != 1 ||
+                    reloadedContext.nativeModules().loadedCount() != 1) {
+                    throw std::runtime_error("last EngineContext close did not unload and reset the native module");
                 }
             }
 
-            const FixtureResult afterFirstClose = callFixture(apiState(survivor.get()), modulePath.c_str());
-            if (afterFirstClose.stateCalls != 2 || afterFirstClose.moduleCalls != 4 ||
-                survivorContext.nativeModules().loadedCount() != 1) {
-                throw std::runtime_error("surviving EngineContext lost its module lease or state");
+            const std::filesystem::path markerPath =
+                std::filesystem::temp_directory_path() /
+                ("lua_cpp_native_close_finalizer_" + std::to_string(currentProcessId()) + "_" +
+                 std::to_string(iteration) + ".marker");
+            std::error_code removeError;
+            (void)std::filesystem::remove(markerPath, removeError);
+
+            lua_State* closeState = lua_open();
+            if (closeState == nullptr) {
+                throw std::runtime_error("failed to create native close-finalizer state");
             }
-        }
+            luaL_openlibs(closeState);
+            installCloseFinalizer(closeState, modulePath.c_str(), markerPath);
+            lua_close(closeState);
 
-        {
-            Lua::EngineContext reloadedContext;
-            Lua::UPtr<Lua::LuaState> reloaded = Lua::LuaState::create(reloadedContext);
-            luaL_openlibs(apiState(reloaded.get()));
-            const FixtureResult afterLastClose = callFixture(apiState(reloaded.get()), modulePath.c_str());
-            if (afterLastClose.stateCalls != 1 || afterLastClose.moduleCalls != 1 ||
-                reloadedContext.nativeModules().loadedCount() != 1) {
-                throw std::runtime_error("last EngineContext close did not unload and reset the native module");
+            std::ifstream marker(markerPath, std::ios::binary);
+            std::string markerText;
+            marker >> markerText;
+            marker.close();
+            (void)std::filesystem::remove(markerPath, removeError);
+            if (markerText != "module-finalizer-ran") {
+                throw std::runtime_error("native __gc did not run before its module was unloaded");
             }
-        }
-
-        const std::filesystem::path markerPath =
-            std::filesystem::temp_directory_path() /
-            ("lua_cpp_native_close_finalizer_" + std::to_string(currentProcessId()) + ".marker");
-        std::error_code removeError;
-        (void)std::filesystem::remove(markerPath, removeError);
-
-        lua_State* closeState = lua_open();
-        if (closeState == nullptr) {
-            throw std::runtime_error("failed to create native close-finalizer state");
-        }
-        luaL_openlibs(closeState);
-        installCloseFinalizer(closeState, modulePath.c_str(), markerPath);
-        lua_close(closeState);
-
-        std::ifstream marker(markerPath, std::ios::binary);
-        std::string markerText;
-        marker >> markerText;
-        marker.close();
-        (void)std::filesystem::remove(markerPath, removeError);
-        if (markerText != "module-finalizer-ran") {
-            throw std::runtime_error("native __gc did not run before its module was unloaded");
         }
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

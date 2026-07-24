@@ -27,6 +27,7 @@ PUBLIC_HEADER_INFRASTRUCTURE_MACROS = {
     "LUA_CXX_MAY_THROW",
     "LUA_CXX_NOEXCEPT",
     "LUA_H",
+    "LUA_RUNTIME_H",
 }
 OFFICIAL_FUNCTIONS_BY_HEADER = {
     "lua.h": frozenset(
@@ -165,7 +166,9 @@ OFFICIAL_FUNCTIONS_BY_HEADER = {
         }
     ),
 }
-PROJECT_PUBLIC_HEADERS = tuple(ROOT / "src" / name for name in ("lua.h", "lauxlib.h", "lualib.h"))
+PROJECT_PUBLIC_HEADERS = tuple(
+    ROOT / "src" / name for name in ("lua.h", "lauxlib.h", "lualib.h", "lua_runtime.h")
+)
 PROJECT_IMPLEMENTATION_SOURCES = tuple((ROOT / "src").rglob("*.cpp"))
 
 
@@ -225,8 +228,8 @@ def read_unix_exports() -> set[str]:
 def project_public_functions(header_texts: dict[Path, str]) -> set[str]:
     declarations: set[str] = set()
     pattern = re.compile(
-        r"(?m)^[ \t]*(?!typedef\b)(?!#)[A-Za-z_][A-Za-z0-9_ \t*]*\b(lua[A-Za-z0-9_]*)"
-        r"\s*\([^;{}\n]*\)(?:\s+LUA_CXX_(?:MAY_THROW|NOEXCEPT))?\s*;"
+        r"(?ms)^[ \t]*(?!typedef\b)(?!#)[A-Za-z_][A-Za-z0-9_ \t*]*\b(lua[A-Za-z0-9_]*)"
+        r"\s*\([^;{}]*?\)(?:\s+LUA_CXX_(?:MAY_THROW|NOEXCEPT))?\s*;"
     )
     for text in header_texts.values():
         declarations.update(pattern.findall(text))

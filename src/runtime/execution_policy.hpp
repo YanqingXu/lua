@@ -104,6 +104,7 @@ public:
         initialNativeWork_ = limits.nativeWorkBudget;
         remainingNativeWork_ = limits.nativeWorkBudget;
         cancellationState_->requested.store(false, std::memory_order_relaxed);
+        lastStopReason_ = ExecutionStopReason::None;
     }
 
     /**
@@ -157,6 +158,10 @@ public:
         return remainingNativeWork_;
     }
 
+    [[nodiscard]] NativeWorkCount initialNativeWorkBudget() const noexcept {
+        return initialNativeWork_;
+    }
+
     [[nodiscard]] NativeWorkCount consumedNativeWork() const noexcept {
         if (initialNativeWork_ == UnlimitedNativeWork) {
             return 0;
@@ -183,6 +188,10 @@ public:
         return cancellationState_->requested.load(std::memory_order_relaxed);
     }
 
+    [[nodiscard]] ExecutionStopReason lastStopReason() const noexcept {
+        return lastStopReason_;
+    }
+
     /**
      * @brief 轮询同样适用于原生回调内部的停止条件
      *
@@ -191,11 +200,13 @@ public:
      */
     [[nodiscard]] ExecutionStopReason pollStop() const noexcept {
         if (cancellationState_->requested.load(std::memory_order_relaxed)) [[unlikely]] {
-            return ExecutionStopReason::Cancelled;
+            lastStopReason_ = ExecutionStopReason::Cancelled;
+            return lastStopReason_;
         }
 
         if (deadline_ != Clock::time_point::max() && Clock::now() >= deadline_) [[unlikely]] {
-            return ExecutionStopReason::DeadlineExceeded;
+            lastStopReason_ = ExecutionStopReason::DeadlineExceeded;
+            return lastStopReason_;
         }
 
         return ExecutionStopReason::None;
@@ -214,7 +225,8 @@ public:
 
         if (remainingInstructions_ != UnlimitedInstructions) {
             if (remainingInstructions_ == 0) [[unlikely]] {
-                return ExecutionStopReason::InstructionBudgetExceeded;
+                lastStopReason_ = ExecutionStopReason::InstructionBudgetExceeded;
+                return lastStopReason_;
             }
             --remainingInstructions_;
         }
@@ -237,7 +249,8 @@ public:
         if (remainingNativeWork_ != UnlimitedNativeWork) {
             if (units > remainingNativeWork_) [[unlikely]] {
                 remainingNativeWork_ = 0;
-                return ExecutionStopReason::NativeWorkBudgetExceeded;
+                lastStopReason_ = ExecutionStopReason::NativeWorkBudgetExceeded;
+                return lastStopReason_;
             }
             remainingNativeWork_ -= units;
         }
@@ -252,6 +265,7 @@ private:
     NativeWorkCount remainingNativeWork_ = UnlimitedNativeWork;
     Clock::time_point deadline_ = Clock::time_point::max();
     FinalizerCount finalizerBudgetPerDrain_ = UnlimitedFinalizers;
+    mutable ExecutionStopReason lastStopReason_ = ExecutionStopReason::None;
 };
 
 } // namespace Lua

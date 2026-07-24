@@ -1,6 +1,7 @@
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
+#include "lua_runtime.h"
 
 /*
  * This translation unit is deliberately C, not C++. Every real function in
@@ -22,6 +23,7 @@ int lua_public_c_header_probe(void) {
     } while (0)
 
     REQUIRE_SYMBOL(lua_newstate);
+    REQUIRE_SYMBOL(lua_newstate_configured);
     REQUIRE_SYMBOL(lua_open);
     REQUIRE_SYMBOL(lua_close);
     REQUIRE_SYMBOL(lua_tryclose);
@@ -36,6 +38,15 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(lua_replace);
     REQUIRE_SYMBOL(lua_checkstack);
     REQUIRE_SYMBOL(lua_checkexecution);
+    REQUIRE_SYMBOL(lua_runtime_config_init);
+    REQUIRE_SYMBOL(lua_runtime_config_init_gameserver);
+    REQUIRE_SYMBOL(lua_runtime_execution_limits_init);
+    REQUIRE_SYMBOL(lua_runtime_metrics_init);
+    REQUIRE_SYMBOL(lua_runtime_begin_execution);
+    REQUIRE_SYMBOL(lua_runtime_get_metrics);
+    REQUIRE_SYMBOL(lua_runtime_get_cancellation_handle);
+    REQUIRE_SYMBOL(lua_runtime_request_cancellation);
+    REQUIRE_SYMBOL(lua_runtime_release_cancellation_handle);
     REQUIRE_SYMBOL(lua_xmove);
     REQUIRE_SYMBOL(lua_isnumber);
     REQUIRE_SYMBOL(lua_isstring);
@@ -134,6 +145,7 @@ int lua_public_c_header_probe(void) {
     REQUIRE_SYMBOL(luaL_loadbuffer);
     REQUIRE_SYMBOL(luaL_loadstring);
     REQUIRE_SYMBOL(luaL_newstate);
+    REQUIRE_SYMBOL(luaL_newstate_configured);
     REQUIRE_SYMBOL(luaL_gsub);
     REQUIRE_SYMBOL(luaL_findtable);
     REQUIRE_SYMBOL(luaL_buffinit);

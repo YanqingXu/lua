@@ -92,6 +92,16 @@ function Get-BaselineRationale {
     if ($Match.Rule -eq "C allocator free" -and $Match.Path -eq "src\core\userdata.cpp") {
         return "UserdataBufferDeleter pairs the platform C allocation boundary with RAII cleanup."
     }
+    if ($Match.Rule -in @("bare delete", "test manual ownership") -and
+        $Match.Path -eq "src\api\lapi.cpp" -and $Match.Text -eq "delete handle;") {
+        return "The public C ABI release function destroys its matching opaque cancellation handle."
+    }
+    if ($Match.Rule -eq "simple #define" -and $Match.Path -eq "src\lua_runtime.h") {
+        return "The installed C header requires an include guard and compile-time ABI constants."
+    }
+    if ($Match.Path -eq "tests\soak\runtime_soak.cpp") {
+        return "The soak harness intentionally exercises the C allocator ABI and its numeric option parser."
+    }
     if ($Match.Path.StartsWith("tests\", [System.StringComparison]::OrdinalIgnoreCase)) {
         return "Existing test advisory; migrate manual or C-style fixtures when the test is touched."
     }
@@ -182,7 +192,12 @@ foreach ($rule in $rules) {
 
     foreach ($file in $sourceFiles) {
         $lineNumber = 0
-        foreach ($line in Get-Content -LiteralPath $file.FullName) {
+        # Windows PowerShell 5 can omit empty records when Get-Content reads an
+        # LF-only file, while the same checkout may be CRLF on a Windows runner.
+        # Split the raw text explicitly so position baselines are independent
+        # of checkout line endings and PowerShell version.
+        $fileLines = [regex]::Split([System.IO.File]::ReadAllText($file.FullName), "\r?\n")
+        foreach ($line in $fileLines) {
             $lineNumber += 1
             if ($rule.SkipCommentLines -and (Test-SkippableCommentLine $line)) {
                 continue

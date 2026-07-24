@@ -87,7 +87,12 @@ function Invoke-BenchmarkPair {
         if ($LASTEXITCODE -ne 0) {
             throw "$revision benchmark pair $Pair failed with exit code $LASTEXITCODE"
         }
-        & (Join-Path $PSScriptRoot "check_runtime_bench.ps1") -ResultPath $resultPath
+        if ($isBase) {
+            & (Join-Path $PSScriptRoot "check_runtime_bench.ps1") `
+                -ResultPath $resultPath -SkipAbsoluteSlo
+        } else {
+            & (Join-Path $PSScriptRoot "check_runtime_bench.ps1") -ResultPath $resultPath
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "$revision benchmark contract validation failed"
         }

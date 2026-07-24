@@ -318,6 +318,7 @@ install(FILES
     src/lua.h
     src/lauxlib.h
     src/lualib.h
+    src/lua_runtime.h
     src/lua_cpp_version.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
@@ -390,6 +391,11 @@ if(LUA_CPP_BUILD_TOOLS)
     add_executable(lua_embedding_example examples/embedding.cpp)
     target_link_libraries(lua_embedding_example PRIVATE lua_core)
     target_include_directories(lua_embedding_example PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+    add_executable(lua_production_worker examples/production_worker.cpp)
+    target_link_libraries(lua_production_worker PRIVATE lua_core)
+    target_include_directories(lua_production_worker PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
     target_link_libraries(lua_bytecode PRIVATE lua_core)
     target_include_directories(lua_bytecode PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -398,9 +404,11 @@ if(LUA_CPP_BUILD_TOOLS)
     lua_configure_target_warnings(lua_app)
     lua_configure_target_warnings(lua_bytecode)
     lua_configure_target_warnings(lua_embedding_example)
+    lua_configure_target_warnings(lua_production_worker)
     lua_configure_runtime_stack(lua_app)
     lua_configure_runtime_stack(lua_bytecode)
     lua_configure_runtime_stack(lua_embedding_example)
+    lua_configure_runtime_stack(lua_production_worker)
 endif()
 
 include(CTest)
@@ -435,6 +443,12 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     if(UNIX AND NOT MSVC)
         target_link_options(lua_test PRIVATE -rdynamic)
     endif()
+
+    add_executable(lua_runtime_soak tests/soak/runtime_soak.cpp)
+    target_link_libraries(lua_runtime_soak PRIVATE lua_core)
+    target_include_directories(lua_runtime_soak PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    lua_configure_target_warnings(lua_runtime_soak)
+    lua_configure_runtime_stack(lua_runtime_soak)
 
     add_executable(lua_public_api_consumer
         tests/compatibility/public_api_c_compile.c
@@ -647,6 +661,58 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     )
 
     add_test(
+        NAME coverage_threshold_policy_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_coverage_thresholds.py
+    )
+    set_tests_properties(coverage_threshold_policy_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME sbom_generator_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_generate_sbom.py
+    )
+    set_tests_properties(sbom_generator_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME release_artifact_validator_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_validate_release_artifacts.py
+    )
+    set_tests_properties(release_artifact_validator_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    find_program(LUA_CPP_POWERSHELL_EXECUTABLE NAMES pwsh powershell)
+    if(LUA_CPP_POWERSHELL_EXECUTABLE)
+        add_test(
+            NAME runtime_benchmark_absolute_slo_contract
+            COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
+                -NoProfile
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_runtime_bench_absolute_slo.ps1
+        )
+        set_tests_properties(runtime_benchmark_absolute_slo_contract PROPERTIES
+            LABELS quality-contract
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+    endif()
+
+    add_test(
+        NAME runtime_soak_smoke
+        COMMAND $<TARGET_FILE:lua_runtime_soak>
+            --iterations 20
+            --max-cancel-latency-ms 250
+    )
+    set_tests_properties(runtime_soak_smoke PROPERTIES
+        LABELS soak-smoke
+        TIMEOUT 30
+    )
+
+    add_test(
         NAME official_smoke
         COMMAND $<TARGET_FILE:lua_test> --filter "Lua 5.1 Official Smoke"
     )
@@ -688,5 +754,75 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
                 LABELS examples
                 WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         )
+
+        if(WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            add_test(
+                NAME production_worker_success
+                COMMAND $<TARGET_FILE:lua_production_worker>
+                    --instruction-budget 100000
+                    --timeout-ms 1000
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/production/worker_success.lua
+            )
+            set_tests_properties(production_worker_success PROPERTIES
+                LABELS production-contract
+                PASS_REGULAR_EXPRESSION "\"outcome\":\"success\".*\"allocator_live_bytes\":0"
+                TIMEOUT 10
+            )
+
+            add_test(
+                NAME production_worker_instruction_limit
+                COMMAND $<TARGET_FILE:lua_production_worker>
+                    --instruction-budget 1000
+                    --timeout-ms 1000
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/production/worker_instruction_limit.lua
+            )
+            set_tests_properties(production_worker_instruction_limit PROPERTIES
+                LABELS production-contract
+                PASS_REGULAR_EXPRESSION "\"outcome\":\"instruction_budget\".*\"allocator_live_bytes\":0"
+                TIMEOUT 10
+            )
+
+            add_test(
+                NAME production_worker_resource_limit
+                COMMAND $<TARGET_FILE:lua_production_worker>
+                    --instruction-budget 100000
+                    --timeout-ms 1000
+                    --max-output-bytes 16384
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/production/worker_resource_limit.lua
+            )
+            set_tests_properties(production_worker_resource_limit PROPERTIES
+                LABELS production-contract
+                PASS_REGULAR_EXPRESSION "\"outcome\":\"resource_limit\".*\"allocator_live_bytes\":0"
+                TIMEOUT 10
+            )
+
+            add_test(
+                NAME production_worker_allocator_limit
+                COMMAND $<TARGET_FILE:lua_production_worker>
+                    --allocator-memory-mb 1
+                    --instruction-budget 100000
+                    --native-work-budget 4194304
+                    --timeout-ms 1000
+                    --max-output-bytes 4194304
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/production/worker_allocator_limit.lua
+            )
+            set_tests_properties(production_worker_allocator_limit PROPERTIES
+                LABELS production-contract
+                PASS_REGULAR_EXPRESSION "\"outcome\":\"allocator_limit\".*\"allocator_live_bytes\":0"
+                TIMEOUT 10
+            )
+
+            add_test(
+                NAME production_worker_json_encoding
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/production/verify_worker_json.py
+                    $<TARGET_FILE:lua_production_worker>
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/production/worker_invalid_error.lua
+            )
+            set_tests_properties(production_worker_json_encoding PROPERTIES
+                LABELS production-contract
+                TIMEOUT 10
+            )
+        endif()
     endif()
 endif()

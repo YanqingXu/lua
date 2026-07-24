@@ -34,11 +34,11 @@ jobs:
         shell: powershell
         run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=${{ matrix.configuration }} /p:Platform=x64
 
-      - name: Configure CMake API and native-module evidence
+      - name: Configure CMake API, native-module, and production-worker evidence
         shell: powershell
         run: cmake -S . -B build/windows-cmake -A x64
 
-      - name: Build CMake API and native-module evidence
+      - name: Build CMake API, native-module, and production-worker evidence
         shell: powershell
         run: >-
           cmake --build build/windows-cmake
@@ -51,13 +51,15 @@ jobs:
           lua_public_native_module_host
           lua_public_native_module_app
           lua_public_native_module_embedding
+          lua_production_worker
+          lua_runtime_soak
 
-      - name: Run CMake API and native-module evidence
+      - name: Run CMake API, native-module, and production-worker evidence
         shell: powershell
         run: >-
           ctest --test-dir build/windows-cmake
           -C ${{ matrix.configuration }}
-          -L api-contract
+          -L "api-contract|production-contract|soak-smoke"
           --output-on-failure
 
       - name: Documentation drift
@@ -230,7 +232,18 @@ jobs:
         run: cmake --build build --parallel 2
 
       - name: Test sanitizer
-        run: ctest --test-dir build --output-on-failure --timeout 900
+        shell: bash
+        run: |
+          # ASan and TSan reserve large shadow address ranges. The production
+          # worker intentionally installs a low RLIMIT_AS before running Lua,
+          # so those process-boundary tests are intrinsically incompatible
+          # with either shadow-memory runtime. They remain enabled for UBSan
+          # and every non-sanitized Linux/Windows configuration.
+          if [[ "${{ matrix.sanitizer }}" == "address" || "${{ matrix.sanitizer }}" == "thread" ]]; then
+            ctest --test-dir build --output-on-failure --timeout 900 -LE production-contract
+          else
+            ctest --test-dir build --output-on-failure --timeout 900
+          fi
 
   allocator-failure-contract:
     name: Allocator failure contract (${{ matrix.os }})
@@ -396,7 +409,8 @@ jobs:
             > build/coverage/coverage.json
           python3 tools/summarize_coverage.py \
             build/coverage/coverage.json \
-            build/coverage/coverage-components.json
+            build/coverage/coverage-components.json \
+            --thresholds tests/coverage/component-thresholds.json
           llvm-cov-18 show build/coverage/lua_test \
             -instr-profile=build/coverage/merged.profdata \
             -format=html \
