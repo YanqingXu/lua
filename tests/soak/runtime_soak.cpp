@@ -36,7 +36,7 @@ struct Options {
 };
 
 struct AllocatorProbe {
-    size_t limit = 64U * 1024U * 1024U;
+    size_t limit = size_t{64} * 1024U * 1024U;
     size_t live = 0;
     size_t peak = 0;
     bool accountingError = false;
@@ -210,7 +210,7 @@ void beginWindow(lua_State* L, std::uint64_t instructionBudget, std::uint64_t ti
     lua_RuntimeExecutionLimits limits{};
     lua_runtime_execution_limits_init(&limits);
     limits.instruction_budget = instructionBudget;
-    limits.native_work_budget = 16U * 1024U * 1024U;
+    limits.native_work_budget = std::uint64_t{16} * 1024U * 1024U;
     limits.finalizer_budget_per_drain = 256;
     limits.timeout_ms = timeoutMilliseconds;
     const int status = lua_runtime_begin_execution(L, &limits);

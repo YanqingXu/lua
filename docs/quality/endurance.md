@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: tests/soak/runtime_soak.cpp; tests/compatibility/public_native_module_host.cpp; tests/fuzz/; tests/fuzz/corpus/; CMakeLists.txt; .github/workflows/ci.yml; .github/workflows/nightly.yml
-last_checked: 2026-07-23
+last_checked: 2026-07-24
 applies_to: runtime soak, cancellation latency, native-module lifecycle, bounded PR fuzzing, and scheduled long fuzzing
 ---
 
@@ -50,6 +50,13 @@ JSON 证据包含迭代数、State 创建/关闭数、coroutine、weak value、f
 PR/push 的 `linux-fuzzers` 对 undump、bytecode verifier、parser 和标准库数值参数目标各运行 30 秒，并在 ASan+UBSan 下拒绝 crash、timeout、OOM 与 sanitizer 报告。该门禁适合快速回归，不构成长期稳定性证明。
 
 `.github/workflows/nightly.yml` 默认对每个目标运行 600 秒，使用独立可增长 corpus，保留 final stats、完整日志、扩展 corpus 和 crash artifact 30 天。`workflow_dispatch` 可提高单目标秒数；发布候选应至少完成一次与候选 SHA 对应的 campaign，不得用其他提交的 artifact 替代。
+
+## Sanitizer 与进程边界
+
+ASan/TSan 运行时需要预留大块影子地址空间，与 production worker 故意设置的低
+`RLIMIT_AS` 不兼容。CI 因此只在这两个 sanitizer 配置中排除
+`production-contract` 标签；UBSan 和所有非 sanitizer Linux/Windows 配置仍运行完整
+worker 合同。该排除不会改变 worker 二进制，也不会放松普通构建的失败关闭行为。
 
 ## 发布判定
 

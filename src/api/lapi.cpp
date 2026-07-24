@@ -584,7 +584,7 @@ void lua_runtime_config_init_gameserver(lua_RuntimeConfig* config) LUA_CXX_NOEXC
         return;
     }
 
-    constexpr size_t Megabyte = 1024U * 1024U;
+    constexpr size_t Megabyte = size_t{1024} * 1024U;
     config->standard_libraries = LUA_RUNTIME_LIB_BASE | LUA_RUNTIME_LIB_MATH | LUA_RUNTIME_LIB_STRING |
                                  LUA_RUNTIME_LIB_TABLE | LUA_RUNTIME_LIB_COROUTINE | LUA_RUNTIME_LIB_PACKAGE;
     config->capabilities = 0;
