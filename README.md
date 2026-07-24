@@ -1,21 +1,21 @@
 ---
 status: current
-verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj
-last_checked: 2026-07-23
+verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/check_release_readiness.ps1; tools/package_release.ps1
+last_checked: 2026-07-24
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
 # 现代 C++ Lua 5.1.5 解释器
 
-本项目是一个使用现代 C++ 实现的 Lua 5.1.5 解释器，覆盖从源码解析到字节码生成、虚拟机执行、垃圾回收和标准库加载的完整运行链路。它不仅关注 Lua 5.1.5 的兼容实现，也定位为展示 C++17/23 工程实践、可读架构拆分和解释器内部机制的教学示范项目。
+本项目是一个使用现代 C++ 实现的 Lua 5.1.5 解释器，覆盖从源码解析到字节码生成、虚拟机执行、垃圾回收和标准库加载的完整运行链路。它不仅关注 Lua 5.1.5 的兼容实现，也定位为展示 C++23 工程实践、可读架构拆分和解释器内部机制的教学示范项目。
 
 项目面向希望研究 Lua 解释器内部机制、嵌入式语言运行时、现代 C++ 类型建模和虚拟机实现的开发者。工程持续以代码可读性、清晰边界和教学价值为核心质量目标；完整的技术实现百科统一收录在 [docs/index.md](docs/index.md)。
 
-[![C++](https://img.shields.io/badge/C%2B%2B-17%2F23-blue)]()[![Lua](https://img.shields.io/badge/Lua-5.1.5-blue)]()[![Platform](https://img.shields.io/badge/platform-Windows%20%2F%20MSVC-blue)]()[![License](https://img.shields.io/badge/license-MIT-green)]()
+[![CI](https://github.com/YanqingXu/lua/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/YanqingXu/lua/actions/workflows/ci.yml) [![C++](https://img.shields.io/badge/C%2B%2B-23-blue)](https://en.cppreference.com/w/cpp/23) [![Lua](https://img.shields.io/badge/Lua-5.1.5-blue)](https://www.lua.org/versions.html#5.1) [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-blue)](#环境要求) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ## 项目简介
 
-解释器以 Lua 5.1.5 的运行时语义和指令模型为主要兼容目标，使用 C++17/23、MSVC 和 Visual Studio/MSBuild 组织工程。项目同时承担现代 C++ 教学标杆的角色：通过清晰的模块边界、自解释的数据结构和可追踪的文档链路，帮助读者理解 Lua 从源码到执行再到内存管理的完整机制。核心实现包括：
+解释器以 Lua 5.1.5 的运行时语义和指令模型为主要兼容目标，使用 C++23，并同时维护 Visual Studio/MSBuild 与跨平台 CMake 构建路径；持续集成使用 MSVC、GCC、Clang 和 AppleClang 验证工程。项目同时承担现代 C++ 教学标杆的角色：通过清晰的模块边界、自解释的数据结构和可追踪的文档链路，帮助读者理解 Lua 从源码到执行再到内存管理的完整机制。核心实现包括：
 
 - 词法分析器、递归下降语法分析器和 AST 表示。
 - AST 到 Lua 5.1 风格 `Proto` / 字节码的编译管线。
@@ -74,11 +74,10 @@ applies_to: 项目入口、稳定能力概览与文档导航
 
 ### 环境要求
 
-- Windows 10/11。
-- Visual Studio / MSVC，支持 C++17/23。
-- MSBuild。
 - Git。
-- CMake 3.20+ / CTest，用于跨平台构建、测试和 SDK 安装。
+- 支持 C++23 的编译器：Windows 使用 Visual Studio / MSVC，Linux 使用 GCC 或 Clang，macOS 使用 AppleClang。
+- CMake 3.20+ / CTest，用于跨平台构建、测试和 SDK 安装；Windows 同时保留 Visual Studio / MSBuild 构建路径。
+- Python 3，用于完整测试、质量门和发布工具链。
 
 ### 使用 Visual Studio
 
@@ -135,7 +134,7 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-24 的当前本地 Release 基线为 **790 registered tests, 6752 assertion results, 0 failures**；其中 `Lua C API` suite 为 61 个测试、2910 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。修复提交 `4b0bc71` 已在 [PR #14 的 Actions run 29993098262](https://github.com/YanqingXu/lua/actions/runs/29993098262) 取得此前基线的 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 lint；本次生产配置扩展的候选提交仍须重新取得同等级 required checks 才可发布。
+测试运行器会在输出中报告实时测试数量和断言结果。2026-07-24 的当前本地 Release 基线为 **790 registered tests, 6752 assertion results, 0 failures**；其中 `Lua C API` suite 为 61 个测试、2910 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。生产配置扩展的合并提交 `079b16c` 已在 [`main` 的 Actions run 30079569799](https://github.com/YanqingXu/lua/actions/runs/30079569799) 取得 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 lint。Nightly endurance、RC 治理与跨平台制品验证仍须按 [发布检查清单](docs/release/release-checklist.md) 独立完成，不能由常规 CI 全绿替代。
 
 ### CMake / CTest 与 SDK 安装
 
