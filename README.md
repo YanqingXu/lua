@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; tests/unit/framework/test_runner.cpp; tests/quality/test_signal_allowlist.json; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/run_quality_gate.ps1; tools/test_quality_gate.ps1; tools/check_test_signal_integrity.ps1; tools/check_test_binary_sha.ps1; tools/check_release_readiness.ps1; tools/package_release.ps1
+verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; docs/release/platform-support.md; docs/release/platform-baseline.json; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; cmake/LuaCppPlatformBaseline.cmake; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; tests/unit/framework/test_runner.cpp; tests/quality/test_signal_allowlist.json; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/run_quality_gate.ps1; tools/test_quality_gate.ps1; tools/check_test_signal_integrity.ps1; tools/check_test_binary_sha.ps1; tools/check_release_readiness.ps1; tools/package_release.ps1; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/verify_release_package_consumer.py; tools/test_verify_release_package_consumer.py
 last_checked: 2026-07-26
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
@@ -75,9 +75,15 @@ applies_to: 项目入口、稳定能力概览与文档导航
 ### 环境要求
 
 - Git。
-- 支持 C++23 的编译器：Windows 使用 Visual Studio / MSVC，Linux 使用 GCC 或 Clang，macOS 使用 AppleClang。
+- 支持 C++23 的编译器：Windows 使用 Visual Studio / MSVC，Linux 使用 GCC 或 Clang，macOS 使用 AppleClang；MinGW 不属于 0.1.x 支持范围并会在 CMake configure 阶段失败。
 - CMake 3.20+ / CTest，用于跨平台构建、测试和 SDK 安装；Windows 同时保留 Visual Studio / MSBuild 构建路径。
 - Python 3，用于完整测试、质量门和发布工具链。
+
+0.1.x 官方二进制包只承诺三个固定基线：Windows Server 2022 x64 + 动态 UCRT/MSVC v143、
+Ubuntu 24.04 x64 + glibc 2.39/GCC 14，以及 deployment target 为 macOS 14.0 的 macOS
+ARM64 包。Linux ARM64 目前是 CI-only，较旧 OS、musl、macOS x64 和 32 位目标不属于发布
+承诺。编译器范围、动态依赖和机器门禁见
+[平台支持基线](docs/release/platform-support.md)。
 
 ### 使用 Visual Studio
 
@@ -178,7 +184,7 @@ find_package(LuaCpp 0.1 CONFIG REQUIRED)
 target_link_libraries(my_host PRIVATE LuaCpp::Lua) # 或 LuaCpp::Shared
 ```
 
-CTest 的 `cmake_package_consumer` 会先安装当前构建，再用一个独立纯 C 源码 consumer 分别链接静态库和共享库并执行，防止安装/导出配置漂移。静态目标由 C++ 实现，外部 CMake 工程需启用 C++ linker language。
+CTest 的 `cmake_package_consumer` 会先安装当前构建，再用一个独立纯 C 源码 consumer 分别链接静态库和共享库并执行，防止安装/导出配置漂移。候选打包器还会从 ZIP 解压到临时目录，将 consumer 源码复制到仓库外的全新目录，禁用 CMake package registry/default-path 回退，并把 `LuaCpp_DIR` 精确绑定到解压根；Release workflow 上传后在同 RID runner 重新下载 artifact，再次深验并构建、运行两个 consumer。静态目标由 C++ 实现，外部 CMake 工程需启用 C++ linker language。
 
 不可信游戏逻辑应从有限预置开始，并在每个请求前建立新的执行窗口：
 

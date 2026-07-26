@@ -2,6 +2,7 @@
 status: current
 as_of: 2026-07-26
 baseline_sha: 87c15e69ceb94eb74e28226ccbefb7e196635711
+last_pushed_checkpoint_sha: 426c4a0a63910508e4ad0fa42dcf798550f48ab5
 candidate_sha: pending
 release_target: 0.1.0
 release_state: pre-rc-blocked
@@ -34,11 +35,11 @@ coverage、benchmark、soak 和制品证据必须全部重新绑定到最终候�
 
 | 维度 | 当前事实 | 结论 |
 |---|---|---|
-| Git | 审计基线为 `87c15e6`；本轮实现、测试与本文件作为一个检查点推送，精确提交以 `origin/main` 当前 HEAD 为准 | SHA 不能在其自身提交内容中自引用；远端门禁通过前继续保持 `candidate_sha: pending` |
-| 本地 Debug/Release | `build/p0-final-validation-final` 的既有全新 Debug/Release ALL_BUILD 与 791/6773 全量测试均绿色；最终 reconfigure 后 Release 42/42 CTest，Debug 重新构建 runner 并通过定向合同 | 本地信号绿色；最终提交 SHA 仍须由远端多编译器、sanitizer、lint 与 nightly 证明 |
+| Git | 上一个已推送检查点为 `426c4a0`；本轮平台、制品消费与故障矩阵改动会和本文一起形成新的 `origin/main` 检查点 | SHA 不能在其自身提交内容中自引用；远端门禁通过前继续保持 `candidate_sha: pending` |
+| 本地 Debug/Release | 既有全新 Debug/Release 基线保持绿色；本轮 Release 重新 configure/build 后 45/45 CTest、791 tests / 6780 assertions / 0 failures / 0 skips | 本地信号绿色；最终提交 SHA 仍须由远端多编译器、sanitizer、lint 与 nightly 证明 |
 | Lua 5.1 C API | 官方 123/123 PASS，0 XFAIL，0 UNSUPPORTED | 公开 C API 兼容合同成熟 |
-| 审计基线 CI | [run 30085002567](https://github.com/YanqingXu/lua/actions/runs/30085002567) 为 16/17 | 尚无包含当前本地修复的后继候选 run |
-| 审计基线 CI 失败原因 | `src/core/value.cpp`、`src/core/value.hpp` 有 39 个 clang-format 违规；clang-tidy 未执行 | 格式问题已在本地修复，但必须由新 SHA 的远端 lint 证明 |
+| 最新检查点 CI | `426c4a0` 的 [run 30196993311](https://github.com/YanqingXu/lua/actions/runs/30196993311) 为 `startup_failure`、0 jobs；页面注解明确为近期付款失败或 spending limit 不足 | 不是源码、workflow 语法或测试失败；恢复账户付款授权后必须在最终 SHA 重跑 |
+| Workflow 定义 | CI、nightly、release 三份 workflow 在 GitHub 均为 active；本轮使用 actionlint v1.7.12 复核通过 | 定义层已通过本地/远端解析，但尚无本轮 SHA 的实际 runner 执行 |
 | Coverage | 六个关键组件均超过硬阈值 | 已达标，但余量只有 1.88–2.91 个百分点 |
 | Benchmark | 相对回归判断与绝对 SLO 均通过 | 性能不是当前关键路径 |
 | Nightly | [run 30121904186](https://github.com/YanqingXu/lua/actions/runs/30121904186)、[run 30172103347](https://github.com/YanqingXu/lua/actions/runs/30172103347) 与最新 [run 30192787500](https://github.com/YanqingXu/lua/actions/runs/30192787500) 均为 `startup_failure`、0 jobs；账户账单页显示付款授权失败 | 当前没有有效长稳证据；需先由账户持有人恢复付款授权 |
@@ -46,7 +47,7 @@ coverage、benchmark、soak 和制品证据必须全部重新绑定到最终候�
 | 仓库治理 | `#6` 仍开放；当前私有仓库套餐无法启用计划中的保护规则 | 必须升级、公开或形成限时审计豁免 |
 | 发布状态 | 无 tag、无 GitHub Release；结构化治理 attestation 尚未签署 | tag 发布当前失败关闭 |
 | 内存边界 | callback allocator 只覆盖已迁移切片；进程边界提供最终兜底 | 不得宣称全运行时 allocator hard limit |
-| MinGW | 本地可配置，但因 `_dupenv_s` 在链接阶段失败 | 当前实际支持的是 Windows/MSVC，不是通用 Windows 工具链 |
+| MinGW | 0.1.x 平台策略已在 CMake configure 阶段明确拒绝 MinGW | 当前正式 Windows 包只支持 x64 MSVC ABI，不再允许配置成功后才链接失败 |
 
 ### 2.2 执行进展（本轮实现检查点）
 
@@ -57,20 +58,26 @@ coverage、benchmark、soak 和制品证据必须全部重新绑定到最终候�
 | 路线项 | 当前本地实现与验证 | 仍缺少的退出证据 |
 |---|---|---|
 | P0-01 格式恢复 | `src/core/value.cpp`、`src/core/value.hpp` 的已知 clang-format 违规已修复；Strict Changed 以显式 HEAD 基线检查 committed/staged/working/untracked 并通过。All/Changed/CI 均覆盖全部自有 C/C++、仅排除受完整性清单保护的上游目录 | 本次推送 SHA 的 clang-format 与 clang-tidy 真实执行；17/17 CI；历史 All 格式债在 RC 后分批清理 |
-| P0-02 测试可信度 | 编译器 fixture 与四种元方法假绿路径已改为真实失败/VM 调度断言；框架区分 expected/unexpected skip；静态 test-signal checker 及负向 fixture 已落地。最新本地 Release 为 791 tests / 6773 assertions / 0 failures / 0 expected skips / 0 unexpected skips | MSVC/GCC/Clang、sanitizer 与完整远端 CI 的同 SHA 证据 |
+| P0-02 测试可信度 | 编译器 fixture 与四种元方法假绿路径已改为真实失败/VM 调度断言；框架区分 expected/unexpected skip；静态 test-signal checker 及负向 fixture 已落地。最新本地 Release 为 791 tests / 6780 assertions / 0 failures / 0 expected skips / 0 unexpected skips | MSVC/GCC/Clang、sanitizer 与完整远端 CI 的同 SHA 证据 |
 | P0-03 本地证据 | Changed 格式范围支持显式 `-FormatBase`，严格模式拒绝无 merge-base 的空范围；测试二进制报告并校验 40-hex build SHA。build provenance v2 绑定 HEAD、源码/构建目录、生成器、目标 OS/CPU、指针宽度和配置；打包仅接受三个固定 RID，并在 clean rebuild 前后拒绝旧 SHA、脏产物、Debug 冒充 Release、32 位或 RID 冒名。显式测试筛选零命中也会失败 | 在本次推送 SHA 上由远端 CI 对同一源码集合和三类 runner 给出一致结果 |
-| P0-05 发布证据 | verifier 从原始 coverage、benchmark、soak 与 fuzz payload 复算结论，并绑定 source readiness、版本/ABI、结构化治理与 annotated tag。publish 隔离下载三个精确 RID artifact，逐包重新深验规范文件集、manifest version/RID/commit、单包 checksum、ZIP、内外 SBOM，再由 Release body consumer 复验三 RID×四资产与全局 checksum；manual dispatch 不能发布 | 在本次推送 SHA 上读取真实 GitHub runs/artifacts 并失败关闭；取得有效 nightly；完成真实治理授权；生成动态 RC body 与真实制品 checksum |
-| P0-04 Nightly | 已完成只读账户层诊断：最新 run 30192787500 仍为 `startup_failure`、0 jobs；GitHub 账单页显示付款授权失败，Actions 本月约 `$55.35`、预算 `$5.00`，预算配置为 `Stop usage: No` | 账户持有人恢复付款授权；随后对最终候选 SHA 重跑手动与 scheduled nightly，取得 soak、native-module 和 long-fuzz 证据 |
+| P0-05 发布证据 | verifier 从原始 coverage、benchmark、soak 与 fuzz payload 复算结论，并绑定 source readiness、版本/ABI、结构化治理与 annotated tag。三个精确 RID artifact 会逐包深验，再由同 RID 独立 job 下载、限制 ZIP 解压、清空 CMake registry/default path，并要求静态/共享 consumer 同时构建运行；publish 再复验三 RID×四资产与全局 checksum，manual dispatch 不能发布 | 在本次推送 SHA 上读取真实 GitHub runs/artifacts 并失败关闭；取得有效 nightly；完成真实治理授权；生成动态 RC body 与真实制品 checksum |
+| P0-04 Nightly | 最新 push run 30196993311 与 nightly run 30192787500 均为账户级 `startup_failure`、0 jobs；GitHub 页面明确要求处理失败付款或提高 spending limit | 账户持有人恢复付款授权；随后对最终候选 SHA 重跑 CI、手动与 scheduled nightly，取得 soak、worker fault matrix、native-module 和 long-fuzz 证据 |
 | P0-06 仓库治理 | 已移除永久布尔旁路；tag push 必须消费 `LUA_RELEASE_GOVERNANCE_ATTESTATION` 严格 JSON，精确绑定仓库/SHA/tag/版本、批准人与独立审查者、六项控制、记录 URL 和期限。manual dispatch 始终是 candidate-only，不能因选择 tag ref 而发布 | 仍需仓库所有者选择升级/公开，或为最终候选签署最长 30 天的限时豁免并设置精确 attestation；本地 schema 与负向合同不能代替真实批准 |
+| RC-02 平台与候选包 | 新增机器可读 `platform-baseline.json`、CMake 失败关闭策略和 22 项验证合同；正式 RID 固定为 Windows Server 2022/MSVC、Ubuntu 24.04/GCC 14、macOS 14 ARM64/AppleClang。`426c4a0` 的隔离 Windows clean rebuild 已生成 `0.1.0-rc.1-windows-x64` ZIP/SBOM/manifest/checksum，真实 DLL 为 x64、143 个 Lua 导出且只依赖 Release MSVC/UCRT；归档解压后的静态/共享纯 C consumer 2/2 通过 | 最终 SHA 在三个固定 runner 上的真实 binary dependency 检查、下载后 consumer 和可下载 artifact |
+| RC-03 故障注入 | worker 增加可安全解除的跨线程 watchdog cancellation 与结构化 host 错误；12 场景 fault matrix 校验 exit/outcome/stop reason、预算、取消、JSON 和 allocator 归零。nightly 已增加 Windows/Linux 启用 OS limits 的证据 job；运维文档明确强杀、重启、State pool、监督器分类边界 | 真实目标镜像的 OOM/CPU kill、监督器原因、重试/去重、native module、p99/RSS/恢复 SLO 与 macOS 外层监督器证据 |
+| RC-05 Shadow/canary | 已冻结无副作用 shadow、分阶段 canary、停止阈值、drain 与回滚记录合同，并明确仓库测试不能替代业务环境 | 24–72 小时真实任务 soak、shadow/canary 实跑、实际回滚演练和书面 go/no-go |
 
 本轮封板先使用此前不存在的 `build/p0-final-validation-final`，随后在最终脚本/runner 收口后
 reconfigure 并复验：
 
 - CMake configure 与封板后 reconfigure 均成功；
-- 既有全新 Release/Debug ALL_BUILD 与全量直跑均为
-  791 tests / 6773 assertions / 0 failures / 0 expected skips / 0 unexpected skips；
-- 最终 Release reconfigure、runner rebuild 和 42/42 CTest 通过；Debug runner rebuild 与
+- 既有全新 Release/Debug ALL_BUILD 基线保持绿色；本轮 Release 全量直跑为
+  791 tests / 6780 assertions / 0 failures / 0 expected skips / 0 unexpected skips；
+- 最终 Release reconfigure、worker/test rebuild 和 45/45 CTest 通过；Debug runner 既有重建与
   Test Framework 定向合同通过；
+- 平台策略 22 项、下载包 consumer 负向合同和 12 场景 worker fault matrix 通过；
+- 隔离 Windows 包完成 clean rebuild、深度制品验证、真实 DLL import/export 审计，以及归档
+  解压后静态/共享 consumer 2/2；
 - governance 18 项、source-readiness 6 项、release evidence 35 项、Release body 11 项、
   tag identity 9 项及 package validator 合同通过；
 - release identity、package provenance、test signal、binary SHA、benchmark SLO 与完整
@@ -87,21 +94,23 @@ coverage、benchmark、制品和治理证据后，才能更新 `candidate_sha` �
 下一次不要继续增加功能，按以下顺序恢复：
 
 1. `git pull --ff-only`，记录 `git rev-parse HEAD`，确认它等于本次推送后的 `origin/main`。
-2. 处理 GitHub 账户的付款授权失败；在此之前，0-job `startup_failure` 不算测试失败或 endurance
-   证据。
+2. 处理 GitHub 账户的付款授权失败或 spending limit；在此之前，0-job `startup_failure` 不算
+   测试失败或 endurance 证据。
 3. 检查该 SHA 的 CI，要求 17/17 jobs 成功且 clang-format/clang-tidy 都真实执行。
-4. 对同一 SHA 运行一次手动 nightly，并等待至少一次 scheduled nightly；下载并复验 soak/fuzz
-   artifact。
+4. 对同一 SHA 运行一次手动 nightly，并等待至少一次 scheduled nightly；下载并复验
+   soak/fuzz/worker-fault artifact。
 5. 仓库所有者选择 required ruleset，或签署最长 30 天、精确绑定该 SHA 与
    `v0.1.0-rc.1` 的 `LUA_RELEASE_GOVERNANCE_ATTESTATION`。
-6. 先运行 manual release workflow 验证 candidate-only 三平台包；所有同 SHA 证据齐全后才创建
-   annotated tag，不能移动或复用 tag。
+6. 先运行 manual release workflow，要求三平台 baseline/shared-library 验证、精确 artifact
+   下载和静态/共享 consumer 矩阵全绿；它仍只能生成 candidate-only 包。所有同 SHA 证据齐全后
+   才创建 annotated tag，不能移动或复用 tag。
 7. 若任何 job 产生修复提交，旧 SHA 的 nightly、治理 attestation 和制品证据全部失效，重新从
    第 3 步开始。
 
-当前明确外部阻塞只有：Actions 付款授权、最终 SHA 的远端运行、仓库所有者的真实治理决策。
-本地未解决但已登记的 RC 工作是最低 OS/运行库基线、下载后独立 consumer、目标环境故障注入与
-shadow/canary；它们不应在下一次被误写成已经完成。
+当前明确外部阻塞只有：Actions 付款授权/额度、最终 SHA 的远端运行、仓库所有者的真实治理决策。
+最低 OS/运行库基线、下载后独立 consumer 和仓内 fault matrix 已完成本地实现；下一次不得重复
+实现它们。仍未完成的是三个远端 RID 的真实包证据、目标环境破坏性故障注入、24–72 小时业务
+soak、shadow/canary、实际回滚和书面 go/no-go，这些也不得被本地合同误写成已经完成。
 
 ### 2.4 Coverage 基线
 
@@ -189,7 +198,7 @@ shadow/canary；它们不应在下一次被误写成已经完成。
 - 最终候选 SHA 的 17 个 CI jobs 全部成功；
 - clang-format 通过；
 - clang-tidy 实际执行且成功；
-- 完整测试不少于当前 791 tests / 6773 assertions 基线，且 0 failures、0 unexpected skips；
+- 完整测试不少于当前 791 tests / 6780 assertions 基线，且 0 failures、0 unexpected skips；
 - 无未解释 warning、sanitizer 报告或新增 skip。
 
 **风险与控制**

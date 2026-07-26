@@ -875,7 +875,7 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "lua_public_native_module_embedding",
     "lua_production_worker",
     "lua_runtime_soak",
-    '-L "api-contract\|production-contract\|soak-smoke"',
+    '-L "api-contract\|production-contract\|runtime-failure-contract\|soak-smoke"',
     "LUA_CPP_SANITIZER",
     "sanitizer: \[address, undefined, thread\]",
     "Linux libFuzzer security boundaries",
@@ -958,6 +958,7 @@ Assert-FileContains "CMakeLists.txt" @(
     "example_embedding",
     "lua51_public_api_contract",
     "NAME cmake_package_consumer",
+    "NAME release_package_consumer_contract",
     "NAME lua_test_build_sha_contract",
     "check_test_binary_sha\.py",
     "--source-dir",
@@ -1000,7 +1001,9 @@ Assert-FileContains "src/lua_cpp_version.h" @(
 
 Assert-FileContains "tests/packaging/consumer/CMakeLists.txt" @(
     'project\(lua_cpp_package_consumer LANGUAGES C CXX\)',
-    'find_package\(LuaCpp 0\.1 CONFIG REQUIRED\)',
+    'LUA_CPP_PACKAGE_ROOT is required',
+    'find_package\(LuaCpp 0\.1 CONFIG REQUIRED',
+    'NO_DEFAULT_PATH',
     'LuaCpp::Lua',
     'LuaCpp::Shared'
 )
@@ -1122,12 +1125,18 @@ Assert-FileContains ".github/workflows/nightly.yml" @(
     "write_workflow_evidence\.py",
     "evidence-metadata\.json",
     "runtime-soak-evidence",
-    "long-fuzz-evidence"
+    "long-fuzz-evidence",
+    "worker-fault-matrix",
+    "verify_worker_fault_matrix\.py",
+    "--enforce-process-limits",
+    "--candidate-sha",
+    "worker-fault-matrix\.json"
 )
 
 Assert-FileTextMatches ".github/workflows/nightly.yml" @(
     '(?ms)- name:\s*Upload endurance evidence\s+if:\s*success\(\).*?name:\s*runtime-soak-evidence.*?if-no-files-found:\s*error',
-    '(?ms)- name:\s*Upload fuzz evidence\s+if:\s*success\(\).*?name:\s*long-fuzz-evidence.*?if-no-files-found:\s*error'
+    '(?ms)- name:\s*Upload fuzz evidence\s+if:\s*success\(\).*?name:\s*long-fuzz-evidence.*?if-no-files-found:\s*error',
+    '(?ms)- name:\s*Upload worker fault evidence\s+if:\s*success\(\).*?name:\s*worker-fault-matrix-\$\{\{ matrix\.artifact_suffix \}\}.*?if-no-files-found:\s*error'
 )
 
 Assert-FileContains ".github/workflows/release.yml" @(
@@ -1145,9 +1154,13 @@ Assert-FileContains ".github/workflows/release.yml" @(
     "source-readiness-evidence\.json",
     "name: release-evidence",
     "needs: \[governance, verify_evidence\]",
-    "needs: \[governance, packages, verify_evidence, verify_tag\]",
+    "needs: \[governance, packages, consume_packages, verify_evidence, verify_tag\]",
     "check_release_readiness\.ps1",
     "package_release\.ps1",
+    "Downloaded SDK consumer",
+    "Deep-validate downloaded package",
+    "Build and run isolated static and shared consumers",
+    "verify_release_package_consumer\.py",
     "Publish immutable candidate",
     "release-evidence\.json",
     "build_release_body\.py",
@@ -1217,6 +1230,7 @@ Assert-FileContains "tools/build_release_body.py" @(
 Assert-FileContains "tools/package_release.ps1" @(
     "generate_sbom\.py",
     "validate_release_artifacts\.py",
+    "verify_release_package_consumer\.py",
     "SHA256SUMS",
     "schemaVersion",
     "rev-parse HEAD",
@@ -1323,6 +1337,24 @@ Assert-FileContains "tools/validate_release_artifacts.py" @(
     "release checksum manifest does not exactly match",
     "external SBOM is not byte-identical",
     "SBOM file set mismatch"
+)
+
+Assert-FileContains "tools/verify_release_package_consumer.py" @(
+    "NO_PACKAGE_REGISTRY:BOOL=TRUE",
+    "CMAKE_PREFIX_PATH:STRING=",
+    "--clean-first",
+    "--show-only=json-v1",
+    "downloaded package consumer test set mismatch",
+    "consumer resolved LuaCpp outside the extracted package"
+)
+
+Assert-FileContains "tools/test_verify_release_package_consumer.py" @(
+    "path traversal archive",
+    "symlink archive",
+    "escaped CMake cache binding",
+    "missing shared consumer test",
+    "consumer build failure",
+    "consumer runtime test failure"
 )
 
 function Invoke-RuntimeBenchmarkComparisonSmokeTest {

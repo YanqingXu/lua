@@ -76,6 +76,45 @@ $output = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $archiveBase = "lua-cpp-$Version-$RuntimeIdentifier"
 $stage = Join-Path $output ".stage-$archiveBase"
 $packageRoot = Join-Path $stage $archiveBase
+$platformPolicy = Join-Path $repository "docs/release/platform-baseline.json"
+$platformEvidence = Join-Path $build "lua-cpp-platform-evidence.json"
+
+switch ($RuntimeIdentifier) {
+    "windows-x64" {
+        $sharedLibraryCandidates = @(
+            Get-Item -LiteralPath (Join-Path $build "$Configuration/lua_public_api.dll") `
+                -ErrorAction SilentlyContinue
+        )
+    }
+    "linux-x64" {
+        $sharedLibraryCandidates = @(
+            Get-ChildItem -LiteralPath $build -File -Filter "liblua_public_api.so.*" `
+                -ErrorAction SilentlyContinue |
+                Where-Object {
+                    ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0
+                }
+        )
+    }
+    "macos-arm64" {
+        $sharedLibraryCandidates = @(
+            Get-ChildItem -LiteralPath $build -File -Filter "liblua_public_api.*.dylib" `
+                -ErrorAction SilentlyContinue |
+                Where-Object {
+                    ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0
+                }
+        )
+    }
+}
+if ($sharedLibraryCandidates.Count -ne 1) {
+    throw (
+        "Release platform validation requires exactly one real shared library for " +
+        "$RuntimeIdentifier; found $($sharedLibraryCandidates.Count)"
+    )
+}
+$sharedLibrary = $sharedLibraryCandidates[0]
+if (($sharedLibrary.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw "Release platform validation refuses a shared-library link"
+}
 
 if (Test-Path -LiteralPath $stage) {
     $resolvedStage = (Resolve-Path -LiteralPath $stage).Path
@@ -107,6 +146,26 @@ try {
     if ($null -eq $python) {
         $python = Get-Command python -ErrorAction Stop
     }
+    $platformArguments = @()
+    if ($python.Name -eq "py.exe" -or $python.Name -eq "py") {
+        $platformArguments += "-3"
+    }
+    $platformArguments += @(
+        (Join-Path $repository "tools/verify_platform_baseline.py"),
+        "--policy", $platformPolicy,
+        "--evidence", $platformEvidence,
+        "--expected-rid", $RuntimeIdentifier,
+        "--shared-library", $sharedLibrary.FullName
+    )
+    & $python.Source @platformArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release platform baseline validation failed with exit code $LASTEXITCODE"
+    }
+    Copy-Item -LiteralPath $platformPolicy `
+        -Destination (Join-Path $releaseDocs "platform-baseline.json")
+    Copy-Item -LiteralPath $platformEvidence `
+        -Destination (Join-Path $releaseDocs "platform-evidence.json")
+
     $sbomInside = Join-Path $packageRoot "share/lua_cpp/sbom.spdx.json"
     $pythonArguments = @()
     if ($python.Name -eq "py.exe" -or $python.Name -eq "py") {
@@ -176,6 +235,23 @@ try {
     & $python.Source @validatorArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Release artifact validation failed with exit code $LASTEXITCODE"
+    }
+
+    $consumerArguments = @()
+    if ($python.Name -eq "py.exe" -or $python.Name -eq "py") {
+        $consumerArguments += "-3"
+    }
+    $consumerArguments += @(
+        (Join-Path $repository "tools/verify_release_package_consumer.py"),
+        "--archive", $archive,
+        "--expected-version", $Version,
+        "--expected-rid", $RuntimeIdentifier,
+        "--consumer-source", (Join-Path $repository "tests/packaging/consumer"),
+        "--configuration", $Configuration
+    )
+    & $python.Source @consumerArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Release package consumer verification failed with exit code $LASTEXITCODE"
     }
 } finally {
     if (Test-Path -LiteralPath $stage) {

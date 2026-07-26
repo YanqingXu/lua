@@ -5364,6 +5364,22 @@ void testPublicRuntimeConfigurationApi(TestSuite& suite) {
     ASSERT_EQ(suite, static_cast<std::uint64_t>(0), metrics.consumed_instructions,
               "pre-dispatch cancellation consumes no VM instructions");
 
+    ASSERT_EQ(suite, LUA_RUNTIME_OK, lua_runtime_begin_execution(L, &limits),
+              "a reused state starts a fresh execution window after cancellation");
+    ASSERT_EQ(suite, LUA_OK, luaL_loadstring(L, "return 84"),
+              "trusted host loads a probe after resetting the cancelled execution window");
+    ASSERT_EQ(suite, LUA_OK, lua_pcall(L, 0, 1, 0),
+              "a reused state remains executable after budget and cancellation failures");
+    ASSERT_EQ(suite, static_cast<lua_Integer>(84), lua_tointeger(L, -1),
+              "the post-cancellation request returns an unpolluted result");
+    lua_pop(L, 1);
+    ASSERT_EQ(suite, LUA_RUNTIME_OK, lua_runtime_get_metrics(L, &metrics),
+              "host reads metrics after reusing the state");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(0), metrics.cancellation_requested,
+              "a fresh execution window clears the previous cancellation request");
+    ASSERT_EQ(suite, static_cast<std::uint32_t>(LUA_RUNTIME_STOP_NONE), metrics.last_stop_reason,
+              "a successful reused request clears the previous stop classification");
+
     lua_close(L);
     lua_runtime_request_cancellation(cancellation);
     lua_runtime_release_cancellation_handle(cancellation);

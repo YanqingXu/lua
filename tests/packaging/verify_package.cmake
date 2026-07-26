@@ -24,7 +24,9 @@ execute_process(
         -S "${PROJECT_SOURCE_DIR}/tests/packaging/consumer"
         -B "${consumer_build}"
         -DCMAKE_BUILD_TYPE=${TEST_CONFIGURATION}
-        -DCMAKE_PREFIX_PATH=${prefix}
+        -DLUA_CPP_PACKAGE_ROOT=${prefix}
+        -DCMAKE_FIND_USE_PACKAGE_REGISTRY=FALSE
+        -DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=TRUE
     RESULT_VARIABLE configure_result
     OUTPUT_VARIABLE configure_output
     ERROR_VARIABLE configure_error

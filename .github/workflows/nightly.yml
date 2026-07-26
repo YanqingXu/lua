@@ -112,6 +112,62 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  worker-fault-matrix:
+    name: Worker fault matrix (${{ matrix.artifact_suffix }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_suffix: linux-x64
+          - os: windows-latest
+            artifact_suffix: windows-x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configure worker fault target
+        run: cmake -S . -B build/fault -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build worker fault target
+        run: cmake --build build/fault --config Release --parallel 2 --target lua_production_worker
+
+      - name: Run worker fault matrix with OS limits
+        shell: pwsh
+        run: |
+          $worker = if ($IsWindows) {
+            "build/fault/Release/lua_production_worker.exe"
+          } else {
+            "build/fault/lua_production_worker"
+          }
+          python tests/production/verify_worker_fault_matrix.py `
+            --worker $worker `
+            --scripts tests/production `
+            --enforce-process-limits `
+            --candidate-sha $env:GITHUB_SHA `
+            --output build/fault/worker-fault-matrix.json
+
+      - name: Upload worker fault evidence
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: worker-fault-matrix-${{ matrix.artifact_suffix }}
+          path: build/fault/worker-fault-matrix.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload worker fault diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: worker-fault-diagnostics-${{ matrix.artifact_suffix }}-${{ github.run_attempt }}
+          path: build/fault/worker-fault-matrix.json
+          if-no-files-found: warn
+          retention-days: 7
+
   long-fuzz:
     name: Long sanitizer fuzz
     runs-on: ubuntu-latest

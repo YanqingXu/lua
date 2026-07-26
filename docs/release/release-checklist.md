@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: CMakeLists.txt; src/lua_cpp_version.h; CHANGELOG.md; SECURITY.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/check_release_readiness.ps1; tools/release_identity.psm1; tools/test_release_identity.ps1; tools/verify_source_readiness_evidence.py; tools/test_verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/test_verify_release_governance.py; tools/write_workflow_evidence.py; tools/test_write_workflow_evidence.py; tools/verify_release_evidence.py; tools/test_verify_release_evidence.py; tools/build_release_body.py; tools/test_build_release_body.py; tools/verify_release_tag.py; tools/test_verify_release_tag.py; cmake/WriteBuildProvenance.cmake; tools/build_provenance.psm1; tools/test_package_build_provenance.ps1; tools/package_release.ps1; tools/generate_sbom.py; tools/validate_release_artifacts.py
+verified_against: CMakeLists.txt; src/lua_cpp_version.h; CHANGELOG.md; SECURITY.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; docs/release/platform-support.md; docs/release/platform-baseline.json; cmake/LuaCppPlatformBaseline.cmake; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/check_release_readiness.ps1; tools/release_identity.psm1; tools/test_release_identity.ps1; tools/verify_source_readiness_evidence.py; tools/test_verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/test_verify_release_governance.py; tools/write_workflow_evidence.py; tools/test_write_workflow_evidence.py; tools/verify_release_evidence.py; tools/test_verify_release_evidence.py; tools/build_release_body.py; tools/test_build_release_body.py; tools/verify_release_tag.py; tools/test_verify_release_tag.py; cmake/WriteBuildProvenance.cmake; tools/build_provenance.psm1; tools/test_package_build_provenance.ps1; tools/package_release.ps1; tools/generate_sbom.py; tools/validate_release_artifacts.py; tools/verify_release_package_consumer.py; tools/test_verify_release_package_consumer.py; tests/packaging/consumer/CMakeLists.txt; tests/packaging/consumer/main.c
 last_checked: 2026-07-26
 applies_to: 0.1.x release candidates and releases
 ---
@@ -86,6 +86,14 @@ workflow dispatch 即使从 tag ref 启动也只能生成 `candidate-only` 证�
 
 ## 制品
 
+三个正式 RID 必须满足
+[`platform-baseline.json`](platform-baseline.json) 的固定合同：`windows-2022`/MSVC
+19.40–19.x/动态 UCRT v143，`ubuntu-24.04`/GCC 14.x/glibc 2.39，以及
+`macos-15`/AppleClang 16.x–17.x/`CMAKE_OSX_DEPLOYMENT_TARGET=14.0`。release configure
+必须传入精确 RID 与 runner，生成 platform evidence；构建后 verifier 再从 DLL/ELF/Mach-O
+检查 CRT、symbol-version 上限、`minos` 和动态依赖。任何 `latest` runner、MinGW、32 位、
+musl 或 CI-only Linux ARM64 都不能生成 0.1.x 官方包。
+
 每个平台包必须包含：
 
 - 静态库、共享库、五个公开头、CMake package 文件、LICENSE；
@@ -102,11 +110,16 @@ Debug SDK、32 位目标或 RID 冒名被误标为 Release。之后调用
 一致性、SBOM 文件全集、逐文件 SHA-256 与 SPDX `packageVerificationCode`。发布 workflow
 还必须在该 clean rebuild/打包之后重新运行完整 Release CTest，成功后才能上传制品，并
 按精确 artifact 名隔离下载每个 RID，拒绝额外文件、符号链接、缺失项和目标文件碰撞，并在
-publish runner 上再次调用同一深度 validator。之后才把 `release-evidence.json` 与平台文件
+publish runner 上再次调用同一深度 validator。每个平台 artifact 上传完成后，独立矩阵 job
+会在相同 RID runner 下载精确四文件集合；consumer verifier 将 ZIP 安全解压到临时目录，把
+可信 consumer 源码复制到仓库外的新目录，清除 CMake prefix/project hook 环境，关闭 package
+registry/default-path 查找，并核对 `CMakeCache.txt` 中的 `LuaCpp_DIR` 精确指向该解压包。
+静态和共享纯 C consumer 必须同时被 CTest 发现、全新构建并运行，缺少任一测试或任何回退都
+失败关闭。之后才把 `release-evidence.json` 与平台文件
 汇总为不可变 release asset，重新计算并检查实际发布 asset 的全局 `SHA256SUMS`。该索引明确
 排除自身；Release body 在 checksum 完成后动态生成，不是 release asset，因此不会形成
 checksum 自引用。
-下载后仍应独立复算并运行一个安装后静态/共享 consumer。
+本地打包阶段也执行同一个 ZIP consumer verifier，避免只有远端下载路径才暴露归档可消费性。
 
 ## Tag 与放量
 

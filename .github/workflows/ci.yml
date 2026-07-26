@@ -67,7 +67,7 @@ jobs:
         run: >-
           ctest --test-dir build/windows-cmake
           -C ${{ matrix.configuration }}
-          -L "api-contract|production-contract|soak-smoke"
+          -L "api-contract|production-contract|runtime-failure-contract|soak-smoke"
           --output-on-failure
 
       - name: Documentation drift
@@ -253,8 +253,9 @@ jobs:
           # ASan and TSan reserve large shadow address ranges. The production
           # worker intentionally installs a low RLIMIT_AS before running Lua,
           # so those process-boundary tests are intrinsically incompatible
-          # with either shadow-memory runtime. They remain enabled for UBSan
-          # and every non-sanitized Linux/Windows configuration.
+          # with either shadow-memory runtime. The separate runtime fault
+          # matrix explicitly bypasses only the OS limiter and therefore
+          # remains enabled under ASan/TSan.
           if [[ "${{ matrix.sanitizer }}" == "address" || "${{ matrix.sanitizer }}" == "thread" ]]; then
             ctest --test-dir build --output-on-failure --timeout 900 -LE production-contract
           else

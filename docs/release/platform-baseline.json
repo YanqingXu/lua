@@ -1,0 +1,117 @@
+{
+  "schema": "lua-cpp.platform-baseline/v1",
+  "appliesTo": "0.1.x",
+  "language": {
+    "c": "C99",
+    "cxx": "C++23",
+    "cmakeMinimum": "3.20"
+  },
+  "releaseRids": {
+    "windows-x64": {
+      "architecture": "x86_64",
+      "pointerSize": 8,
+      "minimumRuntime": {
+        "os": "Windows Server 2022",
+        "osVersion": "10.0.20348",
+        "crt": "dynamic-ucrt-msvc-v143",
+        "requiredDynamicDependencies": [
+          "MSVCP140.dll",
+          "VCRUNTIME140.dll"
+        ],
+        "forbiddenDynamicDependencies": [
+          "MSVCP140D.dll",
+          "VCRUNTIME140D.dll",
+          "VCRUNTIME140_1D.dll",
+          "ucrtbased.dll"
+        ]
+      },
+      "builder": {
+        "runner": "windows-2022",
+        "hostSystem": "Windows",
+        "hostVersionMinimum": "10.0.20348",
+        "generator": "Visual Studio 17 2022",
+        "compilerId": "MSVC",
+        "compilerVersionMinimum": "19.40",
+        "compilerVersionMaximumExclusive": "20.0",
+        "msvcRuntime": "MultiThreadedDLL"
+      }
+    },
+    "linux-x64": {
+      "architecture": "x86_64",
+      "pointerSize": 8,
+      "minimumRuntime": {
+        "os": "Ubuntu 24.04 LTS",
+        "osVersion": "24.04",
+        "libc": "glibc",
+        "libcVersion": "2.39",
+        "glibcSymbolMaximum": "GLIBC_2.39",
+        "libstdcxxSymbolMaximum": "GLIBCXX_3.4.33",
+        "cxxabiSymbolMaximum": "CXXABI_1.3.15",
+        "requiredDynamicDependencies": [
+          "libstdc++.so.6",
+          "libgcc_s.so.1",
+          "libc.so.6"
+        ]
+      },
+      "builder": {
+        "runner": "ubuntu-24.04",
+        "hostSystem": "Linux",
+        "distributionId": "ubuntu",
+        "distributionVersion": "24.04",
+        "generator": "Ninja",
+        "compilerId": "GNU",
+        "compilerVersionMinimum": "14.0",
+        "compilerVersionMaximumExclusive": "15.0"
+      }
+    },
+    "macos-arm64": {
+      "architecture": "arm64",
+      "pointerSize": 8,
+      "minimumRuntime": {
+        "os": "macOS",
+        "osVersion": "14.0",
+        "deploymentTarget": "14.0",
+        "crt": "system-libc++-libSystem",
+        "requiredDynamicDependencies": [
+          "/usr/lib/libc++.1.dylib",
+          "/usr/lib/libSystem.B.dylib"
+        ],
+        "allowedDynamicDependencyPrefixes": [
+          "@rpath/liblua_public_api.",
+          "/usr/lib/libc++.1.dylib",
+          "/usr/lib/libSystem.B.dylib"
+        ]
+      },
+      "builder": {
+        "runner": "macos-15",
+        "hostSystem": "Darwin",
+        "hostVersionMinimum": "15.0",
+        "generator": "Ninja",
+        "compilerId": "AppleClang",
+        "compilerVersionMinimum": "16.0",
+        "compilerVersionMaximumExclusive": "18.0"
+      }
+    }
+  },
+  "ciOnlyTargets": [
+    "linux-arm64"
+  ],
+  "unsupportedTargets": [
+    {
+      "id": "mingw",
+      "reason": "The 0.1.x Windows contract requires the MSVC ABI and dynamic UCRT/MSVC v143 runtime."
+    },
+    {
+      "id": "windows-x86",
+      "reason": "No 32-bit package, test matrix, or ABI contract is published."
+    },
+    {
+      "id": "linux-musl",
+      "reason": "The Linux package is linked and verified against glibc, not musl."
+    },
+    {
+      "id": "macos-x64",
+      "reason": "The 0.1.x macOS package and install-consumer contract are ARM64-only."
+    }
+  ]
+}

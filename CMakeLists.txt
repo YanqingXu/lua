@@ -26,6 +26,22 @@ option(LUA_CPP_ENABLE_COVERAGE "Enable Clang source-based coverage instrumentati
 set(LUA_CPP_SANITIZER "" CACHE STRING "Enable a runtime sanitizer: address, undefined, or thread")
 set_property(CACHE LUA_CPP_SANITIZER PROPERTY STRINGS "" address undefined thread)
 set(
+    LUA_CPP_RELEASE_RID
+    ""
+    CACHE STRING
+    "Enable strict 0.1.x release baseline validation for a canonical package RID"
+)
+set_property(
+    CACHE LUA_CPP_RELEASE_RID
+    PROPERTY STRINGS "" windows-x64 linux-x64 macos-arm64
+)
+set(
+    LUA_CPP_RELEASE_RUNNER
+    ""
+    CACHE STRING
+    "Pinned GitHub runner label used to build a canonical release package"
+)
+set(
     LUA_TEST_BUILD_GIT_SHA
     ""
     CACHE STRING
@@ -42,6 +58,14 @@ option(
     ${_LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS_DEFAULT}
 )
 unset(_LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS_DEFAULT)
+
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/LuaCppPlatformBaseline.cmake")
+lua_cpp_apply_platform_baseline(
+    POLICY "${CMAKE_CURRENT_SOURCE_DIR}/docs/release/platform-baseline.json"
+    EVIDENCE "${CMAKE_CURRENT_BINARY_DIR}/lua-cpp-platform-evidence.json"
+    RELEASE_RID "${LUA_CPP_RELEASE_RID}"
+    RELEASE_RUNNER "${LUA_CPP_RELEASE_RUNNER}"
+)
 
 find_package(Git QUIET)
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/WriteBuildProvenance.cmake")
@@ -810,6 +834,24 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     )
 
     add_test(
+        NAME platform_baseline_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_verify_platform_baseline.py
+    )
+    set_tests_properties(platform_baseline_contract PROPERTIES
+        LABELS "quality-contract;package"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tools
+    )
+
+    add_test(
+        NAME release_package_consumer_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_verify_release_package_consumer.py
+    )
+    set_tests_properties(release_package_consumer_contract PROPERTIES
+        LABELS "quality-contract;package"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
         NAME release_evidence_verifier_contract
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_verify_release_evidence.py
     )
@@ -1071,6 +1113,19 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
             set_tests_properties(production_worker_json_encoding PROPERTIES
                 LABELS production-contract
                 TIMEOUT 10
+            )
+
+            add_test(
+                NAME production_worker_runtime_fault_matrix
+                COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/production/verify_worker_fault_matrix.py
+                    --worker $<TARGET_FILE:lua_production_worker>
+                    --scripts ${CMAKE_CURRENT_SOURCE_DIR}/tests/production
+                    --output ${CMAKE_CURRENT_BINARY_DIR}/worker-fault-matrix-$<CONFIG>.json
+            )
+            set_tests_properties(production_worker_runtime_fault_matrix PROPERTIES
+                LABELS runtime-failure-contract
+                TIMEOUT 30
             )
         endif()
     endif()

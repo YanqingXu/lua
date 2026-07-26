@@ -67,6 +67,8 @@ EXPECTED_CI_JOBS = (
 EXPECTED_NIGHTLY_JOBS = (
     "Long sanitizer fuzz",
     "Runtime and native-module soak",
+    "Worker fault matrix (linux-x64)",
+    "Worker fault matrix (windows-x64)",
 )
 CI_ARTIFACTS = (
     "component-coverage",

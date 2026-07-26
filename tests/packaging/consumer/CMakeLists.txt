@@ -2,7 +2,39 @@ cmake_minimum_required(VERSION 3.20)
 
 project(lua_cpp_package_consumer LANGUAGES C CXX)
 
-find_package(LuaCpp 0.1 CONFIG REQUIRED)
+if(NOT DEFINED LUA_CPP_PACKAGE_ROOT OR LUA_CPP_PACKAGE_ROOT STREQUAL "")
+    message(FATAL_ERROR
+        "LUA_CPP_PACKAGE_ROOT is required; the consumer must bind to one extracted package"
+    )
+endif()
+file(REAL_PATH "${LUA_CPP_PACKAGE_ROOT}" _lua_cpp_package_root)
+set(_lua_cpp_config_directory
+    "${_lua_cpp_package_root}/lib/cmake/LuaCpp"
+)
+if(NOT EXISTS "${_lua_cpp_config_directory}/LuaCppConfig.cmake")
+    message(FATAL_ERROR
+        "The extracted package has no LuaCppConfig.cmake: ${_lua_cpp_config_directory}"
+    )
+endif()
+set(LuaCpp_DIR "${_lua_cpp_config_directory}" CACHE PATH
+    "Exact extracted LuaCpp package config directory" FORCE
+)
+find_package(LuaCpp 0.1 CONFIG REQUIRED
+    PATHS "${_lua_cpp_config_directory}"
+    NO_DEFAULT_PATH
+)
+file(REAL_PATH "${LuaCpp_DIR}" _lua_cpp_resolved_config_directory)
+file(REAL_PATH "${_lua_cpp_config_directory}" _lua_cpp_expected_config_directory)
+if(NOT _lua_cpp_resolved_config_directory STREQUAL _lua_cpp_expected_config_directory)
+    message(FATAL_ERROR
+        "LuaCpp resolved outside the extracted package: "
+        "${_lua_cpp_resolved_config_directory}"
+    )
+endif()
+unset(_lua_cpp_expected_config_directory)
+unset(_lua_cpp_resolved_config_directory)
+unset(_lua_cpp_config_directory)
+unset(_lua_cpp_package_root)
 
 set(_lua_cpp_imported_targets LuaCpp::Lua)
 if(TARGET LuaCpp::Shared)
@@ -50,6 +82,7 @@ unset(_lua_cpp_imported_target)
 unset(_lua_cpp_imported_targets)
 
 add_executable(lua_cpp_package_consumer main.c)
+set_property(TARGET lua_cpp_package_consumer PROPERTY LINKER_LANGUAGE CXX)
 target_link_libraries(lua_cpp_package_consumer PRIVATE LuaCpp::Lua)
 if(MSVC)
     target_compile_options(lua_cpp_package_consumer PRIVATE /W4 /WX)

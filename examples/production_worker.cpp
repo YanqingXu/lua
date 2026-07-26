@@ -11,14 +11,18 @@
 #include <algorithm>
 #include <charconv>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 
 #if defined(_WIN32)
 #define NOMINMAX
@@ -38,6 +42,9 @@ struct WorkerOptions {
     std::uint64_t timeoutMilliseconds = 100;
     std::uint64_t cpuSeconds = 2;
     std::uint64_t maxOutputBytes = 1ULL * 1024ULL * 1024ULL;
+    std::uint64_t cancelAfterMilliseconds = 0;
+    bool cancellationEnabled = false;
+    bool processLimitsEnabled = true;
 };
 
 struct QuotaAllocator {
@@ -151,6 +158,13 @@ bool parseOptions(int argc, char** argv, WorkerOptions& options, std::string& er
             if (!readOptionValue(argc, argv, index, argument, options.maxOutputBytes, error)) {
                 return false;
             }
+        } else if (argument == "--cancel-after-ms") {
+            if (!readOptionValue(argc, argv, index, argument, options.cancelAfterMilliseconds, error)) {
+                return false;
+            }
+            options.cancellationEnabled = true;
+        } else if (argument == "--skip-process-limits-for-tests") {
+            options.processLimitsEnabled = false;
         } else if (!argument.empty() && argument.front() == '-') {
             error = "unknown option: " + std::string(argument);
             return false;
@@ -345,6 +359,7 @@ void writeResult(std::string_view outcome, int luaStatus, int runtimeStatus, std
               << ",\"allocator_live_bytes\":" << quota.live << ",\"allocator_peak_bytes\":" << quota.peak
               << ",\"allocator_limit_bytes\":" << options.allocatorMemoryBytes
               << ",\"process_memory_limit_bytes\":" << options.processMemoryBytes
+              << ",\"process_limits_enabled\":" << (options.processLimitsEnabled ? "true" : "false")
               << ",\"instruction_budget\":" << options.instructionBudget
               << ",\"native_work_budget\":" << options.nativeWorkBudget
               << ",\"timeout_ms\":" << options.timeoutMilliseconds
@@ -352,21 +367,27 @@ void writeResult(std::string_view outcome, int luaStatus, int runtimeStatus, std
               << ",\"remaining_instruction_budget\":" << metrics.remaining_instruction_budget
               << ",\"consumed_native_work\":" << metrics.consumed_native_work
               << ",\"remaining_native_work_budget\":" << metrics.remaining_native_work_budget
-              << ",\"last_stop_reason\":" << metrics.last_stop_reason << ",\"message\":\"" << jsonEscape(message)
-              << "\"}\n";
+              << ",\"last_stop_reason\":" << metrics.last_stop_reason
+              << ",\"cancellation_requested\":" << metrics.cancellation_requested << ",\"message\":\""
+              << jsonEscape(message) << "\"}\n";
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
     WorkerOptions options;
+    QuotaAllocator diagnosticQuota{};
+    lua_RuntimeMetrics diagnosticMetrics{};
+    lua_runtime_metrics_init(&diagnosticMetrics);
     std::string error;
     if (!parseOptions(argc, argv, options, error)) {
-        std::cerr << "lua_production_worker: " << error << '\n';
+        writeResult("host_config_error", LUA_ERRRUN, LUA_RUNTIME_ERR_ARGUMENT, 0, options, diagnosticQuota,
+                    diagnosticMetrics, error);
         return 64;
     }
-    if (!applyProcessLimits(options, error)) {
-        std::cerr << "lua_production_worker: process isolation unavailable: " << error << '\n';
+    if (options.processLimitsEnabled && !applyProcessLimits(options, error)) {
+        writeResult("process_isolation_error", LUA_ERRRUN, LUA_RUNTIME_ERR_CREATE, 0, options, diagnosticQuota,
+                    diagnosticMetrics, error);
         return 70;
     }
 
@@ -376,7 +397,8 @@ int main(int argc, char** argv) {
 
     std::string source;
     if (!readScript(options, config.max_source_bytes, source, error)) {
-        std::cerr << "lua_production_worker: " << error << '\n';
+        writeResult("source_error", LUA_ERRSYNTAX, LUA_RUNTIME_ERR_ARGUMENT, 0, options, diagnosticQuota,
+                    diagnosticMetrics, error);
         return 66;
     }
 
@@ -403,7 +425,52 @@ int main(int argc, char** argv) {
         limits.timeout_ms = options.timeoutMilliseconds;
         runtimeStatus = lua_runtime_begin_execution(L, &limits);
         if (runtimeStatus == LUA_RUNTIME_OK) {
-            luaStatus = lua_pcall(L, 0, 0, 0);
+            lua_CancellationHandle* cancellation = nullptr;
+            std::thread cancellationThread;
+            std::mutex cancellationMutex;
+            std::condition_variable cancellationCondition;
+            bool executionFinished = false;
+            if (options.cancellationEnabled) {
+                int cancellationStatus = LUA_RUNTIME_OK;
+                cancellation = lua_runtime_get_cancellation_handle(L, &cancellationStatus);
+                if (cancellation == nullptr || cancellationStatus != LUA_RUNTIME_OK) {
+                    runtimeStatus = cancellationStatus;
+                    luaStatus = LUA_ERRRUN;
+                } else {
+                    try {
+                        cancellationThread =
+                            std::thread([cancellation, delay = options.cancelAfterMilliseconds, &cancellationMutex,
+                                         &cancellationCondition, &executionFinished] {
+                                std::unique_lock lock(cancellationMutex);
+                                const bool finished =
+                                    cancellationCondition.wait_for(lock, std::chrono::milliseconds(delay),
+                                                                   [&executionFinished] { return executionFinished; });
+                                if (!finished) {
+                                    lua_runtime_request_cancellation(cancellation);
+                                }
+                            });
+                    } catch (const std::exception&) {
+                        lua_runtime_release_cancellation_handle(cancellation);
+                        cancellation = nullptr;
+                        runtimeStatus = LUA_RUNTIME_ERR_CREATE;
+                        luaStatus = LUA_ERRRUN;
+                    }
+                }
+            }
+            if (runtimeStatus == LUA_RUNTIME_OK) {
+                luaStatus = lua_pcall(L, 0, 0, 0);
+            }
+            if (cancellationThread.joinable()) {
+                {
+                    std::lock_guard lock(cancellationMutex);
+                    executionFinished = true;
+                }
+                cancellationCondition.notify_one();
+                cancellationThread.join();
+            }
+            if (cancellation != nullptr) {
+                lua_runtime_release_cancellation_handle(cancellation);
+            }
         } else {
             luaStatus = LUA_ERRRUN;
         }

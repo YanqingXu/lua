@@ -1,6 +1,6 @@
 ---
 status: current
-verified_against: CMakeLists.txt; src/lua_cpp_version.h; src/lua_runtime.h; CHANGELOG.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/write_workflow_evidence.py; tools/verify_release_evidence.py; tools/verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/verify_release_tag.py; tools/build_release_body.py; tools/validate_release_artifacts.py; tools/release_identity.psm1; cmake/WriteBuildProvenance.cmake; tools/package_release.ps1; docs/release/release-checklist.md; docs/operations/production-deployment.md; docs/quality/endurance.md
+verified_against: CMakeLists.txt; src/lua_cpp_version.h; src/lua_runtime.h; CHANGELOG.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; docs/release/platform-support.md; docs/release/platform-baseline.json; cmake/LuaCppPlatformBaseline.cmake; tools/verify_platform_baseline.py; tools/write_workflow_evidence.py; tools/verify_release_evidence.py; tools/verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/verify_release_tag.py; tools/build_release_body.py; tools/validate_release_artifacts.py; tools/release_identity.psm1; cmake/WriteBuildProvenance.cmake; tools/package_release.ps1; docs/release/release-checklist.md; docs/operations/production-deployment.md; docs/quality/endurance.md
 last_checked: 2026-07-26
 applies_to: 0.1.x release candidates and releases
 ---
@@ -19,6 +19,8 @@ applies_to: 0.1.x release candidates and releases
 
 - SDK 版本：0.1.0。
 - shared-library ABI：0。
+- 发布 RID：Windows Server 2022 x64、Ubuntu 24.04/glibc 2.39 x64、macOS 14.0+
+  ARM64；对应动态 UCRT/MSVC v143、GCC 14/libstdc++ 与系统 libc++。
 - 默认 `lua_open` / `luaL_newstate` 保持 unrestricted Lua 5.1 行为。
 - 有限行为必须通过 `luaL_newstate_configured` 显式选择。
 
@@ -28,6 +30,8 @@ applies_to: 0.1.x release candidates and releases
 - 长时间不返回的原生 callback 必须主动调用 `lua_checkexecution`，或由宿主终止 worker。
 - sandbox 不约束恶意宿主或已加载原生代码。
 - macOS 进程硬内存边界需由部署环境提供。
+- MinGW、32 位、musl、macOS x64 和较旧运行库不在 0.1.x 官方二进制支持范围；Linux
+  ARM64 仅为 CI portability 目标。
 
 ## 验证
 
