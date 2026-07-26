@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   windows-msbuild:
     name: Windows MSBuild (${{ matrix.configuration }})
@@ -32,7 +36,11 @@ jobs:
 
       - name: Build tests
         shell: powershell
-        run: MSBuild.exe lua_test.vcxproj /m /p:Configuration=${{ matrix.configuration }} /p:Platform=x64
+        run: >-
+          MSBuild.exe lua_test.vcxproj /m
+          /p:Configuration=${{ matrix.configuration }}
+          /p:Platform=x64
+          /p:LuaTestBuildGitSha=${{ github.sha }}
 
       - name: Configure CMake API, native-module, and production-worker evidence
         shell: powershell
@@ -73,6 +81,14 @@ jobs:
       - name: Quality gate contract tests
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tools\test_quality_gate.ps1
+
+      - name: Verify test binary build SHA
+        shell: powershell
+        run: >-
+          powershell -NoProfile -ExecutionPolicy Bypass
+          -File tools\check_test_binary_sha.ps1
+          -TestExecutable bin\lua_test.exe
+          -ExpectedSha $env:GITHUB_SHA
 
       - name: Run tests
         shell: powershell
@@ -376,6 +392,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Workflow evidence metadata contract tests
+        run: python3 tools/test_write_workflow_evidence.py
+
       - name: Install LLVM coverage tools
         run: >-
           sudo apt-get update && sudo apt-get install --yes
@@ -404,25 +423,37 @@ jobs:
         shell: bash
         run: |
           llvm-profdata-18 merge -sparse build/coverage/profiles/*.profraw -o build/coverage/merged.profdata
-          llvm-cov-18 export build/coverage/lua_test \
+          llvm-cov-18 export -summary-only build/coverage/lua_test \
             -instr-profile=build/coverage/merged.profdata \
             > build/coverage/coverage.json
+          cp tests/coverage/component-thresholds.json \
+            build/coverage/component-thresholds.json
           python3 tools/summarize_coverage.py \
             build/coverage/coverage.json \
             build/coverage/coverage-components.json \
-            --thresholds tests/coverage/component-thresholds.json
+            --thresholds build/coverage/component-thresholds.json
           llvm-cov-18 show build/coverage/lua_test \
             -instr-profile=build/coverage/merged.profdata \
             -format=html \
             -output-dir=build/coverage/html
+
+      - name: Write coverage evidence metadata
+        run: >-
+          python3 tools/write_workflow_evidence.py
+          --kind component-coverage
+          --output build/coverage/evidence-metadata.json
 
       - name: Upload coverage evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: component-coverage
           path: |
+            build/coverage/coverage.json
             build/coverage/coverage-components.json
+            build/coverage/component-thresholds.json
+            build/coverage/evidence-metadata.json
             build/coverage/html/
+          if-no-files-found: error
 
   linux-runtime-benchmark:
     name: Linux runtime benchmark contract
@@ -485,12 +516,28 @@ jobs:
           -HeadSha ${{ steps.revisions.outputs.head_sha }}
           -OutputDirectory build/benchmark-comparison
 
+      - name: Write benchmark evidence metadata
+        run: >-
+          python3 tools/write_workflow_evidence.py
+          --kind runtime-benchmark-evidence
+          --output build/benchmark-comparison/evidence-metadata.json
+
       - name: Upload benchmark evidence
-        if: always()
+        if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: runtime-benchmark-evidence
           path: build/benchmark-comparison/
+          if-no-files-found: error
+
+      - name: Upload benchmark failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-benchmark-diagnostics-${{ github.run_attempt }}
+          path: build/benchmark-comparison/
+          if-no-files-found: warn
+          retention-days: 7
 
   linux-lint:
     name: Linux clang-format / clang-tidy
@@ -510,6 +557,15 @@ jobs:
       - name: clang-format
         shell: bash
         run: |
+          is_owned_cpp() {
+            local file="$1"
+            [[ "$file" =~ \.(c|cc|cpp|cxx|h|hpp)$ ]] || return 1
+            case "$file" in
+              tests/lua/official/*) return 1 ;;
+              src/*|tests/*|examples/*|benchmarks/*|lua_test/*) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
           files=(
             src/debug/trace_sink.hpp
             src/io/file_loader.cpp
@@ -537,7 +593,7 @@ jobs:
             fi
           fi
           while IFS= read -r file; do
-            if [[ "$file" =~ ^(src|tests/unit|tests/compatibility|examples|benchmarks)/.*\.(c|cc|cpp|cxx|h|hpp)$ ]]; then
+            if is_owned_cpp "$file"; then
               files+=("$file")
             fi
           done < <(list_changed_files)

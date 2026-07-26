@@ -1,5 +1,6 @@
 param(
-    [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+    [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+    [string]$PowerShellExecutable = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,6 +9,98 @@ function Join-RepoPath {
     param([string]$RelativePath)
     return Join-Path $Root $RelativePath
 }
+
+function Resolve-PowerShellExecutable {
+    param([string]$RequestedExecutable)
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedExecutable)) {
+        $requestedCommand = Get-Command $RequestedExecutable -ErrorAction SilentlyContinue
+        if ($requestedCommand) {
+            return $requestedCommand.Source
+        }
+
+        if (Test-Path -LiteralPath $RequestedExecutable -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $RequestedExecutable).Path
+        }
+
+        throw "Requested PowerShell executable does not exist: $RequestedExecutable"
+    }
+
+    try {
+        $currentProcessPath = (Get-Process -Id $PID -ErrorAction Stop).Path
+        $currentProcessName = [System.IO.Path]::GetFileNameWithoutExtension($currentProcessPath)
+        if ($currentProcessName -in @("pwsh", "powershell") -and
+            (Test-Path -LiteralPath $currentProcessPath -PathType Leaf)) {
+            return $currentProcessPath
+        }
+    } catch {
+        # Fall through to command discovery for restricted hosts.
+    }
+
+    $powerShellCommand = Get-Command pwsh, powershell -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if (-not $powerShellCommand) {
+        throw "Unable to resolve a PowerShell executable (pwsh or powershell)"
+    }
+    return $powerShellCommand.Source
+}
+
+function Get-PowerShellFileArguments {
+    param(
+        [string]$ScriptPath,
+        [string[]]$Arguments = @()
+    )
+
+    $invokeArguments = @("-NoProfile", "-NonInteractive")
+    if ($env:OS -eq "Windows_NT") {
+        $invokeArguments += @("-ExecutionPolicy", "Bypass")
+    }
+    $invokeArguments += @("-File", $ScriptPath)
+    $invokeArguments += @($Arguments)
+    return $invokeArguments
+}
+
+function Invoke-PowerShellFileCapture {
+    param(
+        [string]$ScriptPath,
+        [string[]]$Arguments = @()
+    )
+
+    $invokeArguments = @(Get-PowerShellFileArguments -ScriptPath $ScriptPath -Arguments $Arguments)
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $global:LASTEXITCODE = -1
+        $output = & $script:powerShellExecutablePath @invokeArguments 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $lines = @($output | ForEach-Object { $_.ToString() })
+    return [pscustomobject]@{
+        ExitCode = $exitCode
+        Lines = $lines
+        Text = $lines -join "`n"
+    }
+}
+
+function Invoke-PowerShellFile {
+    param(
+        [string]$ScriptPath,
+        [string[]]$Arguments = @()
+    )
+
+    $result = Invoke-PowerShellFileCapture -ScriptPath $ScriptPath -Arguments $Arguments
+    foreach ($line in $result.Lines) {
+        Write-Host $line
+    }
+    if ($result.ExitCode -ne 0) {
+        throw "PowerShell script '$ScriptPath' failed with exit code $($result.ExitCode)"
+    }
+}
+
+$powerShellExecutablePath = Resolve-PowerShellExecutable $PowerShellExecutable
 
 function Assert-FileContains {
     param(
@@ -45,6 +138,25 @@ function Assert-FileNotContains {
     }
 }
 
+function Assert-FileTextMatches {
+    param(
+        [string]$RelativePath,
+        [string[]]$Patterns
+    )
+
+    $path = Join-RepoPath $RelativePath
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "Missing required quality gate file: $RelativePath"
+    }
+
+    $text = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+    foreach ($pattern in $Patterns) {
+        if (-not [regex]::IsMatch($text, $pattern)) {
+            throw "$RelativePath is missing required whole-file pattern: $pattern"
+        }
+    }
+}
+
 Assert-FileContains ".clang-format" @(
     "BasedOnStyle:\s*LLVM",
     "ColumnLimit:\s*120",
@@ -60,20 +172,94 @@ Assert-FileContains ".clang-tidy" @(
 
 Assert-FileContains "tools/run_quality_gate.ps1" @(
     "\[switch\]\`$Strict",
+    "\[string\]\`$FormatBase",
     "check_opcode_coverage_matrix\.ps1",
     "check_value_result_variant_only\.ps1",
     "check_c_style_patterns\.ps1",
+    "check_test_signal_integrity\.ps1",
     "check_lua51_official_sources\.ps1",
     "check_lua51_public_api_contract\.py",
     "check_doc_drift\.ps1",
     "clang-format",
+    "Test-OwnedCppSourcePath",
+    'tests/lua/official/',
+    '"lua_test/"',
     "clang-tidy",
     "MSBuild",
     "failed with exit code",
     "Strict quality gate requires clang-format",
     "Strict quality gate requires clang-tidy",
     "Strict quality gate requires MSBuild\.exe",
-    "Strict quality gate requires bin\\lua_test\.exe"
+    "Strict quality gate requires test executable",
+    "Strict changed clang-format scope is empty on a clean worktree",
+    "pass -FormatBase <revision> or use -FormatScope All",
+    "LuaTestBuildGitSha",
+    "check_test_binary_sha\.ps1",
+    "Resolve-PowerShellExecutable",
+    "Invoke-PowerShellFile",
+    "\[string\]\`$TestExecutable"
+)
+
+Assert-FileNotContains "tools/run_quality_gate.ps1" @(
+    "& powershell"
+)
+
+Assert-FileContains "tools/check_test_binary_sha.ps1" @(
+    "ExpectedSha must be exactly 40 hexadecimal characters",
+    "--build-info",
+    "reported Build Git SHA: unknown",
+    "does not match expected SHA"
+)
+
+Invoke-PowerShellFile -ScriptPath (Join-RepoPath "tools/test_test_binary_sha.ps1")
+
+Assert-FileContains "tools/check_test_signal_integrity.ps1" @(
+    "unconditional-assert-true",
+    "skip-output-as-success",
+    "test_signal_allowlist\.json",
+    "Stale or text-changed allowlist entry",
+    "expiresOn",
+    "Test signal integrity passed"
+)
+
+Assert-FileContains "tests/quality/test_signal_allowlist.json" @(
+    '"schemaVersion":\s*1',
+    '"textHash":',
+    '"rationale":',
+    '"expiresOn":'
+)
+
+Assert-FileContains "tests/unit/framework/test_framework.hpp" @(
+    "inline void SKIP_EXPECTED",
+    "inline void SKIP_UNEXPECTED"
+)
+Assert-FileNotContains "tests/unit/framework/test_framework.hpp" @(
+    "#define SKIP_EXPECTED",
+    "#define SKIP_UNEXPECTED"
+)
+
+Invoke-PowerShellFile -ScriptPath (Join-RepoPath "tools/test_test_signal_integrity.ps1")
+Invoke-PowerShellFile -ScriptPath (Join-RepoPath "tools/test_release_identity.ps1")
+
+Assert-FileContains "tools/write_workflow_evidence.py" @(
+    "lua-cpp\.workflow-evidence/v1",
+    "evidence-metadata\.json",
+    "runtime-soak-evidence",
+    "long-fuzz-evidence",
+    "candidate_sha",
+    "run_attempt"
+)
+
+Assert-FileContains "tools/verify_release_evidence.py" @(
+    "lua-cpp\.release-evidence/v2",
+    "EXPECTED_CI_JOBS",
+    "EXPECTED_NIGHTLY_JOBS",
+    "evidence-metadata\.json",
+    "candidate_sha",
+    "run_attempt",
+    "governance",
+    "source_readiness",
+    "abi_version"
 )
 
 Assert-FileContains "tools/add_source.ps1" @(
@@ -194,28 +380,27 @@ foreach ($staleCount in @($testCountMatch.Groups[1].Value, $testCountMatch.Group
 function Invoke-NativeFailurePropagationSmokeTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_quality_exit_" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
-    $previousPath = $env:PATH
 
     try {
+        $failingPowerShell = Join-Path $tempRoot "failing_powershell.ps1"
         [System.IO.File]::WriteAllText(
-            (Join-Path $tempRoot "powershell.cmd"),
-            "@exit /b 23`r`n",
-            [System.Text.Encoding]::ASCII
+            $failingPowerShell,
+            "exit 23`n",
+            [System.Text.UTF8Encoding]::new($false)
         )
-        $env:PATH = "$tempRoot;$previousPath"
 
         $failureMessage = $null
         try {
-            & (Join-RepoPath "tools/run_quality_gate.ps1") -SkipBuild -SkipClangTidy -FormatScope Off
+            & (Join-RepoPath "tools/run_quality_gate.ps1") -SkipBuild -SkipClangTidy -FormatScope Off `
+                -PowerShellExecutable $failingPowerShell
         } catch {
             $failureMessage = $_.Exception.Message
         }
 
-        if ($failureMessage -notmatch "ValueResult variant-only boundary failed with exit code 23") {
+        if ($failureMessage -notmatch "check_value_result_variant_only\.ps1.*failed with exit code 23") {
             throw "Quality gate did not propagate a native child exit code: $failureMessage"
         }
     } finally {
-        $env:PATH = $previousPath
         if (Test-Path -LiteralPath $tempRoot) {
             Remove-Item -LiteralPath $tempRoot -Recurse -Force
         }
@@ -251,6 +436,247 @@ function Invoke-StrictMissingToolSmokeTest {
 
 Invoke-StrictMissingToolSmokeTest
 
+function Invoke-StrictEmptyChangedScopeSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_quality_empty_changed_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    $previousPath = $env:PATH
+    $previousBaseRef = $env:GITHUB_BASE_REF
+
+    try {
+        [System.IO.File]::WriteAllText(
+            (Join-Path $tempRoot "clang-format.ps1"),
+            "exit 0`n",
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        [System.IO.File]::WriteAllText(
+            (Join-Path $tempRoot "git.ps1"),
+            "exit 0`n",
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        $env:PATH = $tempRoot + [System.IO.Path]::PathSeparator + $previousPath
+        Remove-Item Env:GITHUB_BASE_REF -ErrorAction SilentlyContinue
+
+        $failureMessage = $null
+        try {
+            & (Join-RepoPath "tools/run_quality_gate.ps1") -Strict -SkipBuild -SkipClangTidy -FormatScope Changed
+        } catch {
+            $failureMessage = $_.Exception.Message
+        }
+
+        if ($failureMessage -notmatch "Strict changed clang-format scope is empty on a clean worktree") {
+            throw "Strict changed-scope gate did not reject an unbounded clean worktree: $failureMessage"
+        }
+    } finally {
+        $env:PATH = $previousPath
+        if ($null -eq $previousBaseRef) {
+            Remove-Item Env:GITHUB_BASE_REF -ErrorAction SilentlyContinue
+        } else {
+            $env:GITHUB_BASE_REF = $previousBaseRef
+        }
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-StrictEmptyChangedScopeSmokeTest
+
+function Invoke-FormatScopeOwnershipSmokeTest {
+    param(
+        [ValidateSet("All", "Changed")]
+        [string]$Scope
+    )
+
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+        "lua_quality_format_scope_" + $Scope.ToLowerInvariant() + "_" + [guid]::NewGuid().ToString("N")
+    )
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    $capturePath = Join-Path $tempRoot "clang-format-arguments.txt"
+    $previousPath = $env:PATH
+    $previousCapturePath = $env:LUA_QUALITY_FORMAT_CAPTURE
+    $previousBaseRef = $env:GITHUB_BASE_REF
+
+    try {
+        [System.IO.File]::WriteAllText(
+            (Join-Path $tempRoot "clang-format.ps1"),
+            @'
+[System.IO.File]::WriteAllLines(
+    $env:LUA_QUALITY_FORMAT_CAPTURE,
+    [string[]]$args,
+    [System.Text.UTF8Encoding]::new($false)
+)
+exit 41
+'@,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+
+        if ($Scope -eq "Changed") {
+            [System.IO.File]::WriteAllText(
+                (Join-Path $tempRoot "git.ps1"),
+                @'
+if ($args.Count -gt 0 -and $args[0] -eq "diff") {
+    if ($args -notcontains "--cached") {
+        Write-Output "src/debug/trace_sink.hpp"
+        Write-Output "tests/fuzz/fuzz_parser.cpp"
+        Write-Output "tests/lua/official/etc/ltests.c"
+        Write-Output "examples/embedding.cpp"
+        Write-Output "benchmarks/runtime_bench.cpp"
+        Write-Output "lua_test/include/test_framework/test_framework.hpp"
+    }
+    exit 0
+}
+if ($args.Count -gt 0 -and $args[0] -eq "ls-files") {
+    exit 0
+}
+exit 0
+'@,
+                [System.Text.UTF8Encoding]::new($false)
+            )
+        }
+
+        $env:PATH = $tempRoot + [System.IO.Path]::PathSeparator + $previousPath
+        $env:LUA_QUALITY_FORMAT_CAPTURE = $capturePath
+        Remove-Item Env:GITHUB_BASE_REF -ErrorAction SilentlyContinue
+
+        $failureMessage = $null
+        try {
+            & (Join-RepoPath "tools/run_quality_gate.ps1") -Strict -SkipBuild -SkipClangTidy -FormatScope $Scope
+        } catch {
+            $failureMessage = $_.Exception.Message
+        }
+
+        if ($failureMessage -notmatch "clang-format failed with exit code 41") {
+            throw "$Scope clang-format scope fixture did not reach the capture command: $failureMessage"
+        }
+        if (-not (Test-Path -LiteralPath $capturePath -PathType Leaf)) {
+            throw "$Scope clang-format scope fixture did not capture any arguments"
+        }
+
+        $arguments = @([System.IO.File]::ReadAllLines($capturePath))
+        $ownedFixtures = @(
+            "src/debug/trace_sink.hpp",
+            "tests/fuzz/fuzz_parser.cpp",
+            "examples/embedding.cpp",
+            "benchmarks/runtime_bench.cpp",
+            "lua_test/include/test_framework/test_framework.hpp"
+        )
+        foreach ($relativePath in $ownedFixtures) {
+            $expectedPath = [System.IO.Path]::GetFullPath((Join-RepoPath $relativePath))
+            if ($arguments -notcontains $expectedPath) {
+                $matchingArguments = @($arguments | Where-Object {
+                    $_ -match [regex]::Escape([System.IO.Path]::GetFileName($expectedPath))
+                })
+                throw "$Scope clang-format scope omitted owned fixture: $relativePath; captured matches: $($matchingArguments -join ', ')"
+            }
+        }
+
+        $officialPath = [System.IO.Path]::GetFullPath((Join-RepoPath "tests/lua/official/etc/ltests.c"))
+        if ($arguments -contains $officialPath) {
+            throw "$Scope clang-format scope included read-only upstream fixture: tests/lua/official/etc/ltests.c"
+        }
+
+        Write-Host "[OK] $Scope clang-format scope includes owned C/C++ and excludes tests/lua/official"
+    } finally {
+        $env:PATH = $previousPath
+        if ($null -eq $previousCapturePath) {
+            Remove-Item Env:LUA_QUALITY_FORMAT_CAPTURE -ErrorAction SilentlyContinue
+        } else {
+            $env:LUA_QUALITY_FORMAT_CAPTURE = $previousCapturePath
+        }
+        if ($null -eq $previousBaseRef) {
+            Remove-Item Env:GITHUB_BASE_REF -ErrorAction SilentlyContinue
+        } else {
+            $env:GITHUB_BASE_REF = $previousBaseRef
+        }
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-FormatScopeOwnershipSmokeTest -Scope All
+Invoke-FormatScopeOwnershipSmokeTest -Scope Changed
+
+function Invoke-ShaFailureStopsUnitTestSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_quality_sha_stop_" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    $fixtureExecutable = Join-Path $tempRoot "lua_test_fixture.ps1"
+    $invocationCountPath = Join-Path $tempRoot "unit_invocation_count.txt"
+    $previousCountPath = $env:LUA_QUALITY_SHA_PROBE_COUNT
+    $previousRegistered = $env:LUA_QUALITY_SHA_PROBE_REGISTERED
+    $previousTotal = $env:LUA_QUALITY_SHA_PROBE_TOTAL
+
+    try {
+        [System.IO.File]::WriteAllText(
+            $fixtureExecutable,
+            @'
+if ($args.Count -eq 1 -and $args[0] -eq "--build-info") {
+    Write-Output "Build Git SHA: 0000000000000000000000000000000000000000"
+    exit 0
+}
+
+$countPath = $env:LUA_QUALITY_SHA_PROBE_COUNT
+$count = 0
+if (Test-Path -LiteralPath $countPath) {
+    $count = [int]([System.IO.File]::ReadAllText($countPath).Trim())
+}
+[System.IO.File]::WriteAllText($countPath, ($count + 1).ToString())
+Write-Output "Registered Tests: $env:LUA_QUALITY_SHA_PROBE_REGISTERED"
+Write-Output "Total Results: $env:LUA_QUALITY_SHA_PROBE_TOTAL"
+Write-Output "Failed: 0"
+exit 0
+'@,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+
+        $env:LUA_QUALITY_SHA_PROBE_COUNT = $invocationCountPath
+        $env:LUA_QUALITY_SHA_PROBE_REGISTERED = $testCountMatch.Groups[1].Value
+        $env:LUA_QUALITY_SHA_PROBE_TOTAL = $testCountMatch.Groups[2].Value
+
+        $failureMessage = $null
+        try {
+            & (Join-RepoPath "tools/run_quality_gate.ps1") -SkipBuild -SkipClangTidy -FormatScope Off `
+                -TestExecutable $fixtureExecutable
+        } catch {
+            $failureMessage = $_.Exception.Message
+        }
+
+        if ($failureMessage -notmatch "check_test_binary_sha\.ps1.*failed with exit code 1") {
+            throw "Quality gate did not stop on the SHA checker failure: $failureMessage"
+        }
+        if (-not (Test-Path -LiteralPath $invocationCountPath -PathType Leaf)) {
+            throw "SHA stop fixture was not invoked by the documentation contract"
+        }
+
+        $invocationCount = [int]([System.IO.File]::ReadAllText($invocationCountPath).Trim())
+        if ($invocationCount -ne 1) {
+            throw "Unit test executable ran after the SHA checker failed; expected one documentation invocation, got $invocationCount"
+        }
+        Write-Host "[OK] SHA checker failure stops the unit test executable"
+    } finally {
+        if ($null -eq $previousCountPath) {
+            Remove-Item Env:LUA_QUALITY_SHA_PROBE_COUNT -ErrorAction SilentlyContinue
+        } else {
+            $env:LUA_QUALITY_SHA_PROBE_COUNT = $previousCountPath
+        }
+        if ($null -eq $previousRegistered) {
+            Remove-Item Env:LUA_QUALITY_SHA_PROBE_REGISTERED -ErrorAction SilentlyContinue
+        } else {
+            $env:LUA_QUALITY_SHA_PROBE_REGISTERED = $previousRegistered
+        }
+        if ($null -eq $previousTotal) {
+            Remove-Item Env:LUA_QUALITY_SHA_PROBE_TOTAL -ErrorAction SilentlyContinue
+        } else {
+            $env:LUA_QUALITY_SHA_PROBE_TOTAL = $previousTotal
+        }
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-ShaFailureStopsUnitTestSmokeTest
+
 function Invoke-OpcodeEvidenceContractSmokeTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_opcode_evidence_" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
@@ -266,15 +692,10 @@ function Invoke-OpcodeEvidenceContractSmokeTest {
         [System.IO.File]::WriteAllText($probeContract, $producerJson + [Environment]::NewLine,
             [System.Text.UTF8Encoding]::new($false))
 
-        $previousErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            $producerOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $checker `
-                -CoverageContract $probeContract 2>&1
-            $producerExitCode = $LASTEXITCODE
-        } finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
+        $producerResult = Invoke-PowerShellFileCapture -ScriptPath $checker `
+            -Arguments @("-CoverageContract", $probeContract)
+        $producerOutput = $producerResult.Text
+        $producerExitCode = $producerResult.ExitCode
         if ($producerExitCode -eq 0 -or
             ($producerOutput -join "`n") -notmatch "MissingProducerForContractTest") {
             throw "Opcode checker did not reject a contract with a fabricated CodeGen producer"
@@ -286,14 +707,10 @@ function Invoke-OpcodeEvidenceContractSmokeTest {
         [System.IO.File]::WriteAllText($probeContract, $handlerJson + [Environment]::NewLine,
             [System.Text.UTF8Encoding]::new($false))
 
-        try {
-            $ErrorActionPreference = "Continue"
-            $handlerOutput = & powershell -NoProfile -ExecutionPolicy Bypass -File $checker `
-                -CoverageContract $probeContract 2>&1
-            $handlerExitCode = $LASTEXITCODE
-        } finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
+        $handlerResult = Invoke-PowerShellFileCapture -ScriptPath $checker `
+            -Arguments @("-CoverageContract", $probeContract)
+        $handlerOutput = $handlerResult.Text
+        $handlerExitCode = $handlerResult.ExitCode
         if ($handlerExitCode -eq 0 -or
             ($handlerOutput -join "`n") -notmatch "missingHandlerForContractTest") {
             throw "Opcode checker did not reject a contract with a fabricated VM handler"
@@ -325,10 +742,8 @@ void* findProbe(bool missing) {
 "@)
 
         $guard = Join-RepoPath "tools/check_c_style_patterns.ps1"
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Root $tempRoot -TestScope All -UpdateBaseline
-        if ($LASTEXITCODE -ne 0) {
-            throw "C-style baseline smoke could not generate its initial baseline"
-        }
+        Invoke-PowerShellFile -ScriptPath $guard `
+            -Arguments @("-Root", $tempRoot, "-TestScope", "All", "-UpdateBaseline")
 
         [System.IO.File]::WriteAllText($probePath, @"
 void* findProbe(bool missing) {
@@ -340,26 +755,17 @@ void* findProbe(bool missing) {
 }
 "@)
 
-        $previousErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Root $tempRoot -TestScope Product *> $null
-            $movedMatchExitCode = $LASTEXITCODE
-        } finally {
-            $ErrorActionPreference = $previousErrorActionPreference
-        }
+        $movedMatchResult = Invoke-PowerShellFileCapture -ScriptPath $guard `
+            -Arguments @("-Root", $tempRoot, "-TestScope", "Product")
+        $movedMatchExitCode = $movedMatchResult.ExitCode
         if ($movedMatchExitCode -eq 0) {
             throw "C-style position baseline must reject moving a match while preserving its count"
         }
 
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Root $tempRoot -TestScope All -UpdateBaseline
-        if ($LASTEXITCODE -ne 0) {
-            throw "C-style baseline smoke could not accept an intentional baseline update"
-        }
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $guard -Root $tempRoot -TestScope Product | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "C-style position baseline did not pass after the intentional update"
-        }
+        Invoke-PowerShellFile -ScriptPath $guard `
+            -Arguments @("-Root", $tempRoot, "-TestScope", "All", "-UpdateBaseline")
+        Invoke-PowerShellFile -ScriptPath $guard `
+            -Arguments @("-Root", $tempRoot, "-TestScope", "Product")
     } finally {
         if (Test-Path -LiteralPath $tempRoot) {
             Remove-Item -LiteralPath $tempRoot -Recurse -Force
@@ -448,6 +854,8 @@ Invoke-AddSourceSmokeTest
 
 Assert-FileContains ".github/workflows/ci.yml" @(
     "pull_request",
+    'group: ci-\$\{\{ github\.event\.pull_request\.number \|\| github\.ref \}\}',
+    "cancel-in-progress: true",
     "windows-latest",
     "ubuntu-latest",
     "configuration: \[Debug, Release\]",
@@ -477,8 +885,18 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "ASAN_OPTIONS: detect_leaks=1:halt_on_error=1",
     "UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1",
     "clang-format --dry-run --Werror",
+    "is_owned_cpp",
+    "tests/lua/official/\*",
+    "src/\*\|tests/\*\|examples/\*\|benchmarks/\*\|lua_test/\*",
     "run_clang_tidy\.py --build-dir build/lint",
     "Linux runtime benchmark contract",
+    'LuaTestBuildGitSha=\$\{\{ github\.sha \}\}',
+    "Verify test binary build SHA",
+    "check_test_binary_sha\.ps1",
+    '-ExpectedSha \$env:GITHUB_SHA',
+    "Run tests",
+    "write_workflow_evidence\.py",
+    "evidence-metadata\.json",
     "LUA_CPP_BUILD_BENCHMARKS=ON",
     "lua_runtime_bench",
     "benchmark-base-source",
@@ -492,6 +910,13 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "tools\\check_doc_drift\.ps1",
     "tools\\run_quality_gate\.ps1",
     "bin\\lua_test\.exe"
+)
+
+Assert-FileTextMatches ".github/workflows/ci.yml" @(
+    '(?ms)- name:\s*Verify test binary build SHA.*?check_test_binary_sha\.ps1.*?-ExpectedSha\s+\$env:GITHUB_SHA.*?- name:\s*Run tests',
+    '(?ms)- name:\s*Upload coverage evidence.*?name:\s*component-coverage.*?if-no-files-found:\s*error',
+    '(?ms)- name:\s*Upload benchmark evidence\s+if:\s*success\(\).*?name:\s*runtime-benchmark-evidence.*?if-no-files-found:\s*error',
+    '(?ms)is_owned_cpp\(\).*?tests/lua/official/\*\)\s+return 1.*?src/\*\|tests/\*\|examples/\*\|benchmarks/\*\|lua_test/\*\)\s+return 0'
 )
 
 Assert-FileContains "src/core/userdata.cpp" @(
@@ -533,6 +958,17 @@ Assert-FileContains "CMakeLists.txt" @(
     "example_embedding",
     "lua51_public_api_contract",
     "NAME cmake_package_consumer",
+    "NAME lua_test_build_sha_contract",
+    "check_test_binary_sha\.py",
+    "--source-dir",
+    "--git-executable",
+    "NAME test_binary_sha_checker_contract",
+    "test_check_test_binary_sha\.py",
+    "NAME release_evidence_verifier_contract",
+    "NAME workflow_evidence_writer_contract",
+    "NAME test_binary_sha_contract",
+    "NAME test_signal_integrity_check",
+    "NAME test_signal_integrity_contract",
     "install\(EXPORT LuaCppTargets",
     "install\(FILES LICENSE",
     "configure_package_config_file",
@@ -547,6 +983,14 @@ Assert-FileContains "CMakeLists.txt" @(
     "production_worker_allocator_limit",
     "production_worker_json_encoding",
     "verify_worker_json\.py"
+)
+
+Assert-FileContains "cmake/ResolveTestBuildGitSha.cmake" @(
+    "LUA_TEST_BUILD_GIT_SHA=<40-hex-sha>",
+    "Git was not found",
+    "must be exactly",
+    "40 hexadecimal characters",
+    "message\(FATAL_ERROR"
 )
 
 Assert-FileContains "src/lua_cpp_version.h" @(
@@ -661,34 +1105,217 @@ Assert-FileContains "tests/coverage/component-thresholds.json" @(
 
 Assert-FileContains ".github/workflows/nightly.yml" @(
     "Nightly endurance",
+    'nightly-endurance-\$\{\{ github\.event_name \}\}-\$\{\{ github\.ref \}\}',
+    "cancel-in-progress: true",
     "runtime-soak",
     "lua_runtime_soak",
     "native_module_iterations",
     "Validate endurance inputs",
+    "SOAK_MINUTES >= 45",
     "SOAK_MINUTES <= 80",
+    "NATIVE_MODULE_ITERATIONS >= 1000",
     "long-fuzz",
     "Validate fuzz input",
+    "FUZZ_SECONDS_PER_TARGET >= 600",
     "FUZZ_SECONDS_PER_TARGET <= 1200",
     "max_total_time",
+    "write_workflow_evidence\.py",
+    "evidence-metadata\.json",
+    "runtime-soak-evidence",
     "long-fuzz-evidence"
+)
+
+Assert-FileTextMatches ".github/workflows/nightly.yml" @(
+    '(?ms)- name:\s*Upload endurance evidence\s+if:\s*success\(\).*?name:\s*runtime-soak-evidence.*?if-no-files-found:\s*error',
+    '(?ms)- name:\s*Upload fuzz evidence\s+if:\s*success\(\).*?name:\s*long-fuzz-evidence.*?if-no-files-found:\s*error'
 )
 
 Assert-FileContains ".github/workflows/release.yml" @(
     "Release candidate packages",
-    "LUA_RELEASE_GOVERNANCE_APPROVED",
+    "LUA_RELEASE_GOVERNANCE_ATTESTATION",
+    "Verify exact-SHA release evidence",
+    "actions: read",
+    "test_verify_release_governance\.py",
+    "test_verify_source_readiness_evidence\.py",
+    "test_verify_release_evidence\.py",
+    "test_build_release_body\.py",
+    "verify_release_governance\.py",
+    "verify_release_evidence\.py",
+    "governance-evidence\.json",
+    "source-readiness-evidence\.json",
+    "name: release-evidence",
+    "needs: \[governance, verify_evidence\]",
+    "needs: \[governance, packages, verify_evidence, verify_tag\]",
     "check_release_readiness\.ps1",
     "package_release\.ps1",
     "Publish immutable candidate",
+    "release-evidence\.json",
+    "build_release_body\.py",
+    "release-body\.md",
     "gh run download",
-    "\*\.SHA256SUMS",
+    "sha256sum --",
     "release create"
+)
+
+Assert-FileNotContains ".github/workflows/release.yml" @(
+    "LUA_RELEASE_GOVERNANCE_APPROVED"
+)
+
+Assert-FileTextMatches ".github/workflows/release.yml" @(
+    '(?ms)- name:\s*Checkout candidate.*?ref:\s*\$\{\{\s*needs\.verify_evidence\.outputs\.candidate_sha\s*\}\}',
+    '(?ms)- name:\s*Checkout release notes.*?ref:\s*\$\{\{\s*needs\.verify_evidence\.outputs\.candidate_sha\s*\}\}',
+    '(?ms)package_release\.ps1.*?-Commit\s+\$\{\{\s*needs\.verify_evidence\.outputs\.candidate_sha\s*\}\}',
+    '(?ms)verify_tag:\s*.*?if:\s*github\.event_name == ''push'' && startsWith\(github\.ref, ''refs/tags/''\)',
+    '(?ms)publish:\s*.*?if:\s*github\.event_name == ''push'' && startsWith\(github\.ref, ''refs/tags/''\)'
+)
+
+Assert-FileContains "tools/verify_release_governance.py" @(
+    "lua-cpp\.release-governance-attestation/v1",
+    "lua-cpp\.release-governance-evidence/v1",
+    "approved_by",
+    "independent_reviewer",
+    "time-limited-waiver",
+    "protected-ruleset",
+    "candidate-only",
+    "CONTROL_NAMES"
+)
+
+Assert-FileContains "tools/verify_source_readiness_evidence.py" @(
+    "lua-cpp\.source-readiness-evidence/v1",
+    "candidate_sha",
+    "project_version",
+    "abi_version",
+    "public_api_contract"
+)
+
+Assert-FileContains "tools/release_identity.psm1" @(
+    "LUA_CPP_VERSION_MAJOR",
+    "LUA_CPP_VERSION_MINOR",
+    "LUA_CPP_VERSION_PATCH",
+    "LUA_CPP_VERSION",
+    "LUA_CPP_ABI_VERSION",
+    "SOVERSION",
+    "Get-LuaCppReleaseIdentity"
+)
+
+Assert-FileContains "tools/check_release_readiness.ps1" @(
+    "Get-LuaCppReleaseIdentity",
+    "ExpectedCommit",
+    "EvidenceRepository",
+    "lua-cpp\.source-readiness-evidence/v1",
+    "abi_version"
+)
+
+Assert-FileContains "tools/build_release_body.py" @(
+    "require_approved=True",
+    "expired at release publication",
+    "source_readiness",
+    "abi_version",
+    "expected_version"
 )
 
 Assert-FileContains "tools/package_release.ps1" @(
     "generate_sbom\.py",
     "validate_release_artifacts\.py",
     "SHA256SUMS",
-    "schemaVersion"
+    "schemaVersion",
+    "rev-parse HEAD",
+    "Commit.*does not match repository HEAD",
+    "status --porcelain",
+    "Release packaging requires a clean worktree"
+)
+
+Assert-FileContains "CMakeLists.txt" @(
+    "WriteBuildProvenance\.cmake",
+    "lua-cpp-build-provenance\.json",
+    "build_provenance_cmake_contract",
+    "package_build_provenance_contract",
+    "release_body_consumer_contract",
+    "release_governance_verifier_contract",
+    "source_readiness_evidence_contract",
+    "release_identity_contract",
+    "LUA_CPP_ABI_VERSION",
+    'SOVERSION \$\{LUA_CPP_ABI_VERSION\}'
+)
+
+Assert-FileContains "cmake/BuildProvenance.json.in" @(
+    "lua-cpp\.build-provenance/v2",
+    '"system_name"',
+    '"system_processor"',
+    '"pointer_size": @_pointer_size_json@'
+)
+
+Assert-FileContains "cmake/WriteBuildProvenance.cmake" @(
+    "CMAKE_SYSTEM_NAME",
+    "CMAKE_SYSTEM_PROCESSOR",
+    "CMAKE_SIZEOF_VOID_P",
+    "_pointer_size_json"
+)
+
+Assert-FileContains "tests/cmake/test_build_provenance.cmake" @(
+    "lua-cpp\.build-provenance/v2",
+    "LUA_CPP_EXPECTED_SYSTEM_NAME",
+    "LUA_CPP_EXPECTED_SYSTEM_PROCESSOR",
+    "LUA_CPP_EXPECTED_POINTER_SIZE",
+    "_pointer_size_kind.*NUMBER"
+)
+
+Assert-FileContains "tools/build_provenance.psm1" @(
+    "lua-cpp\.build-provenance/v2",
+    "source_git_status",
+    "source_git_sha",
+    "system_name",
+    "system_processor",
+    "pointer_size",
+    "build_type",
+    "configuration_types",
+    "windows-x64",
+    "linux-x64",
+    "macos-arm64",
+    "Unsupported RuntimeIdentifier",
+    "source directory does not match",
+    "binary directory does not match",
+    "Invoke-LuaCppReleaseBuildRefresh",
+    "--clean-first",
+    "worktree dirty"
+)
+
+Assert-FileContains "tools/package_release.ps1" @(
+    "build_provenance\.psm1",
+    "Test-LuaCppBuildProvenance",
+    "Invoke-LuaCppReleaseBuildRefresh",
+    '-Configuration\s+\$Configuration',
+    '-RuntimeIdentifier\s+\$RuntimeIdentifier',
+    'windows-x64',
+    'linux-x64',
+    'macos-arm64',
+    'Unsupported RuntimeIdentifier'
+)
+
+Assert-FileNotContains "tools/package_release.ps1" @(
+    'RuntimeIdentifier\s+-notmatch'
+)
+
+Assert-FileContains "tools/test_package_build_provenance.ps1" @(
+    "Visual Studio explicit x64 provenance",
+    "Linux RID impersonating a Windows target",
+    "macOS RID impersonating a Windows target",
+    "32-bit build as x64",
+    "processor alias suffix impersonation",
+    "missing target identity field",
+    "forged pointer-size type",
+    "legacy v1 provenance shape"
+)
+
+Assert-FileContains "tools/build_release_body.py" @(
+    "payload_evidence",
+    "required_timed_steps",
+    "authoritative_runtime_inputs",
+    "metric_regressions_recomputed",
+    "observed_failure_metrics",
+    "absolute_slo",
+    "base_ancestry",
+    "release checksum file set mismatch"
 )
 
 Assert-FileContains "tools/validate_release_artifacts.py" @(

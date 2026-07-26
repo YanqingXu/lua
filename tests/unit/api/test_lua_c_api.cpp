@@ -4783,10 +4783,12 @@ void testPublicAuxiliaryChecksAndMetatables(TestSuite& suite) {
     ASSERT_EQ(suite, std::string("fallback"), std::string(luaL_optlstring(L, 3, "fallback", &length)),
               "luaL_optlstring uses its default for nil");
     ASSERT_EQ(suite, static_cast<size_t>(8), length, "luaL_optlstring publishes the default byte length");
+    const int topBeforeAuxiliaryChecks = lua_gettop(L);
     luaL_checktype(L, 2, LUA_TSTRING);
     luaL_checkany(L, 3);
     luaL_checkstack(L, 8, "auxiliary check");
-    ASSERT_TRUE(suite, true, "luaL_checktype, luaL_checkany, and luaL_checkstack accept valid inputs");
+    ASSERT_EQ(suite, topBeforeAuxiliaryChecks, lua_gettop(L),
+              "luaL_checktype, luaL_checkany, and luaL_checkstack preserve valid inputs");
 
     static const char* const options[] = {"alpha", "beta", nullptr};
     ASSERT_EQ(suite, 1, luaL_checkoption(L, 2, nullptr, options), "luaL_checkoption returns the matching index");

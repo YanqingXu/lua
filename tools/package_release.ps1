@@ -22,12 +22,55 @@ Set-StrictMode -Version Latest
 if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?$') {
     throw "Version must be a semantic version or -rc.N candidate"
 }
-if ($RuntimeIdentifier -notmatch '^[a-z0-9_-]+$') {
-    throw "RuntimeIdentifier contains unsupported characters"
+$supportedRuntimeIdentifiers = @(
+    "windows-x64",
+    "linux-x64",
+    "macos-arm64"
+)
+if ($RuntimeIdentifier -cnotin $supportedRuntimeIdentifiers) {
+    throw "Unsupported RuntimeIdentifier '$RuntimeIdentifier'; expected exactly windows-x64, linux-x64, or macos-arm64"
 }
 
 $repository = (Resolve-Path -LiteralPath (Split-Path -Parent $PSScriptRoot)).Path
 $build = (Resolve-Path -LiteralPath $BuildDirectory).Path
+
+$repositoryCommit = (& git -C $repository rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $repositoryCommit -notmatch '^[0-9a-fA-F]{40}$') {
+    throw "Unable to resolve an exact repository commit"
+}
+$repositoryCommit = $repositoryCommit.ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($Commit)) {
+    $Commit = $repositoryCommit
+} elseif ($Commit -notmatch '^[0-9a-fA-F]{40}$') {
+    throw "Commit must be exactly 40 hexadecimal characters"
+} elseif ($Commit.ToLowerInvariant() -ne $repositoryCommit) {
+    throw "Requested package commit $Commit does not match repository HEAD $repositoryCommit"
+}
+$Commit = $Commit.ToLowerInvariant()
+
+$repositoryStatus = @(& git -C $repository status --porcelain)
+if ($LASTEXITCODE -ne 0) {
+    throw "Unable to inspect repository worktree status"
+}
+if ($repositoryStatus.Count -ne 0) {
+    throw "Release packaging requires a clean worktree"
+}
+
+Import-Module (Join-Path $PSScriptRoot "build_provenance.psm1") -Force
+$null = Test-LuaCppBuildProvenance `
+    -BuildDirectory $build `
+    -Repository $repository `
+    -Commit $Commit `
+    -Configuration $Configuration `
+    -RuntimeIdentifier $RuntimeIdentifier
+
+$null = Invoke-LuaCppReleaseBuildRefresh `
+    -BuildDirectory $build `
+    -Repository $repository `
+    -Commit $Commit `
+    -Configuration $Configuration `
+    -RuntimeIdentifier $RuntimeIdentifier
+
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $output = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $archiveBase = "lua-cpp-$Version-$RuntimeIdentifier"
@@ -57,12 +100,6 @@ try {
     Copy-Item -LiteralPath (Join-Path $repository "docs/release/release-checklist.md") -Destination $releaseDocs
     Copy-Item -LiteralPath (Join-Path $repository "docs/release/rc-notes-0.1.0.md") -Destination $releaseDocs
 
-    if ([string]::IsNullOrWhiteSpace($Commit)) {
-        $Commit = (& git -C $repository rev-parse HEAD).Trim()
-        if ($LASTEXITCODE -ne 0) {
-            throw "Unable to resolve release commit"
-        }
-    }
     $python = Get-Command py -ErrorAction SilentlyContinue
     if ($null -eq $python) {
         $python = Get-Command python3 -ErrorAction SilentlyContinue

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "rule": "unconditional-assert-true",
+      "path": "tests/unit/vm/test_vm_internal_boundaries.cpp",
+      "line": 42,
+      "textHash": "2297ad3c87107c580cc1dbe68741a329fa0f8ffa546a2983916c38e9ec4f2226",
+      "rationale": "The preceding static_assert set is the executable compile-time signal; this result only publishes it in the runtime report.",
+      "expiresOn": "2027-01-31"
+    },
+    {
+      "rule": "unconditional-assert-true",
+      "path": "tests/unit/vm/test_vm_internal_boundaries.cpp",
+      "line": 54,
+      "textHash": "30bf47228f609d895f1d331ce6e0874abb6cd50d412ffa9167ab707e06254a52",
+      "rationale": "The preceding static_assert set is the executable compile-time signal; this result only publishes it in the runtime report.",
+      "expiresOn": "2027-01-31"
+    },
+    {
+      "rule": "unconditional-assert-true",
+      "path": "tests/unit/vm/test_vm_internal_boundaries.cpp",
+      "line": 69,
+      "textHash": "6375a3941db87841c4c4ee6bfd7fdb87be3a87d8c12e822ea2096220bd67afe6",
+      "rationale": "The preceding static_assert set is the executable compile-time signal; this result only publishes it in the runtime report.",
+      "expiresOn": "2027-01-31"
+    },
+    {
+      "rule": "unconditional-assert-true",
+      "path": "tests/unit/vm/test_vm_internal_boundaries.cpp",
+      "line": 80,
+      "textHash": "d8ee469196db0458a502bd2ea7e6cd5754e43f7d46ecea1c52c5ec60ee83ff13",
+      "rationale": "The preceding static_assert set is the executable compile-time signal; this result only publishes it in the runtime report.",
+      "expiresOn": "2027-01-31"
+    },
+    {
+      "rule": "unconditional-assert-true",
+      "path": "tests/unit/vm/test_vm_internal_boundaries.cpp",
+      "line": 87,
+      "textHash": "5398836f2524545739a4f157962fc6bb0807e534073aabba290e0f12c769d14b",
+      "rationale": "The preceding static_assert is the executable compile-time signal; this result only publishes it in the runtime report.",
+      "expiresOn": "2027-01-31"
+    }
+  ]
+}

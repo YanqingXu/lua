@@ -8,7 +8,26 @@ import hashlib
 import json
 import re
 import zipfile
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
+
+
+SUPPORTED_RELEASE_RIDS = ("windows-x64", "linux-x64", "macos-arm64")
+PACKAGE_MANIFEST_FIELDS = {
+    "schemaVersion",
+    "version",
+    "runtimeIdentifier",
+    "commit",
+    "archive",
+    "sbom",
+    "checksums",
+}
+_VERSION_RE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?")
+_SHA_RE = re.compile(r"[0-9a-fA-F]{40}")
+
+
+class ReleaseArtifactError(RuntimeError):
+    """Raised when a release package asset set is inconsistent."""
 
 
 def sha256_bytes(content: bytes) -> str:
@@ -28,7 +47,36 @@ def sha256_file(path: Path) -> str:
 
 
 def fail(message: str) -> None:
-    raise RuntimeError(message)
+    raise ReleaseArtifactError(message)
+
+
+def _json_object_without_duplicates(
+    pairs: list[tuple[str, object]],
+) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            fail(f"JSON object contains duplicate field: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> object:
+    fail(f"JSON contains unsupported constant: {value}")
+
+
+def read_json_object(path: Path, label: str) -> Mapping[str, object]:
+    try:
+        payload = json.loads(
+            path.read_text(encoding="utf-8-sig"),
+            object_pairs_hook=_json_object_without_duplicates,
+            parse_constant=_reject_json_constant,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        fail(f"{label} is not readable strict JSON: {path}: {error}")
+    if not isinstance(payload, Mapping):
+        fail(f"{label} root must be a JSON object")
+    return payload
 
 
 def validate_member_name(name: str, expected_root: str) -> PurePosixPath:
@@ -152,61 +200,91 @@ def validate_sbom(
         fail("SBOM CONTAINS relationships do not match its file entries")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--archive", type=Path, required=True)
-    parser.add_argument("--sbom", type=Path, required=True)
-    parser.add_argument("--checksums", type=Path, required=True)
-    parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--expected-version", required=True)
-    parser.add_argument("--expected-rid", required=True)
-    parser.add_argument("--expected-commit", required=True)
-    args = parser.parse_args()
+def validate_release_artifacts(
+    *,
+    archive: Path,
+    sbom: Path,
+    checksums: Path,
+    manifest: Path,
+    expected_version: str,
+    expected_rid: str,
+    expected_commit: str,
+) -> Mapping[str, object]:
+    """Deeply validate one canonical release package asset set."""
 
-    for path in (args.archive, args.sbom, args.checksums, args.manifest):
+    if _VERSION_RE.fullmatch(expected_version) is None:
+        fail("expected release version is invalid")
+    if expected_rid not in SUPPORTED_RELEASE_RIDS:
+        fail(f"unsupported release runtime identifier: {expected_rid}")
+    expected_commit = expected_commit.lower()
+    if _SHA_RE.fullmatch(expected_commit) is None:
+        fail("expected release commit must be exactly 40 hexadecimal characters")
+
+    expected_root = f"lua-cpp-{expected_version}-{expected_rid}"
+    expected_paths = {
+        archive: f"{expected_root}.zip",
+        sbom: f"{expected_root}.spdx.json",
+        checksums: f"{expected_root}.SHA256SUMS",
+        manifest: f"{expected_root}.manifest.json",
+    }
+    for path, expected_name in expected_paths.items():
         if not path.is_file():
             fail(f"release artifact is missing: {path}")
+        if path.name != expected_name:
+            fail(
+                f"release artifact filename mismatch: expected {expected_name}, "
+                f"found {path.name}"
+            )
 
-    manifest = json.loads(args.manifest.read_text(encoding="utf-8-sig"))
-    expected_root = f"lua-cpp-{args.expected_version}-{args.expected_rid}"
+    manifest_payload = read_json_object(manifest, "release manifest")
+    actual_fields = set(manifest_payload)
+    if actual_fields != PACKAGE_MANIFEST_FIELDS:
+        fail(
+            "release manifest field set mismatch; "
+            f"missing={sorted(PACKAGE_MANIFEST_FIELDS - actual_fields)}, "
+            f"extra={sorted(actual_fields - PACKAGE_MANIFEST_FIELDS)}"
+        )
     expected_names = {
-        "archive": args.archive.name,
-        "sbom": args.sbom.name,
-        "checksums": args.checksums.name,
+        "archive": archive.name,
+        "sbom": sbom.name,
+        "checksums": checksums.name,
     }
-    if manifest.get("schemaVersion") != 1:
+    if manifest_payload.get("schemaVersion") != 1:
         fail("release manifest schemaVersion must be 1")
-    if manifest.get("version") != args.expected_version:
+    if manifest_payload.get("version") != expected_version:
         fail("release manifest version mismatch")
-    if manifest.get("runtimeIdentifier") != args.expected_rid:
+    if manifest_payload.get("runtimeIdentifier") != expected_rid:
         fail("release manifest runtime identifier mismatch")
-    if str(manifest.get("commit", "")).lower() != args.expected_commit.lower():
+    if manifest_payload.get("commit") != expected_commit:
         fail("release manifest commit mismatch")
     for key, value in expected_names.items():
-        if manifest.get(key) != value:
+        if manifest_payload.get(key) != value:
             fail(f"release manifest {key} does not identify {value}")
 
-    checksums = read_checksum_manifest(args.checksums)
+    checksum_entries = read_checksum_manifest(checksums)
     expected_checksums = {
-        args.archive.name: sha256_file(args.archive),
-        args.sbom.name: sha256_file(args.sbom),
+        archive.name: sha256_file(archive),
+        sbom.name: sha256_file(sbom),
     }
-    if checksums != expected_checksums:
+    if checksum_entries != expected_checksums:
         fail("release checksum manifest does not exactly match the archive and SBOM")
 
     archive_files: dict[str, bytes] = {}
     seen_members: set[str] = set()
-    with zipfile.ZipFile(args.archive) as archive:
-        for info in archive.infolist():
-            member = validate_member_name(info.filename, expected_root)
-            normalized = member.as_posix()
-            if normalized in seen_members:
-                fail(f"archive contains a duplicate member: {normalized}")
-            seen_members.add(normalized)
-            if info.is_dir():
-                continue
-            relative = PurePosixPath(*member.parts[1:]).as_posix()
-            archive_files[relative] = archive.read(info)
+    try:
+        with zipfile.ZipFile(archive) as zipped:
+            for info in zipped.infolist():
+                member = validate_member_name(info.filename, expected_root)
+                normalized = member.as_posix()
+                if normalized in seen_members:
+                    fail(f"archive contains a duplicate member: {normalized}")
+                seen_members.add(normalized)
+                if info.is_dir():
+                    continue
+                relative = PurePosixPath(*member.parts[1:]).as_posix()
+                archive_files[relative] = zipped.read(info)
+    except zipfile.BadZipFile as error:
+        fail(f"release archive is not a readable ZIP: {archive}: {error}")
 
     required_files = {
         "CHANGELOG.md",
@@ -236,22 +314,50 @@ def main() -> int:
     ):
         fail("release archive contains no shared library")
 
-    external_sbom = args.sbom.read_bytes()
+    external_sbom = sbom.read_bytes()
     internal_sbom = archive_files["share/lua_cpp/sbom.spdx.json"]
     if external_sbom != internal_sbom:
         fail("external SBOM is not byte-identical to the archived SBOM")
-    sbom_payload = json.loads(external_sbom.decode("utf-8"))
+    sbom_payload = read_json_object(sbom, "release SBOM")
     validate_sbom(
-        sbom_payload,
+        dict(sbom_payload),
         archive_files,
         expected_root,
-        args.expected_version,
-        args.expected_commit,
+        expected_version,
+        expected_commit,
     )
 
+    return {
+        "root": expected_root,
+        "file_count": len(archive_files),
+        "manifest": dict(manifest_payload),
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--archive", type=Path, required=True)
+    parser.add_argument("--sbom", type=Path, required=True)
+    parser.add_argument("--checksums", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--expected-version", required=True)
+    parser.add_argument("--expected-rid", required=True)
+    parser.add_argument("--expected-commit", required=True)
+    args = parser.parse_args()
+
+    result = validate_release_artifacts(
+        archive=args.archive,
+        sbom=args.sbom,
+        checksums=args.checksums,
+        manifest=args.manifest,
+        expected_version=args.expected_version,
+        expected_rid=args.expected_rid,
+        expected_commit=args.expected_commit,
+    )
     print(
         "Release artifacts valid: "
-        f"{expected_root}, {len(archive_files)} files, checksums and SPDX coverage verified."
+        f"{result['root']}, {result['file_count']} files, "
+        "checksums and SPDX coverage verified."
     )
     return 0
 

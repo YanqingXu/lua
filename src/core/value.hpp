@@ -67,14 +67,14 @@ public:
      * variant的索引顺序对应ValueType枚举的值。
      */
     using ValueVariant = Var<std::monostate, // 0: Nil - 空值类型
-                             bool,            // 1: Boolean - 布尔值
-                             void*,           // 2: LightUserdata - 轻量级用户数据（C指针）
-                             LuaNumber,       // 3: Number - 数值（double）
-                             GCString*,       // 4: String - 字符串（GC对象）
-                             Table*,          // 5: Table - 表（GC对象）
-                             Function*,       // 6: Function - 函数（GC对象）
-                             Userdata*,       // 7: Userdata - 完整用户数据（GC对象）
-                             Thread*          // 8: Thread - 线程/协程（GC对象）
+                             bool,           // 1: Boolean - 布尔值
+                             void*,          // 2: LightUserdata - 轻量级用户数据（C指针）
+                             LuaNumber,      // 3: Number - 数值（double）
+                             GCString*,      // 4: String - 字符串（GC对象）
+                             Table*,         // 5: Table - 表（GC对象）
+                             Function*,      // 6: Function - 函数（GC对象）
+                             Userdata*,      // 7: Userdata - 完整用户数据（GC对象）
+                             Thread*         // 8: Thread - 线程/协程（GC对象）
                              >;
 
     // =====================================================================

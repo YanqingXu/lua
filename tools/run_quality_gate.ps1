@@ -2,11 +2,14 @@ param(
     [switch]$FormatFix,
     [ValidateSet("Changed", "All", "Off")]
     [string]$FormatScope = "Changed",
+    [string]$FormatBase = "",
     [switch]$SkipClangTidy,
     [switch]$SkipBuild,
     [switch]$Strict,
     [string]$Configuration = "Debug",
-    [string]$Platform = "x64"
+    [string]$Platform = "x64",
+    [string]$TestExecutable = "",
+    [string]$PowerShellExecutable = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,6 +37,71 @@ function Get-CommandOrNull {
     return Get-Command $Name -ErrorAction SilentlyContinue
 }
 
+function Resolve-PowerShellExecutable {
+    param([string]$RequestedExecutable)
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedExecutable)) {
+        $requestedCommand = Get-Command $RequestedExecutable -ErrorAction SilentlyContinue
+        if ($requestedCommand) {
+            return $requestedCommand.Source
+        }
+
+        if (Test-Path -LiteralPath $RequestedExecutable -PathType Leaf) {
+            return (Resolve-Path -LiteralPath $RequestedExecutable).Path
+        }
+
+        throw "Requested PowerShell executable does not exist: $RequestedExecutable"
+    }
+
+    try {
+        $currentProcessPath = (Get-Process -Id $PID -ErrorAction Stop).Path
+        $currentProcessName = [System.IO.Path]::GetFileNameWithoutExtension($currentProcessPath)
+        if ($currentProcessName -in @("pwsh", "powershell") -and
+            (Test-Path -LiteralPath $currentProcessPath -PathType Leaf)) {
+            return $currentProcessPath
+        }
+    } catch {
+        # Fall through to command discovery for restricted hosts.
+    }
+
+    $powerShellCommand = Get-Command pwsh, powershell -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if (-not $powerShellCommand) {
+        throw "Unable to resolve a PowerShell executable (pwsh or powershell)"
+    }
+    return $powerShellCommand.Source
+}
+
+function Invoke-PowerShellFile {
+    param(
+        [string]$ScriptPath,
+        [string[]]$Arguments = @()
+    )
+
+    $invokeArguments = @("-NoProfile", "-NonInteractive")
+    if ($env:OS -eq "Windows_NT") {
+        $invokeArguments += @("-ExecutionPolicy", "Bypass")
+    }
+    $invokeArguments += @("-File", $ScriptPath)
+    $invokeArguments += @($Arguments)
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell can surface a native child's stderr as a
+        # non-terminating error. Capture the real process code explicitly.
+        $ErrorActionPreference = "Continue"
+        $global:LASTEXITCODE = -1
+        & $script:powerShellExecutablePath @invokeArguments
+        $childExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($childExitCode -ne 0) {
+        throw "PowerShell script '$ScriptPath' failed with exit code $childExitCode"
+    }
+}
+
 function Stop-OrSkipMissingRequirement {
     param(
         [string]$SkipMessage,
@@ -47,9 +115,37 @@ function Stop-OrSkipMissingRequirement {
     Write-Host "[SKIP] $SkipMessage"
 }
 
+function Test-OwnedCppSourcePath {
+    param([string]$RelativePath)
+
+    $normalizedPath = $RelativePath.Replace("\", "/")
+    while ($normalizedPath.StartsWith("./", [System.StringComparison]::Ordinal)) {
+        $normalizedPath = $normalizedPath.Substring(2)
+    }
+
+    if ($normalizedPath.StartsWith("tests/lua/official/", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
+    }
+
+    $hasOwnedRoot = @("src/", "tests/", "examples/", "benchmarks/", "lua_test/") |
+        Where-Object { $normalizedPath.StartsWith($_, [System.StringComparison]::OrdinalIgnoreCase) } |
+        Select-Object -First 1
+    if (-not $hasOwnedRoot) {
+        return $false
+    }
+
+    return [System.IO.Path]::GetExtension($normalizedPath).ToLowerInvariant() -in @(
+        ".c",
+        ".cc",
+        ".cpp",
+        ".cxx",
+        ".h",
+        ".hpp"
+    )
+}
+
 function Get-SourceFiles {
-    $roots = @("src", "tests", "examples", "benchmarks")
-    $extensions = @("*.c", "*.cc", "*.cpp", "*.cxx", "*.hpp", "*.h")
+    $roots = @("src", "tests", "examples", "benchmarks", "lua_test")
 
     foreach ($dir in $roots) {
         $path = Join-Path $root $dir
@@ -57,8 +153,11 @@ function Get-SourceFiles {
             continue
         }
 
-        foreach ($ext in $extensions) {
-            Get-ChildItem -LiteralPath $path -Recurse -File -Filter $ext
+        foreach ($file in Get-ChildItem -LiteralPath $path -Recurse -File) {
+            $relativePath = $file.FullName.Substring($root.Length).TrimStart("\", "/")
+            if (Test-OwnedCppSourcePath $relativePath) {
+                $file
+            }
         }
     }
 }
@@ -72,8 +171,8 @@ function Get-ChangedSourceFiles {
         return @()
     }
 
-    $patterns = @("src/", "tests/", "examples/", "benchmarks/")
     $names = @()
+    $baseRef = ""
 
     if ($env:GITHUB_BASE_REF) {
         $baseRef = "origin/$($env:GITHUB_BASE_REF)"
@@ -81,34 +180,45 @@ function Get-ChangedSourceFiles {
         if ($LASTEXITCODE -ne 0) {
             throw "git fetch failed with exit code $LASTEXITCODE"
         }
-        $names = & $git.Source diff --name-only --diff-filter=ACMRT "$baseRef...HEAD" -- src tests examples benchmarks
+    } elseif (-not [string]::IsNullOrWhiteSpace($FormatBase)) {
+        $baseRef = $FormatBase
+        & $git.Source rev-parse --verify "$baseRef^{commit}" | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "clang-format base revision does not resolve to a commit: $baseRef"
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($baseRef)) {
+        $names = & $git.Source diff --name-only --diff-filter=ACMRT "$baseRef...HEAD" -- `
+            src tests examples benchmarks lua_test
         if ($LASTEXITCODE -ne 0) {
             throw "git diff failed with exit code $LASTEXITCODE"
         }
-    } else {
-        $names = & $git.Source diff --name-only --diff-filter=ACMRT HEAD -- src tests examples benchmarks
-        if ($LASTEXITCODE -ne 0) {
-            throw "git diff failed with exit code $LASTEXITCODE"
-        }
-        $staged = & $git.Source diff --cached --name-only --diff-filter=ACMRT -- src tests examples benchmarks
-        if ($LASTEXITCODE -ne 0) {
-            throw "git diff --cached failed with exit code $LASTEXITCODE"
-        }
-        $names = @($names) + @($staged)
-        $untracked = & $git.Source ls-files --others --exclude-standard -- src tests examples benchmarks
-        if ($LASTEXITCODE -ne 0) {
-            throw "git ls-files failed with exit code $LASTEXITCODE"
-        }
-        $names = @($names) + @($untracked)
+    }
+
+    $working = & $git.Source diff --name-only --diff-filter=ACMRT HEAD -- `
+        src tests examples benchmarks lua_test
+    if ($LASTEXITCODE -ne 0) {
+        throw "git diff failed with exit code $LASTEXITCODE"
+    }
+    $staged = & $git.Source diff --cached --name-only --diff-filter=ACMRT -- `
+        src tests examples benchmarks lua_test
+    if ($LASTEXITCODE -ne 0) {
+        throw "git diff --cached failed with exit code $LASTEXITCODE"
+    }
+    $untracked = & $git.Source ls-files --others --exclude-standard -- `
+        src tests examples benchmarks lua_test
+    if ($LASTEXITCODE -ne 0) {
+        throw "git ls-files failed with exit code $LASTEXITCODE"
+    }
+    $names = @($names) + @($working) + @($staged) + @($untracked)
+
+    if ($Strict -and [string]::IsNullOrWhiteSpace($baseRef) -and $names.Count -eq 0) {
+        throw "Strict changed clang-format scope is empty on a clean worktree; pass -FormatBase <revision> or use -FormatScope All"
     }
 
     $names |
-        Where-Object {
-            $name = $_
-            ($patterns | Where-Object { $name.StartsWith($_) }).Count -gt 0 -and
-                ($name.EndsWith(".c") -or $name.EndsWith(".cc") -or $name.EndsWith(".cpp") -or
-                    $name.EndsWith(".cxx") -or $name.EndsWith(".hpp") -or $name.EndsWith(".h"))
-        } |
+        Where-Object { Test-OwnedCppSourcePath $_ } |
         Sort-Object -Unique |
         ForEach-Object {
             $path = Join-Path $root $_
@@ -116,6 +226,38 @@ function Get-ChangedSourceFiles {
                 Get-Item -LiteralPath $path
             }
         }
+}
+
+function Get-RepositoryHeadSha {
+    $git = Get-CommandOrNull "git"
+    if (-not $git) {
+        Stop-OrSkipMissingRequirement `
+            -SkipMessage "git was not found; test build SHA cannot be resolved" `
+            -StrictMessage "Strict quality gate requires git to resolve the test build SHA"
+        return $null
+    }
+
+    $sha = (& $git.Source -C $root rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $sha -notmatch "^[0-9a-fA-F]{40}$") {
+        throw "Unable to resolve the repository HEAD SHA"
+    }
+    return $sha.ToLowerInvariant()
+}
+
+function Resolve-TestExecutablePath {
+    if (-not [string]::IsNullOrWhiteSpace($TestExecutable)) {
+        if ([System.IO.Path]::IsPathRooted($TestExecutable)) {
+            return [System.IO.Path]::GetFullPath($TestExecutable)
+        }
+        return [System.IO.Path]::GetFullPath((Join-Path $root $TestExecutable))
+    }
+
+    $testExecutableName = if ($env:OS -eq "Windows_NT") {
+        "lua_test.exe"
+    } else {
+        "lua_test"
+    }
+    return Join-Path (Join-Path $root "bin") $testExecutableName
 }
 
 function Get-ClangTidyFiles {
@@ -142,7 +284,12 @@ function Find-MSBuild {
         return $cmd.Source
     }
 
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+    $programFilesX86 = ${env:ProgramFiles(x86)}
+    if ([string]::IsNullOrWhiteSpace($programFilesX86)) {
+        return $null
+    }
+
+    $vswhere = Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"
     if (Test-Path -LiteralPath $vswhere) {
         $installPath = & $vswhere -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
         if ($installPath) {
@@ -155,6 +302,10 @@ function Find-MSBuild {
 
     return $null
 }
+
+$powerShellExecutablePath = Resolve-PowerShellExecutable $PowerShellExecutable
+$resolvedTestExecutable = Resolve-TestExecutablePath
+$runUnitTests = -not ($SkipBuild -and [string]::IsNullOrWhiteSpace($TestExecutable))
 
 Push-Location $root
 try {
@@ -184,10 +335,11 @@ try {
         }
 
         if ($FormatFix) {
-            & $clangFormat.Source -i --style=file @($files.FullName)
+            $formatArguments = @("-i", "--style=file") + @($files.FullName)
         } else {
-            & $clangFormat.Source --dry-run --Werror --style=file @($files.FullName)
+            $formatArguments = @("--dry-run", "--Werror", "--style=file") + @($files.FullName)
         }
+        & $clangFormat.Source @formatArguments
     }
 
     Invoke-Step "clang-tidy smoke" {
@@ -212,8 +364,11 @@ try {
             return
         }
 
+        $sourceInclude = Join-Path $root "src"
+        $frameworkInclude = Join-Path $root "tests/unit/framework"
+        $testInclude = Join-Path $root "lua_test/include"
         foreach ($file in $files) {
-            & $clangTidy.Source $file.FullName -- -std=c++20 "-I$root\src" "-I$root\tests\unit\framework" "-I$root\lua_test\include"
+            & $clangTidy.Source $file.FullName -- -std=c++20 "-I$sourceInclude" "-I$frameworkInclude" "-I$testInclude"
             if ($LASTEXITCODE -ne 0) {
                 throw "clang-tidy failed for $($file.FullName) with exit code $LASTEXITCODE"
             }
@@ -221,12 +376,16 @@ try {
     }
 
     Invoke-Step "ValueResult variant-only boundary" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_value_result_variant_only.ps1")
+        Invoke-PowerShellFile -ScriptPath (Join-Path $root "tools/check_value_result_variant_only.ps1")
     }
 
     Invoke-Step "C-style pattern guard" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_c_style_patterns.ps1") `
-            -TestScope All
+        Invoke-PowerShellFile -ScriptPath (Join-Path $root "tools/check_c_style_patterns.ps1") `
+            -Arguments @("-TestScope", "All")
+    }
+
+    Invoke-Step "test signal integrity" {
+        Invoke-PowerShellFile -ScriptPath (Join-Path $root "tools/check_test_signal_integrity.ps1")
     }
 
     Invoke-Step "MSBuild lua_test" {
@@ -243,15 +402,25 @@ try {
             return
         }
 
-        & $msbuild (Join-Path $root "lua_test.vcxproj") /m "/p:Configuration=$Configuration" "/p:Platform=$Platform"
+        $headSha = Get-RepositoryHeadSha
+        $arguments = @(
+            (Join-Path $root "lua_test.vcxproj"),
+            "/m",
+            "/p:Configuration=$Configuration",
+            "/p:Platform=$Platform"
+        )
+        if (-not [string]::IsNullOrWhiteSpace($headSha)) {
+            $arguments += "/p:LuaTestBuildGitSha=$headSha"
+        }
+        & $msbuild @arguments
     }
 
     Invoke-Step "opcode coverage matrix and registered test contract" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_opcode_coverage_matrix.ps1")
+        Invoke-PowerShellFile -ScriptPath (Join-Path $root "tools/check_opcode_coverage_matrix.ps1")
     }
 
     Invoke-Step "Lua 5.1 official source integrity" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_lua51_official_sources.ps1")
+        Invoke-PowerShellFile -ScriptPath (Join-Path $root "tools/check_lua51_official_sources.ps1")
     }
 
     Invoke-Step "Lua 5.1 public API contract" {
@@ -271,24 +440,46 @@ try {
     }
 
     Invoke-Step "documentation drift" {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\check_doc_drift.ps1")
+        Invoke-PowerShellFile -ScriptPath (Join-Path $root "tools/check_doc_drift.ps1") `
+            -Arguments @("-TestExecutable", $resolvedTestExecutable)
+    }
+
+    Invoke-Step "test executable build SHA" {
+        if (-not $runUnitTests) {
+            Write-Host "[SKIP] test executable build SHA skipped with -SkipBuild"
+            return
+        }
+
+        if (-not (Test-Path -LiteralPath $resolvedTestExecutable -PathType Leaf)) {
+            Stop-OrSkipMissingRequirement `
+                -SkipMessage "test executable was not found: $resolvedTestExecutable" `
+                -StrictMessage "Strict quality gate requires test executable: $resolvedTestExecutable"
+            return
+        }
+
+        $headSha = Get-RepositoryHeadSha
+        if ([string]::IsNullOrWhiteSpace($headSha)) {
+            Write-Host "[SKIP] test executable build SHA was not checked because repository HEAD is unavailable"
+        } else {
+            Invoke-PowerShellFile -ScriptPath (Join-Path $root "tools/check_test_binary_sha.ps1") `
+                -Arguments @("-TestExecutable", $resolvedTestExecutable, "-ExpectedSha", $headSha)
+        }
     }
 
     Invoke-Step "unit tests" {
-        if ($SkipBuild) {
+        if (-not $runUnitTests) {
             Write-Host "[SKIP] unit tests skipped with -SkipBuild"
             return
         }
 
-        $testExe = Join-Path $root "bin\lua_test.exe"
-        if (-not (Test-Path -LiteralPath $testExe)) {
+        if (-not (Test-Path -LiteralPath $resolvedTestExecutable -PathType Leaf)) {
             Stop-OrSkipMissingRequirement `
-                -SkipMessage "bin\lua_test.exe was not found" `
-                -StrictMessage "Strict quality gate requires bin\lua_test.exe; build lua_test.vcxproj first"
+                -SkipMessage "test executable was not found: $resolvedTestExecutable" `
+                -StrictMessage "Strict quality gate requires test executable: $resolvedTestExecutable"
             return
         }
 
-        & $testExe
+        & $resolvedTestExecutable
     }
 } finally {
     Pop-Location

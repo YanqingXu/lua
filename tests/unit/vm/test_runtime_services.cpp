@@ -387,9 +387,14 @@ void testCancellationHandleIsSafeAfterContextTeardown(TestSuite& suite) {
     }
 
     ASSERT_TRUE(suite, !static_cast<bool>(lateHandle), "cancellation handle expires with its context");
-    std::thread lateRequester([lateHandle] { lateHandle.requestCancellation(); });
+    std::atomic<bool> requestReturned = false;
+    std::thread lateRequester([lateHandle, &requestReturned] {
+        lateHandle.requestCancellation();
+        requestReturned.store(true, std::memory_order_release);
+    });
     lateRequester.join();
-    ASSERT_TRUE(suite, true, "late cross-thread cancellation is a safe no-op");
+    ASSERT_TRUE(suite, requestReturned.load(std::memory_order_acquire),
+                "late cross-thread cancellation returns without touching a destroyed context");
 }
 
 void testResourcePolicyIsIsolatedPerContext(TestSuite& suite) {

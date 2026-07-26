@@ -13,8 +13,8 @@ from pathlib import Path
 
 
 VERSION = "0.1.0-rc.1"
-RID = "fixture-x64"
-COMMIT = "0123456789abcdef"
+RID = "windows-x64"
+COMMIT = "0123456789abcdef" * 2 + "01234567"
 ROOT_NAME = f"lua-cpp-{VERSION}-{RID}"
 
 
@@ -22,25 +22,123 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def run_validator(script: Path, directory: Path, *, check: bool) -> subprocess.CompletedProcess[str]:
+def create_release_asset_set(
+    directory: Path,
+    *,
+    version: str = VERSION,
+    rid: str = RID,
+    commit: str = COMMIT,
+) -> dict[str, Path]:
+    root_name = f"lua-cpp-{version}-{rid}"
+    package = directory / root_name
+    fixture_files = {
+        "CHANGELOG.md": "changes\n",
+        "SECURITY.md": "policy\n",
+        "include/lauxlib.h": "/* lauxlib */\n",
+        "include/lua.h": "/* lua */\n",
+        "include/lua_cpp_version.h": "/* version */\n",
+        "include/lua_runtime.h": "/* runtime */\n",
+        "include/lualib.h": "/* lualib */\n",
+        "lib/cmake/LuaCpp/LuaCppConfig.cmake": "# config\n",
+        "lib/cmake/LuaCpp/LuaCppConfigVersion.cmake": "# version\n",
+        "lib/cmake/LuaCpp/LuaCppTargets.cmake": "# targets\n",
+        "lib/liblua_core.a": "static\n",
+        "lib/liblua_public_api.so": "shared\n",
+        "share/lua_cpp/LICENSE": "MIT\n",
+        "share/lua_cpp/release/rc-notes-0.1.0.md": "notes\n",
+        "share/lua_cpp/release/release-checklist.md": "checklist\n",
+    }
+    for relative, content in fixture_files.items():
+        path = package / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    generator = Path(__file__).parent / "generate_sbom.py"
+    internal_sbom = package / "share/lua_cpp/sbom.spdx.json"
+    subprocess.run(
+        [
+            sys.executable,
+            str(generator),
+            "--root",
+            str(package),
+            "--output",
+            str(internal_sbom),
+            "--name",
+            root_name,
+            "--version",
+            version,
+            "--commit",
+            commit,
+        ],
+        check=True,
+    )
+    external_sbom = directory / f"{root_name}.spdx.json"
+    external_sbom.write_bytes(internal_sbom.read_bytes())
+    archive_path = directory / f"{root_name}.zip"
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
+        for path in sorted(package.rglob("*")):
+            if path.is_file():
+                archive.write(path, Path(root_name) / path.relative_to(package))
+
+    checksum_path = directory / f"{root_name}.SHA256SUMS"
+    checksum_path.write_text(
+        f"{sha256(archive_path)}  {archive_path.name}\n"
+        f"{sha256(external_sbom)}  {external_sbom.name}\n",
+        encoding="ascii",
+    )
+    manifest_path = directory / f"{root_name}.manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "version": version,
+                "runtimeIdentifier": rid,
+                "commit": commit,
+                "archive": archive_path.name,
+                "sbom": external_sbom.name,
+                "checksums": checksum_path.name,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "package": package,
+        "internal_sbom": internal_sbom,
+        "sbom": external_sbom,
+        "archive": archive_path,
+        "checksums": checksum_path,
+        "manifest": manifest_path,
+    }
+
+
+def run_validator(
+    script: Path,
+    directory: Path,
+    *,
+    check: bool,
+    version: str = VERSION,
+    rid: str = RID,
+    commit: str = COMMIT,
+) -> subprocess.CompletedProcess[str]:
+    root_name = f"lua-cpp-{version}-{rid}"
     return subprocess.run(
         [
             sys.executable,
             str(script),
             "--archive",
-            str(directory / f"{ROOT_NAME}.zip"),
+            str(directory / f"{root_name}.zip"),
             "--sbom",
-            str(directory / f"{ROOT_NAME}.spdx.json"),
+            str(directory / f"{root_name}.spdx.json"),
             "--checksums",
-            str(directory / f"{ROOT_NAME}.SHA256SUMS"),
+            str(directory / f"{root_name}.SHA256SUMS"),
             "--manifest",
-            str(directory / f"{ROOT_NAME}.manifest.json"),
+            str(directory / f"{root_name}.manifest.json"),
             "--expected-version",
-            VERSION,
+            version,
             "--expected-rid",
-            RID,
+            rid,
             "--expected-commit",
-            COMMIT,
+            commit,
         ],
         check=check,
         capture_output=True,
@@ -51,81 +149,33 @@ def run_validator(script: Path, directory: Path, *, check: bool) -> subprocess.C
 def main() -> int:
     tool_directory = Path(__file__).parent
     validator = tool_directory / "validate_release_artifacts.py"
-    generator = tool_directory / "generate_sbom.py"
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
-        package = directory / ROOT_NAME
-        fixture_files = {
-            "CHANGELOG.md": "changes\n",
-            "SECURITY.md": "policy\n",
-            "include/lauxlib.h": "/* lauxlib */\n",
-            "include/lua.h": "/* lua */\n",
-            "include/lua_cpp_version.h": "/* version */\n",
-            "include/lua_runtime.h": "/* runtime */\n",
-            "include/lualib.h": "/* lualib */\n",
-            "lib/cmake/LuaCpp/LuaCppConfig.cmake": "# config\n",
-            "lib/cmake/LuaCpp/LuaCppConfigVersion.cmake": "# version\n",
-            "lib/cmake/LuaCpp/LuaCppTargets.cmake": "# targets\n",
-            "lib/liblua_core.a": "static\n",
-            "lib/liblua_public_api.so": "shared\n",
-            "share/lua_cpp/LICENSE": "MIT\n",
-            "share/lua_cpp/release/rc-notes-0.1.0.md": "notes\n",
-            "share/lua_cpp/release/release-checklist.md": "checklist\n",
-        }
-        for relative, content in fixture_files.items():
-            path = package / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
-
-        internal_sbom = package / "share/lua_cpp/sbom.spdx.json"
-        subprocess.run(
-            [
-                sys.executable,
-                str(generator),
-                "--root",
-                str(package),
-                "--output",
-                str(internal_sbom),
-                "--name",
-                ROOT_NAME,
-                "--version",
-                VERSION,
-                "--commit",
-                COMMIT,
-            ],
-            check=True,
-        )
-        external_sbom = directory / f"{ROOT_NAME}.spdx.json"
-        external_sbom.write_bytes(internal_sbom.read_bytes())
-        archive_path = directory / f"{ROOT_NAME}.zip"
-        with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as archive:
-            for path in sorted(package.rglob("*")):
-                if path.is_file():
-                    archive.write(path, Path(ROOT_NAME) / path.relative_to(package))
-
-        checksum_path = directory / f"{ROOT_NAME}.SHA256SUMS"
-        checksum_path.write_text(
-            f"{sha256(archive_path)}  {archive_path.name}\n"
-            f"{sha256(external_sbom)}  {external_sbom.name}\n",
-            encoding="ascii",
-        )
-        manifest_path = directory / f"{ROOT_NAME}.manifest.json"
-        manifest_path.write_text(
-            json.dumps(
-                {
-                    "schemaVersion": 1,
-                    "version": VERSION,
-                    "runtimeIdentifier": RID,
-                    "commit": COMMIT,
-                    "archive": archive_path.name,
-                    "sbom": external_sbom.name,
-                    "checksums": checksum_path.name,
-                }
-            ),
-            encoding="utf-8",
-        )
+        assets = create_release_asset_set(directory)
+        package = assets["package"]
+        internal_sbom = assets["internal_sbom"]
+        external_sbom = assets["sbom"]
+        archive_path = assets["archive"]
+        checksum_path = assets["checksums"]
+        manifest_path = assets["manifest"]
 
         run_validator(validator, directory, check=True)
+
+        original_manifest = manifest_path.read_text(encoding="utf-8")
+        extra_manifest = json.loads(original_manifest)
+        extra_manifest["unexpected"] = True
+        manifest_path.write_text(json.dumps(extra_manifest), encoding="utf-8")
+        rejected = run_validator(validator, directory, check=False)
+        if rejected.returncode == 0 or "field set mismatch" not in rejected.stderr:
+            raise AssertionError("validator accepted an extra manifest field")
+        manifest_path.write_text(
+            original_manifest[:-1] + ', "version": "9.9.9"}',
+            encoding="utf-8",
+        )
+        rejected = run_validator(validator, directory, check=False)
+        if rejected.returncode == 0 or "duplicate field" not in rejected.stderr:
+            raise AssertionError("validator accepted a duplicate manifest field")
+        manifest_path.write_text(original_manifest, encoding="utf-8")
 
         altered_sbom = json.loads(external_sbom.read_text(encoding="utf-8"))
         altered_sbom["packages"][0]["packageVerificationCode"]["packageVerificationCodeValue"] = "0" * 40

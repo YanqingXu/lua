@@ -27,13 +27,33 @@ namespace TestFramework {
 /**
  * @brief Test result
  */
+enum class TestStatus {
+    Passed,
+    Failed,
+    ExpectedSkip,
+    UnexpectedSkip,
+};
+
 struct TestResult {
     std::string testName;
     bool passed;
     std::string message;
+    TestStatus status;
 
     TestResult(const std::string& name, bool pass, const std::string& msg = "")
-        : testName(name), passed(pass), message(msg) {}
+        : testName(name), passed(pass), message(msg), status(pass ? TestStatus::Passed : TestStatus::Failed) {}
+
+    TestResult(const std::string& name, TestStatus resultStatus, const std::string& msg)
+        : testName(name), passed(resultStatus == TestStatus::Passed || resultStatus == TestStatus::ExpectedSkip),
+          message(msg), status(resultStatus) {}
+
+    static TestResult expectedSkip(const std::string& name, const std::string& reason) {
+        return TestResult(name, TestStatus::ExpectedSkip, reason);
+    }
+
+    static TestResult unexpectedSkip(const std::string& name, const std::string& reason) {
+        return TestResult(name, TestStatus::UnexpectedSkip, reason);
+    }
 };
 
 /**
@@ -41,14 +61,24 @@ struct TestResult {
  */
 class TestSuite {
 public:
-    TestSuite(const std::string& name) : suiteName_(name), passCount_(0), failCount_(0) {}
+    TestSuite(const std::string& name)
+        : suiteName_(name), passCount_(0), failCount_(0), expectedSkipCount_(0), unexpectedSkipCount_(0) {}
 
     void addResult(const TestResult& result) {
         results_.push_back(result);
-        if (result.passed) {
+        switch (result.status) {
+        case TestStatus::Passed:
             passCount_++;
-        } else {
+            break;
+        case TestStatus::Failed:
             failCount_++;
+            break;
+        case TestStatus::ExpectedSkip:
+            expectedSkipCount_++;
+            break;
+        case TestStatus::UnexpectedSkip:
+            unexpectedSkipCount_++;
+            break;
         }
     }
 
@@ -58,7 +88,22 @@ public:
         std::cout << "========================================" << std::endl;
 
         for (const auto& result : results_) {
-            std::cout << "  [" << (result.passed ? "PASS" : "FAIL") << "] " << result.testName;
+            const char* status = "FAIL";
+            switch (result.status) {
+            case TestStatus::Passed:
+                status = "PASS";
+                break;
+            case TestStatus::Failed:
+                status = "FAIL";
+                break;
+            case TestStatus::ExpectedSkip:
+                status = "SKIP-EXPECTED";
+                break;
+            case TestStatus::UnexpectedSkip:
+                status = "SKIP-UNEXPECTED";
+                break;
+            }
+            std::cout << "  [" << status << "] " << result.testName;
             if (!result.message.empty()) {
                 std::cout << " - " << result.message;
             }
@@ -66,9 +111,44 @@ public:
         }
 
         std::cout << "----------------------------------------" << std::endl;
-        std::cout << "Total: " << (passCount_ + failCount_) << " | Pass: " << passCount_ << " | Fail: " << failCount_
+        std::cout << "Total: " << getTotalCount() << " | Pass: " << passCount_ << " | Fail: " << failCount_
+                  << " | Expected Skip: " << expectedSkipCount_ << " | Unexpected Skip: " << unexpectedSkipCount_
                   << std::endl;
         std::cout << "========================================\n" << std::endl;
+    }
+
+    void writeJUnitXml(std::ostream& out) const {
+        out << "  <testsuite name=\"" << escapeXml(suiteName_) << "\" tests=\"" << getTotalCount() << "\" failures=\""
+            << getBlockingCount() << "\" skipped=\"" << expectedSkipCount_ << "\">\n";
+
+        for (const auto& result : results_) {
+            out << "    <testcase classname=\"" << escapeXml(suiteName_) << "\" name=\"" << escapeXml(result.testName)
+                << "\"";
+            switch (result.status) {
+            case TestStatus::Passed:
+                out << " />\n";
+                break;
+            case TestStatus::ExpectedSkip:
+                out << ">\n";
+                out << "      <skipped message=\"" << escapeXml(result.message) << "\" />\n";
+                out << "    </testcase>\n";
+                break;
+            case TestStatus::Failed:
+                out << ">\n";
+                out << "      <failure message=\"" << escapeXml(result.message) << "\">" << escapeXml(result.message)
+                    << "</failure>\n";
+                out << "    </testcase>\n";
+                break;
+            case TestStatus::UnexpectedSkip:
+                out << ">\n";
+                out << "      <failure type=\"unexpected-skip\" message=\"" << escapeXml(result.message) << "\">"
+                    << escapeXml(result.message) << "</failure>\n";
+                out << "    </testcase>\n";
+                break;
+            }
+        }
+
+        out << "  </testsuite>\n";
     }
 
     int getFailCount() const {
@@ -77,8 +157,17 @@ public:
     int getPassCount() const {
         return passCount_;
     }
+    int getExpectedSkipCount() const {
+        return expectedSkipCount_;
+    }
+    int getUnexpectedSkipCount() const {
+        return unexpectedSkipCount_;
+    }
+    int getBlockingCount() const {
+        return failCount_ + unexpectedSkipCount_;
+    }
     int getTotalCount() const {
-        return passCount_ + failCount_;
+        return passCount_ + failCount_ + expectedSkipCount_ + unexpectedSkipCount_;
     }
     const std::string& getName() const {
         return suiteName_;
@@ -88,10 +177,42 @@ public:
     }
 
 private:
+    static std::string escapeXml(const std::string& text) {
+        std::string escaped;
+        escaped.reserve(text.size());
+
+        for (char ch : text) {
+            switch (ch) {
+            case '&':
+                escaped += "&amp;";
+                break;
+            case '<':
+                escaped += "&lt;";
+                break;
+            case '>':
+                escaped += "&gt;";
+                break;
+            case '"':
+                escaped += "&quot;";
+                break;
+            case '\'':
+                escaped += "&apos;";
+                break;
+            default:
+                escaped += ch;
+                break;
+            }
+        }
+
+        return escaped;
+    }
+
     std::string suiteName_;
     std::vector<TestResult> results_;
     int passCount_;
     int failCount_;
+    int expectedSkipCount_;
+    int unexpectedSkipCount_;
 };
 
 /**
@@ -128,8 +249,10 @@ public:
     }
 
     int runTests(const RunOptions& options) {
-        int totalFail = 0;
+        int totalFailed = 0;
         int totalPass = 0;
+        int totalExpectedSkip = 0;
+        int totalUnexpectedSkip = 0;
         std::string currentSuite;
         TestSuite* suite = nullptr;
 
@@ -147,8 +270,10 @@ public:
                     if (options.printReports) {
                         suite->printReport();
                     }
-                    totalFail += suite->getFailCount();
+                    totalFailed += suite->getFailCount();
                     totalPass += suite->getPassCount();
+                    totalExpectedSkip += suite->getExpectedSkipCount();
+                    totalUnexpectedSkip += suite->getUnexpectedSkipCount();
                     if (options.captureSuites) {
                         lastSuites_.push_back(*suite);
                     }
@@ -170,8 +295,10 @@ public:
             if (options.printReports) {
                 suite->printReport();
             }
-            totalFail += suite->getFailCount();
+            totalFailed += suite->getFailCount();
             totalPass += suite->getPassCount();
+            totalExpectedSkip += suite->getExpectedSkipCount();
+            totalUnexpectedSkip += suite->getUnexpectedSkipCount();
             if (options.captureSuites) {
                 lastSuites_.push_back(*suite);
             }
@@ -179,9 +306,11 @@ public:
         }
 
         lastPassCount_ = totalPass;
-        lastFailCount_ = totalFail;
-        lastTotalCount_ = totalPass + totalFail;
-        return totalFail;
+        lastExpectedSkipCount_ = totalExpectedSkip;
+        lastUnexpectedSkipCount_ = totalUnexpectedSkip;
+        lastFailCount_ = totalFailed + totalUnexpectedSkip;
+        lastTotalCount_ = totalPass + totalFailed + totalExpectedSkip + totalUnexpectedSkip;
+        return lastFailCount_;
     }
 
     int getRegisteredTestCount() const {
@@ -206,6 +335,12 @@ public:
     int getLastTotalCount() const {
         return lastTotalCount_;
     }
+    int getLastExpectedSkipCount() const {
+        return lastExpectedSkipCount_;
+    }
+    int getLastUnexpectedSkipCount() const {
+        return lastUnexpectedSkipCount_;
+    }
 
     bool writeJUnitReport(const std::string& path) const {
         std::ofstream out(path, std::ios::binary);
@@ -214,25 +349,10 @@ public:
         }
 
         out << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-        out << "<testsuites tests=\"" << lastTotalCount_ << "\" failures=\"" << lastFailCount_ << "\">\n";
+        out << "<testsuites tests=\"" << lastTotalCount_ << "\" failures=\"" << lastFailCount_ << "\" skipped=\""
+            << lastExpectedSkipCount_ << "\">\n";
         for (const auto& suite : lastSuites_) {
-            out << "  <testsuite name=\"" << escapeXml(suite.getName()) << "\" tests=\"" << suite.getTotalCount()
-                << "\" failures=\"" << suite.getFailCount() << "\">\n";
-
-            for (const auto& result : suite.getResults()) {
-                out << "    <testcase classname=\"" << escapeXml(suite.getName()) << "\" name=\""
-                    << escapeXml(result.testName) << "\"";
-                if (result.passed) {
-                    out << " />\n";
-                } else {
-                    out << ">\n";
-                    out << "      <failure message=\"" << escapeXml(result.message) << "\">"
-                        << escapeXml(result.message) << "</failure>\n";
-                    out << "    </testcase>\n";
-                }
-            }
-
-            out << "  </testsuite>\n";
+            suite.writeJUnitXml(out);
         }
         out << "</testsuites>\n";
 
@@ -270,41 +390,13 @@ private:
                containsCaseInsensitive(fullName, filter);
     }
 
-    static std::string escapeXml(const std::string& text) {
-        std::string escaped;
-        escaped.reserve(text.size());
-
-        for (char ch : text) {
-            switch (ch) {
-            case '&':
-                escaped += "&amp;";
-                break;
-            case '<':
-                escaped += "&lt;";
-                break;
-            case '>':
-                escaped += "&gt;";
-                break;
-            case '"':
-                escaped += "&quot;";
-                break;
-            case '\'':
-                escaped += "&apos;";
-                break;
-            default:
-                escaped += ch;
-                break;
-            }
-        }
-
-        return escaped;
-    }
-
     std::vector<TestEntry> tests_;
     std::vector<TestSuite> lastSuites_;
     int lastRunTestCount_ = 0;
     int lastPassCount_ = 0;
     int lastFailCount_ = 0;
+    int lastExpectedSkipCount_ = 0;
+    int lastUnexpectedSkipCount_ = 0;
     int lastTotalCount_ = 0;
 };
 

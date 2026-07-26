@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/check_release_readiness.ps1; tools/package_release.ps1
-last_checked: 2026-07-24
+verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; tests/unit/framework/test_runner.cpp; tests/quality/test_signal_allowlist.json; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/run_quality_gate.ps1; tools/test_quality_gate.ps1; tools/check_test_signal_integrity.ps1; tools/check_test_binary_sha.ps1; tools/check_release_readiness.ps1; tools/package_release.ps1
+last_checked: 2026-07-26
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
@@ -134,7 +134,18 @@ bin\lua_test.exe --filter "Symbol Binding"
 bin\lua_test.exe --report=junit
 ```
 
-测试运行器会在输出中报告实时测试数量和断言结果。2026-07-24 的当前本地 Release 基线为 **790 registered tests, 6752 assertion results, 0 failures**；其中 `Lua C API` suite 为 61 个测试、2910 个断言、0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。生产配置扩展的合并提交 `079b16c` 已在 [`main` 的 Actions run 30079569799](https://github.com/YanqingXu/lua/actions/runs/30079569799) 取得 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、macOS、benchmark 和 lint。Nightly endurance、RC 治理与跨平台制品验证仍须按 [发布检查清单](docs/release/release-checklist.md) 独立完成，不能由常规 CI 全绿替代。
+显式 `--filter` / `--exclude-filter` 若最终选中 0 个已注册测试，会以退出码 2 失败，不能把空选择
+报告为测试通过。
+
+测试运行器会在输出中报告实时测试数量、断言结果以及 expected/unexpected skip。2026-07-26
+的当前本地 Release 基线为 **791 registered tests, 6773 assertion results, 0 failures,
+0 expected skips, 0 unexpected skips**；其中 `Lua C API` suite 为 61 个测试、2910 个断言、
+0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。生产配置扩展的合并提交
+`079b16c` 已在 [`main` 的 Actions run 30079569799](https://github.com/YanqingXu/lua/actions/runs/30079569799)
+取得 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、
+macOS、benchmark 和 lint。该历史运行不是当前工作树的候选证据；Nightly endurance、RC
+治理与跨平台制品验证仍须按 [发布检查清单](docs/release/release-checklist.md) 独立完成，
+不能由历史常规 CI 全绿替代。
 
 ### CMake / CTest 与 SDK 安装
 
@@ -348,13 +359,24 @@ using ValueData = std::variant<
 常用验证入口：
 
 质量门统一编排 `clang-format`、`clang-tidy`、文档漂移检查和测试执行，并由 GitHub Actions 在持续集成中复用；`tools/run_quality_gate.ps1` 是本地与 CI 的共同入口。
-本地发布前应使用 `-Strict`：环境中缺少 `git`、格式/静态分析工具、MSBuild 或测试产物时会立即失败；`-SkipBuild`、`-SkipClangTidy` 和 `-FormatScope Off` 仍是调用者可见的显式裁剪，不会被误报为环境完整。
+候选发布前应使用 `-Strict -FormatScope Changed -FormatBase <revision>`：环境中缺少 `git`、
+格式/静态分析工具、MSBuild 或测试产物时会立即失败，显式 merge-base 加上 committed、staged、
+working 与 untracked 的并集可避免已提交改动逃过本地格式检查。`All` 会审计全部自有 C/C++
+并排除由完整性清单保护的上游 `tests/lua/official/**`；当前它也会如实暴露尚待分批清理的历史
+格式债，不能用一次大范围机械重排混入 RC 冻结修复。`-SkipBuild`、`-SkipClangTidy` 和
+`-FormatScope Off` 仍是调用者可见的显式裁剪，不会被误报为环境完整。质量门还会校验
+`lua_test` 内嵌的构建 SHA 与当前 `HEAD` 一致，旧测试二进制不能作为当前提交的证据；
+`tools/check_test_signal_integrity.ps1` 拒绝无条件成功断言和手写 skip-as-success；测试级
+expected skip 必须通过 inline helper `SKIP_EXPECTED` 登记，豁免只允许
+绑定路径、行号、SHA-256、理由和失效日期的编译期探针。测试框架区分 expected 与 unexpected
+skip：前者必须通过显式 API 给出理由，后者计入阻断结果，发布证据要求两者的数量均被明确报告。
 仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan/TSan、严格兼容性、fuzz、coverage、ARM64/macOS 和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，普通指标先计算每次独立运行的样本中位数，再计算每个相邻 base/head pair 的相对变化，并以配对变化的中位数判定；GC P99 池化各次运行的 pause 样本后使用最近秩。若 `CMakeLists.txt`、`cmake/` 与 `src/` 在 base/head 完全等价，比较仍保留全部样本和越线记录，但以 `equivalent-runtime-inputs` 给出确定性结论；若运行时输入确有变化且三对样本同时出现阈值内/阈值外结果，则自动增加两对确认采样，再以五对中位数作最终判定。现有 VM 指令吞吐、C++↔Lua、coroutine、closure/upvalue 与 GC P99 的版本化预算均未放宽，持续回归仍直接失败。私有仓库当前套餐无法启用 required-check 分支保护；branch-protection 与 rulesets API 均返回需升级 GitHub Pro 或公开仓库，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
 [Actions run 30000455395](https://github.com/YanqingXu/lua/actions/runs/30000455395) 在提交 `94b694b` 上保留了运行时源码等价却发生 benchmark 非对称误报的失败/成功对照 artifact。随后提交 `6f571cc` 引入上述 schema v3 策略，并在 [Actions run 30004681771](https://github.com/YanqingXu/lua/actions/runs/30004681771) 首轮取得 17/17 jobs 全绿；benchmark artifact `8562573583` 明确记录 `equivalent-runtime-inputs`、空输入差异和三对样本。对应 [#15](https://github.com/YanqingXu/lua/issues/15) 已关闭。
 
 ```powershell
 bin\lua_test.exe
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1 -Strict
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\run_quality_gate.ps1 `
+  -Strict -FormatScope Changed -FormatBase <revision>
 ```
 
 新增 C++ 源文件时，优先使用 `tools\add_source.ps1` 同步 CMake、`.vcxproj` 和 `.vcxproj.filters` 清单：

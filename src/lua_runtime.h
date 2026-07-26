@@ -3,10 +3,10 @@
 
 /**
  * @file lua_runtime.h
- * @brief Lua C++ 运行时的稳定生产配置扩展
- *
- * 本头文件只包含 C ABI。调用方应先使用初始化函数填充结构，再按需覆盖字段；
- * `struct_size` 与 `api_version` 使错误版本在创建 State 前被确定性拒绝。
+ * @brief Stable production configuration extensions for the Lua C++ runtime.
+ * @details This header exposes a C ABI only.
+ * Callers initialize each structure with its initializer, then override selected fields.
+ * `struct_size` and `api_version` let the runtime reject incompatible layouts before creating a state.
  */
 
 #include "lua.h"
@@ -59,10 +59,9 @@ enum {
 };
 
 /**
- * @brief 单个 Lua 运行时的创建期配置
- *
- * `execution_timeout_ms` 从 State 创建时开始计时；使用
- * `lua_runtime_begin_execution` 可在每个任务前启动新的执行窗口。
+ * @brief Creation-time configuration for one Lua runtime.
+ * @details `execution_timeout_ms` starts when the state is created.
+ * Call `lua_runtime_begin_execution` before each task to start a fresh execution window.
  */
 typedef struct lua_RuntimeConfig {
     size_t struct_size;
@@ -97,7 +96,7 @@ typedef struct lua_RuntimeConfig {
     size_t max_compilation_nesting;
 } lua_RuntimeConfig;
 
-/** @brief 单次宿主任务共享的执行窗口限制。 */
+/** @brief Execution-window limits shared by one host task. */
 typedef struct lua_RuntimeExecutionLimits {
     size_t struct_size;
     uint32_t api_version;
@@ -107,7 +106,7 @@ typedef struct lua_RuntimeExecutionLimits {
     uint64_t timeout_ms;
 } lua_RuntimeExecutionLimits;
 
-/** @brief 最近一个已完成执行窗口的只读治理指标快照。 */
+/** @brief Read-only metrics snapshot for the most recently completed execution window. */
 typedef struct lua_RuntimeMetrics {
     size_t struct_size;
     uint32_t api_version;
@@ -125,65 +124,63 @@ typedef struct lua_RuntimeMetrics {
     uint32_t last_stop_reason;
 } lua_RuntimeMetrics;
 
-/** @brief 生命周期安全的非 owning 取消句柄。 */
+/** @brief Non-owning cancellation handle that becomes inert when its state is destroyed. */
 typedef struct lua_CancellationHandle lua_CancellationHandle;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** @brief 初始化为 Lua 5.1 兼容的 unrestricted/unlimited 配置。 */
+/** @brief Initialize an unrestricted, unlimited Lua 5.1-compatible configuration. */
 void lua_runtime_config_init(lua_RuntimeConfig* config) LUA_CXX_NOEXCEPT;
 
 /**
- * @brief 初始化为面向不可信游戏逻辑的有限 game-server 配置。
- *
- * 该预置禁用文件系统、进程、原生模块、运行时编译、二进制 chunk 与脚本 GC 控制；
- * 只暴露 base/math/string/table/coroutine/package，并设置有限执行与资源预算。
+ * @brief Initialize the bounded game-server preset for untrusted scripts.
+ * @details The preset disables filesystem, process, native-module, runtime-compilation, binary-chunk, and script
+ * GC-control capabilities. It exposes only the base, math, string, table, coroutine, and package libraries.
+ * The preset also applies bounded execution and resource budgets.
  */
 void lua_runtime_config_init_gameserver(lua_RuntimeConfig* config) LUA_CXX_NOEXCEPT;
 
-/** @brief 初始化为 unlimited 且无 deadline 的单次执行窗口。 */
+/** @brief Initialize an unlimited execution window with no deadline. */
 void lua_runtime_execution_limits_init(lua_RuntimeExecutionLimits* limits) LUA_CXX_NOEXCEPT;
 
-/** @brief 初始化运行时指标结构的 ABI/version 字段。 */
+/** @brief Initialize the ABI and version fields of a runtime metrics structure. */
 void lua_runtime_metrics_init(lua_RuntimeMetrics* metrics) LUA_CXX_NOEXCEPT;
 
 /**
- * @brief 使用创建期配置构造独立 State。
- *
- * 本函数关闭 C++ 异常边界。失败返回 NULL，并在非空 `runtime_status` 中写入
- * `LUA_RUNTIME_ERR_*`。
+ * @brief Create an independent state from a creation-time configuration.
+ * @details C++ exceptions do not cross this boundary.
+ * Failure returns NULL and writes a `LUA_RUNTIME_ERR_*` value when `runtime_status` is non-NULL.
  */
 lua_State* lua_newstate_configured(lua_Alloc allocator, void* allocator_user_data, const lua_RuntimeConfig* config,
                                    int* runtime_status) LUA_CXX_NOEXCEPT;
 
-/** @brief 使用默认 allocator 和创建期配置构造独立 State。 */
+/** @brief Create an independent state with the default allocator. */
 lua_State* luaL_newstate_configured(const lua_RuntimeConfig* config, int* runtime_status) LUA_CXX_NOEXCEPT;
 
 /**
- * @brief 在 owner thread 为下一次宿主任务启动新的执行窗口。
- *
- * 调用会清除上一个窗口的取消请求并重置 instruction/native-work 余量。
- * State 正在执行或从其他线程调用时会被拒绝。
+ * @brief Start a fresh execution window for the next task on the owner thread.
+ * @details This clears the previous cancellation request and resets the instruction and native-work budgets.
+ * The call is rejected while the state is executing or when invoked from another thread.
  */
 int lua_runtime_begin_execution(lua_State* L, const lua_RuntimeExecutionLimits* limits) LUA_CXX_NOEXCEPT;
 
 /**
- * @brief 在 owner thread 且 State 空闲时读取当前执行窗口指标。
- *
- * 调用方必须先调用 `lua_runtime_metrics_init`。指标用于低成本请求日志；
- * 运行中的 State 返回 `LUA_RUNTIME_ERR_BUSY`，避免发布非一致快照。
+ * @brief Read execution-window metrics while the state is idle on its owner thread.
+ * @details Callers must invoke `lua_runtime_metrics_init` first.
+ * These metrics are intended for low-cost request logging.
+ * An executing state returns `LUA_RUNTIME_ERR_BUSY` instead of publishing an inconsistent snapshot.
  */
 int lua_runtime_get_metrics(lua_State* L, lua_RuntimeMetrics* metrics) LUA_CXX_NOEXCEPT;
 
-/** @brief 获取可越过 State 生命周期安全失效的跨线程取消句柄。 */
+/** @brief Acquire a cross-thread cancellation handle that safely outlives the state. */
 lua_CancellationHandle* lua_runtime_get_cancellation_handle(lua_State* L, int* runtime_status) LUA_CXX_NOEXCEPT;
 
-/** @brief 从任意线程请求取消；空或已失效句柄是安全无操作。 */
+/** @brief Request cancellation from any thread; a null or expired handle is a safe no-op. */
 void lua_runtime_request_cancellation(lua_CancellationHandle* handle) LUA_CXX_NOEXCEPT;
 
-/** @brief 释放取消句柄；可从任意线程调用。 */
+/** @brief Release a cancellation handle from any thread. */
 void lua_runtime_release_cancellation_handle(lua_CancellationHandle* handle) LUA_CXX_NOEXCEPT;
 
 #ifdef __cplusplus

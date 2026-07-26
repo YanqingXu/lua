@@ -47,6 +47,25 @@ static Table* createVector(ScopedGCRoots& roots, f64 x, f64 y) {
     return t;
 }
 
+static bool getWrappedNumber(const Value& value, f64& result) {
+    if (value.isNumber()) {
+        result = value.asNumber();
+        return true;
+    }
+
+    if (!value.isTable()) {
+        return false;
+    }
+
+    Value wrapped = value.asTable()->getArray(1);
+    if (!wrapped.isNumber()) {
+        return false;
+    }
+
+    result = wrapped.asNumber();
+    return true;
+}
+
 // =====================================================================
 // 算术元方法 C函数实现
 // =====================================================================
@@ -141,11 +160,10 @@ static i32 vector_mod(LuaState* L) {
     Value v1 = L->at(1);
     Value v2 = L->at(2);
 
-    if (!v1.isNumber() || !v2.isNumber())
+    f64 a = 0.0;
+    f64 b = 0.0;
+    if (!getWrappedNumber(v1, a) || !getWrappedNumber(v2, b))
         return 0;
-
-    f64 a = v1.asNumber();
-    f64 b = v2.asNumber();
 
     if (b == 0.0)
         return 0;
@@ -164,11 +182,10 @@ static i32 number_pow(LuaState* L) {
     Value v1 = L->at(1);
     Value v2 = L->at(2);
 
-    if (!v1.isNumber() || !v2.isNumber())
+    f64 base = 0.0;
+    f64 exp = 0.0;
+    if (!getWrappedNumber(v1, base) || !getWrappedNumber(v2, exp))
         return 0;
-
-    f64 base = v1.asNumber();
-    f64 exp = v2.asNumber();
 
     f64 result = pow(base, exp);
     L->pushNumber(result);
@@ -288,13 +305,14 @@ static i32 custom_concat(LuaState* L) {
     Value v1 = L->at(1);
     Value v2 = L->at(2);
 
-    // 简单实现：如果都是数字，转换为字符串连接
-    if (v1.isNumber() && v2.isNumber()) {
-        std::string s1 = std::to_string(static_cast<int>(v1.asNumber()));
-        std::string s2 = std::to_string(static_cast<int>(v2.asNumber()));
+    f64 left = 0.0;
+    f64 right = 0.0;
+    if (getWrappedNumber(v1, left) && getWrappedNumber(v2, right)) {
+        std::string s1 = std::to_string(static_cast<int>(left));
+        std::string s2 = std::to_string(static_cast<int>(right));
         std::string result = s1 + s2;
 
-        StringPool& pool = GlobalState::getInstance().getStringPool();
+        StringPool& pool = L->getGlobalState().getStringPool();
         GCString* str = pool.intern(result);
         L->pushString(str);
         return 1;
@@ -305,8 +323,19 @@ static i32 custom_concat(LuaState* L) {
 
 // __call: 可调用表
 static i32 callable_table(LuaState* L) {
-    // 返回一个固定值表示被调用
-    L->pushNumber(42.0);
+    if (L->getTop() < 2)
+        return 0;
+
+    Value self = L->at(1);
+    Value argument = L->at(2);
+    if (!self.isTable() || !argument.isNumber())
+        return 0;
+
+    Value base = self.asTable()->getArray(1);
+    if (!base.isNumber())
+        return 0;
+
+    L->pushNumber(base.asNumber() + argument.asNumber());
     return 1;
 }
 
@@ -436,18 +465,40 @@ void testOtherMetamethods(TestSuite& suite) {
     Table* mt_concat = createTestTable(roots);
     mt_concat->set(Value(pool.intern("__concat")), Value(createTestFunction(roots, custom_concat)));
 
-    // 注意：__concat测试需要特殊处理，这里简化测试
-    ASSERT_TRUE(suite, true, "__concat metamethod registered");
+    Table* concatLeft = createVector(roots, 12.0, 0.0);
+    Table* concatRight = createVector(roots, 34.0, 0.0);
+    concatLeft->setMetatable(mt_concat);
+
+    Value concatResult;
+    bool concatSuccess = callBinaryTM(L, Value(concatLeft), Value(concatRight), concatResult, TMS::TM_CONCAT);
+    ASSERT_TRUE(suite, concatSuccess, "__concat should dispatch through the left operand's metatable");
+    ASSERT_TRUE(suite, concatResult.isString(), "__concat should return a string");
+    if (concatResult.isString()) {
+        ASSERT_EQ(suite, std::string("1234"), std::string(concatResult.asString()->c_str()),
+                  "__concat should receive both operands in order");
+    }
 
     // 测试 __call
     Table* mt_call = createTestTable(roots);
     mt_call->set(Value(pool.intern("__call")), Value(createTestFunction(roots, callable_table)));
 
     Table* callable = createTestTable(roots);
+    callable->setArray(1, Value(40.0));
     callable->setMetatable(mt_call);
 
-    // __call测试需要VM的完整支持
-    ASSERT_TRUE(suite, true, "__call metamethod registered");
+    usize callBase = L->getAbsoluteTop();
+    L->pushTable(callable);
+    L->pushNumber(2.0);
+    VM::call(services, L, 1, 1);
+
+    ASSERT_EQ(suite, callBase + 1, L->getAbsoluteTop(),
+              "__call should replace the callable and argument with one result");
+    Value callResult = L->getStack().at(callBase);
+    ASSERT_TRUE(suite, callResult.isNumber(), "__call should return a number");
+    if (callResult.isNumber()) {
+        ASSERT_EQ(suite, 42.0, callResult.asNumber(),
+                  "__call should receive the callable table as self before explicit arguments");
+    }
 }
 
 void testModAndPow(TestSuite& suite) {
@@ -461,25 +512,33 @@ void testModAndPow(TestSuite& suite) {
     mt_mod->set(Value(pool.intern("__mod")), Value(createTestFunction(roots, vector_mod)));
 
     // 创建包装数字的表（用于触发元方法）
-    Table* t1 = createTestTable(roots);
-    t1->setMetatable(mt_mod);
+    Table* modLeft = createVector(roots, 10.0, 0.0);
+    Table* modRight = createVector(roots, 3.0, 0.0);
+    modLeft->setMetatable(mt_mod);
 
     Value modResult;
-    bool success = callBinaryTM(L, Value(10.0), Value(3.0), modResult, TMS::TM_MOD);
-    // 注意：由于我们的实现限制，这里可能无法直接触发
-    // 但至少验证元方法已注册
-    ASSERT_TRUE(suite, true, "__mod metamethod registered");
+    bool success = callBinaryTM(L, Value(modLeft), Value(modRight), modResult, TMS::TM_MOD);
+    ASSERT_TRUE(suite, success, "__mod should dispatch through the left operand's metatable");
+    ASSERT_TRUE(suite, modResult.isNumber(), "__mod should return a number");
+    if (modResult.isNumber()) {
+        ASSERT_EQ(suite, 1.0, modResult.asNumber(), "__mod should evaluate 10 % 3");
+    }
 
     // 测试 __pow
     Table* mt_pow = createTestTable(roots);
     mt_pow->set(Value(pool.intern("__pow")), Value(createTestFunction(roots, number_pow)));
 
-    Table* t2 = createTestTable(roots);
-    t2->setMetatable(mt_pow);
+    Table* powLeft = createVector(roots, 2.0, 0.0);
+    Table* powRight = createVector(roots, 3.0, 0.0);
+    powRight->setMetatable(mt_pow);
 
     Value powResult;
-    success = callBinaryTM(L, Value(2.0), Value(3.0), powResult, TMS::TM_POW);
-    ASSERT_TRUE(suite, true, "__pow metamethod registered");
+    success = callBinaryTM(L, Value(powLeft), Value(powRight), powResult, TMS::TM_POW);
+    ASSERT_TRUE(suite, success, "__pow should fall back to the right operand's metatable");
+    ASSERT_TRUE(suite, powResult.isNumber(), "__pow should return a number");
+    if (powResult.isNumber()) {
+        ASSERT_EQ(suite, 8.0, powResult.asNumber(), "__pow should evaluate 2 ^ 3");
+    }
 }
 
 void testMetamethodEdgeCases(TestSuite& suite) {

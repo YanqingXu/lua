@@ -99,6 +99,8 @@ private:
     Lua::LuaState* state_;
 };
 
+void registerTestFrameworkContractTests();
+
 // 兼容性断言宏 - 委托到通用框架的宏
 #define ASSERT_TRUE(suite, condition, testName)                                                                        \
     do {                                                                                                               \
@@ -117,6 +119,14 @@ private:
         bool bool_result = ((expected) == (actual));                                                                   \
         suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Values not equal"));            \
     } while (0)
+
+inline void SKIP_EXPECTED(TestSuite& suite, const std::string& testName, const std::string& reason) {
+    suite.addResult(TestResult::expectedSkip(testName, reason));
+}
+
+inline void SKIP_UNEXPECTED(TestSuite& suite, const std::string& testName, const std::string& reason) {
+    suite.addResult(TestResult::unexpectedSkip(testName, reason));
+}
 
 } // namespace LuaTest
 

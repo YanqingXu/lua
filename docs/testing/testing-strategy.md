@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: tests/unit/; tests/unit/framework/; tests/lua/; tests/lua/official/; tests/compatibility/; tests/lua/regressions/; tests/unit/vm/test_vm_trace_debug.cpp; tools/run_quality_gate.ps1; tools/check_doc_drift.ps1; tools/check_lua51_official_sources.ps1; tools/run_lua51_official_strict.ps1; tools/test_quality_gate.ps1
-last_checked: 2026-07-15
+verified_against: tests/unit/; tests/unit/framework/; tests/quality/test_signal_allowlist.json; tests/lua/; tests/lua/official/; tests/compatibility/; tests/lua/regressions/; tests/unit/vm/test_vm_trace_debug.cpp; tools/run_quality_gate.ps1; tools/check_test_signal_integrity.ps1; tools/check_test_binary_sha.ps1; tools/check_doc_drift.ps1; tools/check_lua51_official_sources.ps1; tools/run_lua51_official_strict.ps1; tools/test_quality_gate.ps1
+last_checked: 2026-07-26
 applies_to: 解释器测试分层、Golden 与回归证据
 ---
 
@@ -60,6 +60,19 @@ Golden 适合结构复杂但本身应稳定的结果，例如反汇编或规范�
 - GC 测试显式触发阶段并观察语义，不断言脆弱的分配次数。
 - trace/golden 对输出排序和对象 ID 做规范化。
 - 测试失败必须返回非零状态，脚本不能只扫描“看起来成功”的文本。
+- 显式 include/exclude filter 的交集若选中 0 个已注册测试，runner 必须以退出码 2 失败；定向
+  coverage 或合同任务不能因测试命名漂移而空跑成功。
+
+测试结果分为 passed、failed、expected skip 和 unexpected skip。expected skip 只能通过
+inline helper `SKIP_EXPECTED` 显式登记测试名和环境理由；unexpected skip 是阻断结果，不能靠汇总时忽略。
+发布前的完整结果必须同时报告两类 skip，当前本地 Release 基线为 0 expected skips /
+0 unexpected skips。
+
+`tools/check_test_signal_integrity.ps1` 扫描 `tests/unit/**/*.cpp`，拒绝已知的
+`ASSERT_TRUE(..., true)` 和手写 `[SKIP]`/`skipped` 成功输出。仅编译期 `static_assert`
+汇总探针可进入精确 allowlist；每项绑定规则、文件、行号、文本 SHA-256、理由和失效日期，
+新增、重复、过期、删除或文本变化都会使门禁失败。对应 fixture contract 会主动制造每种负例，
+防止检查器只在当前源码上“碰巧通过”。
 
 Strict runner 对 stdout 的 SHA 锁定 banner 做实时计时，而不向官方脚本注入 hook 或改写源码。该 profile 用来区分真正的慢脚本与状态活锁；门禁仍以进程退出码和 `final OK` 所在的原样执行结果为准，计时本身不作为易抖动的绝对性能阈值。
 
@@ -69,4 +82,14 @@ opcode matrix 是一种结构覆盖合同：每个 opcode 必须有 CodeGen 生�
 
 Documentation Drift Check 进一步验证核心技术页存在、全部 Markdown 有事实头部、`verified_against` 路径仍存在，并通过真实测试输出校验 README 基线。这样文档证据和代码证据使用同一质量门。
 
-本地发布证据使用 `tools/run_quality_gate.ps1 -Strict`：环境依赖或预期测试产物缺失即失败。显式 skip 参数只用于调用者有意拆分门禁的场景，输出中必须保留对应 `[SKIP]`，不能把裁剪后的运行描述为完整质量门。
+候选发布证据使用
+`tools/run_quality_gate.ps1 -Strict -FormatScope Changed -FormatBase <revision>`：环境依赖或
+预期测试产物缺失即失败，范围是 base 至 HEAD 的 committed 文件与 staged、working、untracked
+文件并集。干净工作树上的 Changed scope 没有显式 merge-base 时会失败，不能把“没有未提交文件”
+误当成“提交内容已经检查”。`All` 会覆盖 `src/tests/examples/benchmarks/lua_test` 下全部自有
+C/C++，只排除由 source-integrity manifest 保护的 `tests/lua/official/**`；当前仍用于量化历史
+格式债，不在 RC 冻结期通过全仓机械重排来伪造低风险变更。完整门禁还会比较
+`lua_test --build-info` 的构建 SHA 与当前 `HEAD`，拒绝旧二进制。
+SHA 缺失、`unknown`、格式错误、非零 `--build-info` 或与预期提交不一致均为失败，并由临时
+fixture 覆盖正负合同。质量门本身的显式 skip 参数只用于调用者有意拆分步骤，输出中必须保留
+对应 `[SKIP]`；它与测试级 `SKIP_EXPECTED` 是不同概念，不能把裁剪后的运行描述为完整质量门。

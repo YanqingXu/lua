@@ -18,21 +18,172 @@ jobs:
   governance:
     name: Release governance
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      candidate_sha: ${{ steps.candidate.outputs.sha }}
+      version: ${{ steps.candidate.outputs.version }}
+      tag: ${{ steps.candidate.outputs.tag }}
     steps:
-      - name: Enforce tag publication approval
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Resolve immutable candidate and release identity
+        id: candidate
         shell: bash
         env:
-          GOVERNANCE_APPROVED: ${{ vars.LUA_RELEASE_GOVERNANCE_APPROVED }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GOVERNANCE_APPROVED" != "true" ]]; then
-            echo "Tag publication is paused until repository governance is approved." >&2
+          candidate_sha=$(git rev-parse HEAD)
+          [[ "$candidate_sha" =~ ^[0-9a-f]{40}$ ]]
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            [[ "$GITHUB_REF_TYPE" == "tag" ]]
+            tag="$GITHUB_REF_NAME"
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]
+            version="${tag#v}"
+          elif [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            tag=""
+            version="$INPUT_VERSION"
+            [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]
+          else
+            echo "Unsupported release workflow event: $GITHUB_EVENT_NAME" >&2
             exit 1
           fi
+          {
+            echo "sha=$candidate_sha"
+            echo "version=$version"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Release governance verifier contract tests
+        run: python3 tools/test_verify_release_governance.py
+
+      - name: Normalize exact-scope governance evidence
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          CANDIDATE_TAG: ${{ steps.candidate.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.candidate.outputs.version }}
+          GOVERNANCE_ATTESTATION: ${{ vars.LUA_RELEASE_GOVERNANCE_ATTESTATION }}
+        run: |
+          set -euo pipefail
+          python3 tools/verify_release_governance.py \
+            --event "$GITHUB_EVENT_NAME" \
+            --repository "$GITHUB_REPOSITORY" \
+            --sha "$CANDIDATE_SHA" \
+            --tag "$CANDIDATE_TAG" \
+            --version "$RELEASE_VERSION" \
+            --attestation-json "$GOVERNANCE_ATTESTATION" \
+            --output build/governance-evidence.json
+
+      - name: Upload normalized governance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: governance-evidence
+          path: build/governance-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+
+  verify_evidence:
+    name: Verify exact-SHA release evidence
+    needs: governance
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      candidate_sha: ${{ needs.governance.outputs.candidate_sha }}
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.governance.outputs.candidate_sha }}
+
+      - name: Download normalized governance evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh run download "$GITHUB_RUN_ID"
+          --name governance-evidence
+          --dir build/governance-input
+
+      - name: Normalize exact-SHA source readiness
+        shell: pwsh
+        run: >-
+          ./tools/check_release_readiness.ps1
+          -ExpectedVersion "${{ needs.governance.outputs.version }}"
+          -ExpectedCommit "${{ needs.governance.outputs.candidate_sha }}"
+          -EvidenceRepository "$env:GITHUB_REPOSITORY"
+          -EvidenceOutput build/source-readiness-evidence.json
+
+      - name: Release evidence verifier contract tests
+        run: python3 tools/test_verify_release_evidence.py
+
+      - name: Release governance verifier contract tests
+        run: python3 tools/test_verify_release_governance.py
+
+      - name: Source-readiness evidence contract tests
+        run: python3 tools/test_verify_source_readiness_evidence.py
+
+      - name: Release body consumer contract tests
+        run: python3 tools/test_build_release_body.py
+
+      - name: Release tag identity contract tests
+        run: python3 tools/test_verify_release_tag.py
+
+      - name: Verify remote execution evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 tools/verify_release_evidence.py
+          --repository "$GITHUB_REPOSITORY"
+          --sha "${{ needs.governance.outputs.candidate_sha }}"
+          --expected-tag "${{ needs.governance.outputs.tag }}"
+          --expected-version "${{ needs.governance.outputs.version }}"
+          --governance-evidence build/governance-input/governance-evidence.json
+          --source-readiness-evidence build/source-readiness-evidence.json
+          --release-notes docs/release/rc-notes-0.1.0.md
+          --output build/release-evidence.json
+
+      - name: Upload exact-SHA evidence manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-evidence
+          path: build/release-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+
+  verify_tag:
+    name: Verify annotated release tag identity
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: verify_evidence
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout tag verifier
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.verify_evidence.outputs.candidate_sha }}
+
+      - name: Verify annotated tag resolves to candidate
+        env:
+          CANDIDATE_SHA: ${{ needs.verify_evidence.outputs.candidate_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 tools/verify_release_tag.py
+          --repository "$GITHUB_REPOSITORY"
+          --tag "$GITHUB_REF_NAME"
+          --expected-sha "$CANDIDATE_SHA"
 
   packages:
     name: SDK package (${{ matrix.rid }})
-    needs: governance
+    needs: [governance, verify_evidence]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -54,26 +205,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-
-      - name: Resolve version
-        id: version
-        shell: pwsh
-        run: |
-          $version = if ($env:GITHUB_REF_TYPE -eq "tag") {
-            $env:GITHUB_REF_NAME -replace '^v', ''
-          } else {
-            '${{ inputs.version }}'
-          }
-          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?$') {
-            throw "Invalid release version: $version"
-          }
-          "value=$version" >> $env:GITHUB_OUTPUT
+          ref: ${{ needs.verify_evidence.outputs.candidate_sha }}
 
       - name: Source readiness
         shell: pwsh
         run: >-
           ./tools/check_release_readiness.ps1
-          -ExpectedVersion ${{ steps.version.outputs.value }}
+          -ExpectedVersion ${{ needs.governance.outputs.version }}
 
       - name: Configure Release
         shell: pwsh
@@ -99,23 +237,26 @@ jobs:
           ./tools/package_release.ps1
           -BuildDirectory build/release
           -OutputDirectory dist
-          -Version ${{ steps.version.outputs.value }}
+          -Version ${{ needs.governance.outputs.version }}
           -RuntimeIdentifier ${{ matrix.rid }}
           -Configuration Release
-          -Commit $env:GITHUB_SHA
+          -Commit ${{ needs.verify_evidence.outputs.candidate_sha }}
+
+      - name: Retest clean rebuilt Release
+        run: ctest --test-dir build/release -C Release --output-on-failure --timeout 900
 
       - name: Upload candidate package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: lua-cpp-${{ steps.version.outputs.value }}-${{ matrix.rid }}
+          name: lua-cpp-${{ needs.governance.outputs.version }}-${{ matrix.rid }}
           path: dist/
           if-no-files-found: error
           retention-days: 30
 
   publish:
     name: Publish immutable candidate
-    if: startsWith(github.ref, 'refs/tags/')
-    needs: packages
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [governance, packages, verify_evidence, verify_tag]
     runs-on: ubuntu-latest
     environment: release
     permissions:
@@ -124,34 +265,125 @@ jobs:
     steps:
       - name: Checkout release notes
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.verify_evidence.outputs.candidate_sha }}
 
-      - name: Download package artifacts
+      - name: Download exact release artifacts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download "$GITHUB_RUN_ID" --dir release-artifacts
-
-      - name: Consolidate artifacts and checksums
+          RELEASE_VERSION: ${{ needs.governance.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p release
-          find release-artifacts -type f \
-            \( -name '*.zip' -o -name '*.spdx.json' -o -name '*.manifest.json' -o -name '*.SHA256SUMS' \) \
-            -exec cp '{}' release/ \;
-          cd release
-          sha256sum -- *.zip *.spdx.json *.manifest.json *.SHA256SUMS > SHA256SUMS
+          mkdir release-artifacts
+          for rid in windows-x64 linux-x64 macos-arm64; do
+            artifact="lua-cpp-${RELEASE_VERSION}-${rid}"
+            destination="release-artifacts/${artifact}"
+            mkdir "$destination"
+            gh run download "$GITHUB_RUN_ID" \
+              --name "$artifact" \
+              --dir "$destination"
+          done
+          mkdir release-artifacts/release-evidence
+          gh run download "$GITHUB_RUN_ID" \
+            --name release-evidence \
+            --dir release-artifacts/release-evidence
+
+      - name: Revalidate and consolidate exact package assets
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ needs.verify_evidence.outputs.candidate_sha }}
+          RELEASE_VERSION: ${{ needs.governance.outputs.version }}
+        run: |
+          set -euo pipefail
+          [[ ! -e release ]]
+          mkdir release
+          for rid in windows-x64 linux-x64 macos-arm64; do
+            stem="lua-cpp-${RELEASE_VERSION}-${rid}"
+            source="release-artifacts/${stem}"
+            mapfile -t source_entries < <(
+              find "$source" -mindepth 1 -maxdepth 1 -printf '%f\n' | sort
+            )
+            expected_entries=(
+              "${stem}.SHA256SUMS"
+              "${stem}.manifest.json"
+              "${stem}.spdx.json"
+              "${stem}.zip"
+            )
+            [[ "${source_entries[*]}" == "${expected_entries[*]}" ]]
+            for suffix in .zip .spdx.json .manifest.json .SHA256SUMS; do
+              asset="${source}/${stem}${suffix}"
+              [[ -f "$asset" && ! -L "$asset" ]]
+            done
+            python3 tools/validate_release_artifacts.py \
+              --archive "${source}/${stem}.zip" \
+              --sbom "${source}/${stem}.spdx.json" \
+              --checksums "${source}/${stem}.SHA256SUMS" \
+              --manifest "${source}/${stem}.manifest.json" \
+              --expected-version "$RELEASE_VERSION" \
+              --expected-rid "$rid" \
+              --expected-commit "$CANDIDATE_SHA"
+            for suffix in .zip .spdx.json .manifest.json .SHA256SUMS; do
+              asset="${stem}${suffix}"
+              [[ ! -e "release/${asset}" ]]
+              cp -- "${source}/${asset}" "release/${asset}"
+            done
+          done
+
+          evidence_source=release-artifacts/release-evidence
+          mapfile -t evidence_entries < <(
+            find "$evidence_source" -mindepth 1 -maxdepth 1 -printf '%f\n'
+          )
+          [[ "${#evidence_entries[@]}" -eq 1 ]]
+          [[ "${evidence_entries[0]}" == "release-evidence.json" ]]
+          [[ -f "${evidence_source}/release-evidence.json" ]]
+          [[ ! -L "${evidence_source}/release-evidence.json" ]]
+          [[ ! -e release/release-evidence.json ]]
+          cp -- "${evidence_source}/release-evidence.json" release/release-evidence.json
+
+          pushd release >/dev/null
+          mapfile -t checksum_inputs < <(
+            find . -maxdepth 1 -type f ! -name 'SHA256SUMS' -printf '%f\n' | sort
+          )
+          [[ "${#checksum_inputs[@]}" -gt 0 ]]
+          sha256sum -- "${checksum_inputs[@]}" > SHA256SUMS
+          popd >/dev/null
+
+      - name: Build final release body
+        env:
+          CANDIDATE_SHA: ${{ needs.verify_evidence.outputs.candidate_sha }}
+        run: >-
+          python3 tools/build_release_body.py
+          --manifest release/release-evidence.json
+          --release-notes docs/release/rc-notes-0.1.0.md
+          --checksums release/SHA256SUMS
+          --output release-body.md
+          --expected-repository "$GITHUB_REPOSITORY"
+          --expected-sha "$CANDIDATE_SHA"
+          --expected-tag "$GITHUB_REF_NAME"
+          --expected-version "${{ needs.governance.outputs.version }}"
 
       - name: Create GitHub release
         env:
+          CANDIDATE_SHA: ${{ needs.verify_evidence.outputs.candidate_sha }}
           GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           args=(release create "$GITHUB_REF_NAME" release/* \
             --verify-tag \
             --title "Lua C++ $GITHUB_REF_NAME" \
-            --notes-file docs/release/rc-notes-0.1.0.md)
+            --notes-file release-body.md)
           if [[ "$GITHUB_REF_NAME" == *-rc.* ]]; then
             args+=(--prerelease)
           fi
+          (
+            cd release
+            sha256sum --check --strict SHA256SUMS
+          )
+          python3 tools/verify_release_tag.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --tag "$GITHUB_REF_NAME" \
+            --expected-sha "$CANDIDATE_SHA"
           gh "${args[@]}"

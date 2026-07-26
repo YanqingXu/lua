@@ -20,49 +20,48 @@ Str Value::toString() const {
     std::ostringstream oss;
 
     switch (getType()) {
-        case ValueType::Nil:
-            oss << "nil";
-            break;
+    case ValueType::Nil:
+        oss << "nil";
+        break;
 
-        case ValueType::Boolean:
-            oss << (asBoolean() ? "true" : "false");
-            break;
+    case ValueType::Boolean:
+        oss << (asBoolean() ? "true" : "false");
+        break;
 
-        case ValueType::Number:
-            oss << std::fixed << std::setprecision(6) << asNumber();
-            break;
+    case ValueType::Number:
+        oss << std::fixed << std::setprecision(6) << asNumber();
+        break;
 
-        case ValueType::LightUserdata:
-            oss << "lightuserdata: 0x" << std::hex << asLightUserdata();
-            break;
+    case ValueType::LightUserdata:
+        oss << "lightuserdata: 0x" << std::hex << asLightUserdata();
+        break;
 
-        case ValueType::String:
-            oss << "string: 0x" << std::hex << asString();
-            break;
+    case ValueType::String:
+        oss << "string: 0x" << std::hex << asString();
+        break;
 
-        case ValueType::Table:
-            oss << "table: 0x" << std::hex << asTable();
-            break;
+    case ValueType::Table:
+        oss << "table: 0x" << std::hex << asTable();
+        break;
 
-        case ValueType::Function:
-            oss << "function: 0x" << std::hex << asFunction();
-            break;
+    case ValueType::Function:
+        oss << "function: 0x" << std::hex << asFunction();
+        break;
 
-        case ValueType::Userdata:
-            oss << "userdata: 0x" << std::hex << asUserdata();
-            break;
+    case ValueType::Userdata:
+        oss << "userdata: 0x" << std::hex << asUserdata();
+        break;
 
-        case ValueType::Thread:
-            oss << "thread: 0x" << std::hex << asThread();
-            break;
+    case ValueType::Thread:
+        oss << "thread: 0x" << std::hex << asThread();
+        break;
 
-        default:
-            oss << "unknown";
-            break;
+    default:
+        oss << "unknown";
+        break;
     }
 
     return oss.str();
 }
 
 } // namespace Lua
-

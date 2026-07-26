@@ -2,12 +2,12 @@
  * @file test_lua_state_init.cpp
  * @brief LuaState初始化测试
  *
- * 测试P0任务1的5个子任务：
+ * 测试 LuaState 初始化的 5 个关键合同：
  * 1. 字符串表初始化
  * 2. 元方法名称初始化
  * 3. 保留字初始化
  * 4. 内存错误消息固定
- * 5. GC阈值设置（TODO）
+ * 5. 固定字符串的 GC 生存性
  */
 
 #include "test_framework.hpp"

@@ -1,0 +1,17 @@
+{
+  "schema": "lua-cpp.build-provenance/v2",
+  "source_git_status": "@_source_git_status@",
+  "source_git_sha": "@_source_git_sha@",
+  "source_directory": "@_source_directory_json@",
+  "binary_directory": "@_binary_directory_json@",
+  "generator": "@_generator_json@",
+  "generator_platform": "@_generator_platform_json@",
+  "generator_toolset": "@_generator_toolset_json@",
+  "system_name": "@_system_name_json@",
+  "system_processor": "@_system_processor_json@",
+  "pointer_size": @_pointer_size_json@,
+  "cmake_version": "@_cmake_version_json@",
+  "build_type": "@_build_type_json@",
+  "configuration_types": [@_configuration_types_json@],
+  "configured_at": "@_configured_at@"
+}

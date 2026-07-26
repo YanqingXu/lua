@@ -822,7 +822,8 @@ void testBranchAndComparisonHandlersExecuteDirectly(TestSuite& suite) {
         ASSERT_TRUE(suite, VM::detail::lessThan(L, Value(accented), Value(amo)),
                     "string LT should compare the full locale collation order");
     } else {
-        ASSERT_TRUE(suite, true, "locale collation test skipped when Portuguese locale is unavailable");
+        SKIP_EXPECTED(suite, "locale collation order",
+                      "Portuguese LC_COLLATE locale is unavailable in this environment");
     }
     if (!previousLocale.empty()) {
         std::setlocale(LC_COLLATE, previousLocale.c_str());

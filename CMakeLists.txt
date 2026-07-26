@@ -5,6 +5,7 @@ if(POLICY CMP0184)
 endif()
 
 project(lua_cpp VERSION 0.1.0 LANGUAGES C CXX)
+set(LUA_CPP_ABI_VERSION 0)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -24,6 +25,36 @@ option(LUA_CPP_BUILD_SHARED "Build the public C API shared library" ON)
 option(LUA_CPP_ENABLE_COVERAGE "Enable Clang source-based coverage instrumentation" OFF)
 set(LUA_CPP_SANITIZER "" CACHE STRING "Enable a runtime sanitizer: address, undefined, or thread")
 set_property(CACHE LUA_CPP_SANITIZER PROPERTY STRINGS "" address undefined thread)
+set(
+    LUA_TEST_BUILD_GIT_SHA
+    ""
+    CACHE STRING
+    "Exact 40-hex Git SHA embedded in lua_test; leave empty to resolve the current source Git HEAD"
+)
+if(WIN32)
+    set(_LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS_DEFAULT ON)
+else()
+    set(_LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS_DEFAULT OFF)
+endif()
+option(
+    LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS
+    "Fail test configuration when PowerShell-only contracts cannot be registered"
+    ${_LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS_DEFAULT}
+)
+unset(_LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS_DEFAULT)
+
+find_package(Git QUIET)
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/WriteBuildProvenance.cmake")
+set(
+    LUA_CPP_BUILD_PROVENANCE_FILE
+    "${CMAKE_CURRENT_BINARY_DIR}/lua-cpp-build-provenance.json"
+)
+lua_cpp_write_build_provenance(
+    OUTPUT "${LUA_CPP_BUILD_PROVENANCE_FILE}"
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+    BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}"
+    GIT_EXECUTABLE "${GIT_EXECUTABLE}"
+)
 
 if(LUA_CPP_SANITIZER)
     if(MSVC)
@@ -298,7 +329,7 @@ if(LUA_CPP_BUILD_SHARED)
         EXPORT_NAME Shared
         OUTPUT_NAME lua_public_api
         VERSION ${PROJECT_VERSION}
-        SOVERSION ${PROJECT_VERSION_MAJOR}
+        SOVERSION ${LUA_CPP_ABI_VERSION}
     )
     lua_configure_target_warnings(lua_public_api_shared)
 endif()
@@ -430,12 +461,27 @@ endif()
 if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
     find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
+    set(LUA_TEST_BUILD_GIT_SHA_IS_OVERRIDE OFF)
+    if(NOT "${LUA_TEST_BUILD_GIT_SHA}" STREQUAL "")
+        set(LUA_TEST_BUILD_GIT_SHA_IS_OVERRIDE ON)
+    endif()
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/ResolveTestBuildGitSha.cmake")
+    lua_resolve_test_build_git_sha(
+        LUA_TEST_BUILD_GIT_SHA_RESOLVED
+        OVERRIDE "${LUA_TEST_BUILD_GIT_SHA}"
+        SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}"
+        GIT_EXECUTABLE "${GIT_EXECUTABLE}"
+    )
+
     add_executable(lua_test ${LUA_TEST_SOURCES})
     target_link_libraries(lua_test PRIVATE lua_core)
     target_include_directories(lua_test PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/unit/framework
         ${CMAKE_CURRENT_SOURCE_DIR}/lua_test/include
+    )
+    target_compile_definitions(lua_test PRIVATE
+        "LUA_TEST_BUILD_GIT_SHA=\"${LUA_TEST_BUILD_GIT_SHA_RESOLVED}\""
     )
 
     lua_configure_target_warnings(lua_test)
@@ -660,6 +706,82 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
+    set(
+        LUA_TEST_BUILD_SHA_CONTRACT_COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_test_binary_sha.py"
+        --test-executable "$<TARGET_FILE:lua_test>"
+    )
+    if(LUA_TEST_BUILD_GIT_SHA_IS_OVERRIDE)
+        list(
+            APPEND LUA_TEST_BUILD_SHA_CONTRACT_COMMAND
+            --expected-sha "${LUA_TEST_BUILD_GIT_SHA_RESOLVED}"
+        )
+    else()
+        list(
+            APPEND LUA_TEST_BUILD_SHA_CONTRACT_COMMAND
+            --source-dir "${CMAKE_CURRENT_SOURCE_DIR}"
+            --git-executable "${GIT_EXECUTABLE}"
+        )
+    endif()
+    add_test(NAME lua_test_build_sha_contract COMMAND ${LUA_TEST_BUILD_SHA_CONTRACT_COMMAND})
+    set_tests_properties(lua_test_build_sha_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    unset(LUA_TEST_BUILD_SHA_CONTRACT_COMMAND)
+
+    add_test(
+        NAME test_binary_sha_checker_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_check_test_binary_sha.py
+    )
+    set_tests_properties(test_binary_sha_checker_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME test_selection_contract
+        COMMAND
+            ${Python3_EXECUTABLE}
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_test_selection_contract.py
+            --test-executable "$<TARGET_FILE:lua_test>"
+    )
+    set_tests_properties(test_selection_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        TIMEOUT 180
+    )
+
+    add_test(
+        NAME test_build_sha_resolution_contract
+        COMMAND ${CMAKE_COMMAND}
+            "-DLUA_CPP_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/test_resolve_test_build_git_sha.cmake
+    )
+    set_tests_properties(test_build_sha_resolution_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME build_provenance_cmake_contract
+        COMMAND ${CMAKE_COMMAND}
+            "-DLUA_CPP_SOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}"
+            "-DLUA_CPP_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+            "-DLUA_CPP_PROVENANCE_FILE=${LUA_CPP_BUILD_PROVENANCE_FILE}"
+            "-DLUA_CPP_GIT_EXECUTABLE=${GIT_EXECUTABLE}"
+            "-DLUA_CPP_EXPECTED_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}"
+            "-DLUA_CPP_EXPECTED_SYSTEM_PROCESSOR=${CMAKE_SYSTEM_PROCESSOR}"
+            "-DLUA_CPP_EXPECTED_POINTER_SIZE=${CMAKE_SIZEOF_VOID_P}"
+            "-DLUA_CPP_EXPECTED_GENERATOR_PLATFORM=${CMAKE_GENERATOR_PLATFORM}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/cmake/test_build_provenance.cmake
+    )
+    set_tests_properties(build_provenance_cmake_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
     add_test(
         NAME coverage_threshold_policy_contract
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_coverage_thresholds.py
@@ -687,17 +809,144 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
 
+    add_test(
+        NAME release_evidence_verifier_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_verify_release_evidence.py
+    )
+    set_tests_properties(release_evidence_verifier_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME release_governance_verifier_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_verify_release_governance.py
+    )
+    set_tests_properties(release_governance_verifier_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME source_readiness_evidence_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_verify_source_readiness_evidence.py
+    )
+    set_tests_properties(source_readiness_evidence_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME release_body_consumer_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_build_release_body.py
+    )
+    set_tests_properties(release_body_consumer_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME release_tag_identity_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_verify_release_tag.py
+    )
+    set_tests_properties(release_tag_identity_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
+    add_test(
+        NAME workflow_evidence_writer_contract
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_write_workflow_evidence.py
+    )
+    set_tests_properties(workflow_evidence_writer_contract PROPERTIES
+        LABELS quality-contract
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+
     find_program(LUA_CPP_POWERSHELL_EXECUTABLE NAMES pwsh powershell)
     if(LUA_CPP_POWERSHELL_EXECUTABLE)
+        set(LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS -NoProfile -NonInteractive)
+        if(WIN32)
+            list(APPEND LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS -ExecutionPolicy Bypass)
+        endif()
+
+        add_test(
+            NAME test_binary_sha_contract
+            COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
+                ${LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS}
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_test_binary_sha.ps1
+        )
+        set_tests_properties(test_binary_sha_contract PROPERTIES
+            LABELS quality-contract
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+
+        add_test(
+            NAME test_signal_integrity_check
+            COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
+                ${LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS}
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_test_signal_integrity.ps1
+        )
+        set_tests_properties(test_signal_integrity_check PROPERTIES
+            LABELS quality-contract
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+
+        add_test(
+            NAME test_signal_integrity_contract
+            COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
+                ${LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS}
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_test_signal_integrity.ps1
+        )
+        set_tests_properties(test_signal_integrity_contract PROPERTIES
+            LABELS quality-contract
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+
         add_test(
             NAME runtime_benchmark_absolute_slo_contract
             COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
-                -NoProfile
+                ${LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS}
                 -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_runtime_bench_absolute_slo.ps1
         )
         set_tests_properties(runtime_benchmark_absolute_slo_contract PROPERTIES
             LABELS quality-contract
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+
+        add_test(
+            NAME package_build_provenance_contract
+            COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
+                ${LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS}
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_package_build_provenance.ps1
+        )
+        set_tests_properties(package_build_provenance_contract PROPERTIES
+            LABELS quality-contract
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            TIMEOUT 120
+        )
+
+        add_test(
+            NAME release_identity_contract
+            COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
+                ${LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS}
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_release_identity.ps1
+        )
+        set_tests_properties(release_identity_contract PROPERTIES
+            LABELS quality-contract
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+        unset(LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS)
+    elseif(LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS)
+        message(FATAL_ERROR
+            "PowerShell-only test contracts are required but neither pwsh nor powershell was found. "
+            "Install PowerShell or explicitly configure "
+            "-DLUA_CPP_REQUIRE_POWERSHELL_CONTRACTS=OFF."
+        )
+    else()
+        message(STATUS
+            "PowerShell was not found; PowerShell-only test contracts are not registered "
+            "because LUA_CPP_REQUIRE_POWERSHELL_CONTRACTS=OFF."
         )
     endif()
 

@@ -1,6 +1,6 @@
 # Lua C++ 单元测试框架文档
 
-本文档详细介绍 `lua/tests/unit` 目录下轻量级单元测试框架的架构设计、使用的设计模式、以及如何添加新的测试用例。
+本文档详细介绍 `tests/unit` 目录下轻量级单元测试框架的架构设计、使用的设计模式、以及如何添加新的测试用例。
 
 ---
 
@@ -254,18 +254,29 @@ lua/tests/unit/
 #### 2.2.1 TestResult - 测试结果封装
 
 ```cpp
+enum class TestStatus {
+    Passed,
+    Failed,
+    ExpectedSkip,
+    UnexpectedSkip,
+};
+
 struct TestResult {
     std::string testName;  // 测试名称（用于报告）
-    bool passed;           // 是否通过
-    std::string message;   // 失败时的错误信息
-    
-    TestResult(const std::string& name, bool pass, 
-               const std::string& msg = "")
-        : testName(name), passed(pass), message(msg) {}
+    bool passed;           // 兼容字段；分类以 status 为准
+    std::string message;   // 失败或 skip 的原因
+    TestStatus status;     // 四态结果
+
+    static TestResult expectedSkip(const std::string& name,
+                                   const std::string& reason);
+    static TestResult unexpectedSkip(const std::string& name,
+                                     const std::string& reason);
 };
 ```
 
-**职责**: 封装单个断言的结果，便于统一处理和报告
+**职责**: 封装单个断言的结果，明确区分通过、失败、预期跳过和意外跳过。只有通过显式
+`SKIP_EXPECTED` helper 并给出环境原因的跳过才是非阻断结果；意外跳过与普通失败一样使进程返回
+非零。
 
 #### 2.2.2 TestSuite - 测试套件管理器
 
@@ -283,12 +294,17 @@ public:
     // 统计信息
     int getFailCount() const;
     int getPassCount() const;
+    int getExpectedSkipCount() const;
+    int getUnexpectedSkipCount() const;
+    int getBlockingCount() const;
     
 private:
     std::string suiteName_;           // 套件名称
     std::vector<TestResult> results_; // 所有结果
     int passCount_;                   // 通过数量
     int failCount_;                   // 失败数量
+    int expectedSkipCount_;           // 明确登记的环境跳过
+    int unexpectedSkipCount_;         // 阻断执行的意外跳过
 };
 ```
 
@@ -302,7 +318,7 @@ private:
     [PASS] print function exists
     [FAIL] type returns string - Expected true
   ----------------------------------------
-  Total: 10 | Pass: 9 | Fail: 1
+  Total: 12 | Pass: 9 | Fail: 1 | Expected Skip: 1 | Unexpected Skip: 1
   ========================================
   ```
 
@@ -910,7 +926,7 @@ cmake --build build --clean-first
 Lua C++ Interpreter - Unit Test Suite
 ========================================
 Test Framework: Custom Lightweight Framework
-Date: 2025-11-23
+Build Git SHA: <current 40-hex Git SHA>
 ========================================
 
 [INFO] Registering tests...
@@ -1367,28 +1383,16 @@ void testWithFixture(TestSuite& suite) {
 
 ### 6.4 生成 XML 报告（用于 CI）
 
-```cpp
-// 在 TestSuite 中添加方法
-void TestSuite::generateXMLReport(std::ostream& out) const {
-    out << "<testsuite name=\"" << suiteName_ << "\" "
-        << "tests=\"" << (passCount_ + failCount_) << "\" "
-        << "failures=\"" << failCount_ << "\">" << std::endl;
-    
-    for (const auto& result : results_) {
-        out << "  <testcase name=\"" << result.testName << "\"";
-        if (result.passed) {
-            out << " />" << std::endl;
-        } else {
-            out << ">" << std::endl;
-            out << "    <failure message=\"" << result.message << "\" />" 
-                << std::endl;
-            out << "  </testcase>" << std::endl;
-        }
-    }
-    
-    out << "</testsuite>" << std::endl;
-}
+运行器已经内置 JUnit 输出：
+
+```powershell
+bin\lua_test.exe --report=junit
+bin\lua_test.exe --report=junit:build\reports\lua-test.xml
 ```
+
+JUnit 中，`ExpectedSkip` 写为 `<skipped>`；`UnexpectedSkip` 写为
+`<failure type="unexpected-skip">`。顶层和 suite 级 `tests`、`failures`、`skipped` 计数使用同一
+四态模型，报告结果与进程退出码不会出现“控制台绿色、JUnit 失败”或反向不一致。
 
 ---
 

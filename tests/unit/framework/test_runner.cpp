@@ -95,11 +95,13 @@ extern void registerLuaCApiTests();
 namespace {
 
 constexpr const char* kDefaultJunitReportPath = "lua_test_junit.xml";
+constexpr const char* kBuildGitSha = LUA_TEST_BUILD_GIT_SHA;
 constexpr std::size_t kDefaultMemoryLimitMb = 512;
 constexpr std::size_t kMinMemoryLimitMb = 64;
 
 struct RunnerOptions {
     bool list = false;
+    bool showBuildInfo = false;
     bool showHelp = false;
     std::string filter;
     std::string excludeFilter;
@@ -223,7 +225,7 @@ bool installProcessMemoryLimit(std::size_t limitMb, std::string& message) {
     message = "Process memory limit: " + std::to_string(limitMb) + " MB";
     return true;
 #else
-    struct rlimit limit {};
+    struct rlimit limit{};
     limit.rlim_cur = static_cast<rlim_t>(limitBytes);
     limit.rlim_max = static_cast<rlim_t>(limitBytes);
 
@@ -257,6 +259,8 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
 
         if (arg == "--help" || arg == "-h") {
             options.showHelp = true;
+        } else if (arg == "--build-info") {
+            options.showBuildInfo = true;
         } else if (arg == "--list") {
             options.list = true;
         } else if (arg == "--filter") {
@@ -325,6 +329,7 @@ void printUsage() {
     std::cout << "Usage: lua_test.exe [--list] [--filter <suite-or-name>] "
                  "[--exclude-filter <suite-or-name>] [--report=junit]"
               << std::endl;
+    std::cout << "       lua_test.exe --build-info" << std::endl;
     std::cout << "       lua_test.exe --report=junit:<path>" << std::endl;
     std::cout << "       lua_test.exe [--max-memory-mb <mb>|--no-memory-limit]" << std::endl;
     std::cout << "Default memory cap: " << kDefaultMemoryLimitMb
@@ -332,6 +337,7 @@ void printUsage() {
 }
 
 void registerAllTests() {
+    LuaTest::registerTestFrameworkContractTests();
     registerValueTests();
     registerGCStringTests();
     registerTableTests();
@@ -420,14 +426,18 @@ void printHeader() {
     std::cout << "Lua C++ Interpreter - Unit Test Suite" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << "Test Framework: Custom Lightweight Framework" << std::endl;
-    std::cout << "Date: 2025-11-14" << std::endl;
+    std::cout << "Build Git SHA: " << kBuildGitSha << std::endl;
     std::cout << "========================================\n" << std::endl;
 }
 
 /**
  * @brief 打印测试总结
  */
-void printSummary(int registeredTests, int selectedTests, int totalResults, int totalFailed) {
+void printSummary(int registeredTests, int selectedTests, int totalResults, int blockingFailures, int expectedSkips,
+                  int unexpectedSkips) {
+    const int failed = blockingFailures - unexpectedSkips;
+    const int passed = totalResults - failed - expectedSkips - unexpectedSkips;
+
     std::cout << "\n";
     std::cout << "========================================" << std::endl;
     std::cout << "Test Summary" << std::endl;
@@ -437,11 +447,13 @@ void printSummary(int registeredTests, int selectedTests, int totalResults, int 
         std::cout << "Selected Tests: " << selectedTests << std::endl;
     }
     std::cout << "Total Results: " << totalResults << std::endl;
-    std::cout << "Passed: " << (totalResults - totalFailed) << std::endl;
-    std::cout << "Failed: " << totalFailed << std::endl;
+    std::cout << "Passed: " << passed << std::endl;
+    std::cout << "Failed: " << failed << std::endl;
+    std::cout << "Expected Skips: " << expectedSkips << std::endl;
+    std::cout << "Unexpected Skips: " << unexpectedSkips << std::endl;
     std::cout << "========================================" << std::endl;
 
-    if (totalFailed == 0) {
+    if (blockingFailures == 0) {
         std::cout << "\n[OK] ALL TESTS PASSED!" << std::endl;
     } else {
         std::cout << "\n[FAILED] SOME TESTS FAILED!" << std::endl;
@@ -457,6 +469,11 @@ int main(int argc, char** argv) {
     if (!parseArgs(argc, argv, options)) {
         printUsage();
         return 2;
+    }
+
+    if (options.showBuildInfo) {
+        std::cout << "Build Git SHA: " << kBuildGitSha << std::endl;
+        return 0;
     }
 
     if (options.showHelp) {
@@ -502,9 +519,16 @@ int main(int argc, char** argv) {
     runOptions.captureSuites = options.writeJunit;
     int failedTests = registry.runTests(runOptions);
 
+    const bool selectionWasRequested = !options.filter.empty() || !options.excludeFilter.empty();
+    if (selectionWasRequested && registry.getLastRunTestCount() == 0) {
+        std::cerr << "[ERROR] Test selection matched zero registered tests; refusing an empty successful run."
+                  << std::endl;
+        return 2;
+    }
+
     // 打印总结
     printSummary(registry.getRegisteredTestCount(), registry.getLastRunTestCount(), registry.getLastTotalCount(),
-                 failedTests);
+                 failedTests, registry.getLastExpectedSkipCount(), registry.getLastUnexpectedSkipCount());
 
     if (options.writeJunit) {
         if (!registry.writeJUnitReport(options.junitPath)) {

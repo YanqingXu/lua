@@ -10,10 +10,8 @@
 #include "compiler/opcode.hpp"
 #include "core/string_pool.hpp"
 #include "core/function.hpp"
-#include <iostream>
 #include <fstream>
 #include <sstream>
-#include <cassert>
 
 using namespace Lua;
 using namespace LuaTest;
@@ -29,34 +27,24 @@ std::string readFile(const char* filename) {
 }
 
 void testLuaFunctionFile(TestSuite& suite) {
-    // 跳过此测试，因为它依赖于外部 Lua 文件
-    // TODO: 创建测试 Lua 文件或使用内联代码
-    try {
-        std::string code = readFile("tests/lua/functions/test_functions.lua");
-        ASSERT_TRUE(suite, code.size() > 0, "File loaded");
+    std::string code = readFile("tests/lua/functions/test_functions.lua");
+    ASSERT_TRUE(suite, !code.empty(), "File loaded");
 
-        // 编译
-        RuntimeServices services = RuntimeServices::fromSingletons();
-        Parser parser(code.c_str());
-        auto parsed = parser.parse();
-        if (!parsed) {
-            throw parsed.error();
-        }
-        Chunk chunk = std::move(*parsed);
-
-        CodeGenerator codegen(services);
-        Proto* proto = codegen.generate(chunk);
-
-        ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
-        ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
-        ASSERT_TRUE(suite, proto->getConstantCount() >= 0, "Has constants");
-        ASSERT_TRUE(suite, proto->getSubProtoCount() >= 0, "Has sub-functions");
-
-    } catch (const std::exception& e) {
-        // 文件不存在时跳过测试
-        std::cout << "  [SKIP] Lua file test (file not found: " << e.what() << ")" << std::endl;
-        ASSERT_TRUE(suite, true, "Lua file test (skipped)");
+    RuntimeServices services = RuntimeServices::fromSingletons();
+    Parser parser(code.c_str());
+    auto parsed = parser.parse();
+    if (!parsed) {
+        throw parsed.error();
     }
+    Chunk chunk = std::move(*parsed);
+
+    CodeGenerator codegen(services);
+    Proto* proto = codegen.generate(chunk);
+
+    ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
+    ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions");
+    ASSERT_TRUE(suite, proto->getConstantCount() > 0, "Fixture produces constants");
+    ASSERT_EQ(suite, static_cast<usize>(5), proto->getSubProtoCount(), "Fixture produces five top-level functions");
 }
 
 void registerLuaFunctionTests() {

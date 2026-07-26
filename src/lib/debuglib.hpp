@@ -104,13 +104,15 @@ i32 luaDebug_setlocal(LuaState* L);
 i32 luaDebug_getmetatable(LuaState* L);
 
 /**
- * @brief debug.setmetatable(object, table|nil)——设置原始元表
+ * @brief Implements debug.setmetatable(object, table|nil).
  *
- * 当前兼容边界：此 VM 支持修改表与完整用户数据的原始元表，尚未实现数值、字符串等类型的
- * 类型级元表。
+ * Supports raw metatables for tables, full userdata,
+ * and primitive values.
+ * Passing nil clears the corresponding metatable.
  *
- * @param L Lua 状态指针
- * @return 返回值数量（1：原对象）
+ * @param L Lua state.
+ * @return One
+ * result: the original object.
  */
 i32 luaDebug_setmetatable(LuaState* L);
 

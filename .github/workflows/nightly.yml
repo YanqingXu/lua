@@ -22,8 +22,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: nightly-endurance-${{ github.ref }}
-  cancel-in-progress: false
+  group: nightly-endurance-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   runtime-soak:
@@ -43,9 +43,9 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$SOAK_MINUTES" =~ ^[0-9]+$ ]] &&
-            ((SOAK_MINUTES >= 1 && SOAK_MINUTES <= 80))
+            ((SOAK_MINUTES >= 45 && SOAK_MINUTES <= 80))
           [[ "$NATIVE_MODULE_ITERATIONS" =~ ^[0-9]+$ ]] &&
-            ((NATIVE_MODULE_ITERATIONS >= 1 && NATIVE_MODULE_ITERATIONS <= 100000))
+            ((NATIVE_MODULE_ITERATIONS >= 1000 && NATIVE_MODULE_ITERATIONS <= 100000))
 
       - name: Configure Release endurance targets
         run: >-
@@ -81,16 +81,36 @@ jobs:
           printf '{"schema":1,"status":"passed","iterations":%s}\n' \
             "$NATIVE_MODULE_ITERATIONS" > build/soak/native-module-soak.json
 
+      - name: Write endurance evidence metadata
+        run: >-
+          python3 tools/write_workflow_evidence.py
+          --kind runtime-soak-evidence
+          --output build/soak/evidence-metadata.json
+          --parameter soak_minutes=$SOAK_MINUTES
+          --parameter native_module_iterations=$NATIVE_MODULE_ITERATIONS
+
       - name: Upload endurance evidence
-        if: always()
+        if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: runtime-soak-evidence
           path: |
             build/soak/runtime-soak.json
             build/soak/native-module-soak.json
-          if-no-files-found: warn
+            build/soak/evidence-metadata.json
+          if-no-files-found: error
           retention-days: 30
+
+      - name: Upload endurance failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: runtime-soak-diagnostics-${{ github.run_attempt }}
+          path: |
+            build/soak/runtime-soak.json
+            build/soak/native-module-soak.json
+          if-no-files-found: warn
+          retention-days: 7
 
   long-fuzz:
     name: Long sanitizer fuzz
@@ -112,7 +132,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$FUZZ_SECONDS_PER_TARGET" =~ ^[0-9]+$ ]] &&
-            ((FUZZ_SECONDS_PER_TARGET >= 1 && FUZZ_SECONDS_PER_TARGET <= 1200))
+            ((FUZZ_SECONDS_PER_TARGET >= 600 && FUZZ_SECONDS_PER_TARGET <= 1200))
 
       - name: Install Clang
         run: >-
@@ -153,13 +173,33 @@ jobs:
               2>&1 | tee "build/fuzz-artifacts/${target}.log"
           done
 
+      - name: Write long fuzz evidence metadata
+        run: >-
+          python3 tools/write_workflow_evidence.py
+          --kind long-fuzz-evidence
+          --output build/evidence-metadata.json
+          --parameter fuzz_seconds_per_target=$FUZZ_SECONDS_PER_TARGET
+          --parameter 'fuzz_targets=["undump","bytecode_verifier","parser","stdlib_numeric_arguments"]'
+
       - name: Upload fuzz evidence
-        if: always()
+        if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: long-fuzz-evidence
           path: |
+            build/evidence-metadata.json
+            build/fuzz-artifacts/
+            build/fuzz-corpus/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload fuzz failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: long-fuzz-diagnostics-${{ github.run_attempt }}
+          path: |
             build/fuzz-artifacts/
             build/fuzz-corpus/
           if-no-files-found: warn
-          retention-days: 30
+          retention-days: 7

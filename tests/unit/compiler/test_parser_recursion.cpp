@@ -1,7 +1,7 @@
 /**
  * @file test_parser_recursion.cpp
  * @brief 测试Parser递归深度限制功能
- * 
+ *
  * 验证 RecursionGuard RAII 类防止深度嵌套导致栈溢出
  */
 
@@ -26,19 +26,19 @@ constexpr const char* kSuiteName = "Parser Recursion Depth";
 std::string generateNestedParentheses(int depth) {
     std::ostringstream oss;
     oss << "local x = ";
-    
+
     // 生成左括号
     for (int i = 0; i < depth; ++i) {
         oss << "(";
     }
-    
+
     oss << "42";
-    
+
     // 生成右括号
     for (int i = 0; i < depth; ++i) {
         oss << ")";
     }
-    
+
     return oss.str();
 }
 
@@ -49,19 +49,19 @@ std::string generateNestedParentheses(int depth) {
  */
 std::string generateNestedIfStatements(int depth) {
     std::ostringstream oss;
-    
+
     // 生成嵌套的if语句
     for (int i = 0; i < depth; ++i) {
         oss << "if true then\n";
     }
-    
+
     oss << "local x = 1\n";
-    
+
     // 生成对应的end
     for (int i = 0; i < depth; ++i) {
         oss << "end\n";
     }
-    
+
     return oss.str();
 }
 
@@ -73,19 +73,19 @@ std::string generateNestedIfStatements(int depth) {
 std::string generateNestedTables(int depth) {
     std::ostringstream oss;
     oss << "local x = ";
-    
+
     // 生成嵌套的表
     for (int i = 0; i < depth; ++i) {
         oss << "{";
     }
-    
+
     oss << "42";
-    
+
     // 生成对应的右括号
     for (int i = 0; i < depth; ++i) {
         oss << "}";
     }
-    
+
     return oss.str();
 }
 
@@ -95,18 +95,13 @@ std::string generateNestedTables(int depth) {
 void testNormalDepthNesting(TestSuite& suite) {
     // 测试50层嵌套（低于递归限制）
     std::string code = generateNestedParentheses(50);
-    
-    try {
-        Parser parser(code);
-        auto parsed = parser.parse();
-        if (!parsed) {
-            throw parsed.error();
-        }
-        Chunk chunk = std::move(*parsed);
-        ASSERT_TRUE(suite, true, "Normal depth (50) parsing succeeded");
-    } catch (const ParseError& e) {
-		std::cerr << "ParseError: " << e.what() << " at line " << e.getLine() << ", column " << e.getColumn() << std::endl;
-        ASSERT_TRUE(suite, false, "Normal depth (50) should not throw");
+
+    Parser parser(code);
+    auto parsed = parser.parse();
+    ASSERT_TRUE(suite, parsed.has_value(), "Normal depth (50) parsing should produce an AST");
+    if (parsed) {
+        ASSERT_EQ(suite, static_cast<usize>(1), parsed->statements.size(),
+                  "Normal depth (50) parsing should preserve the top-level statement");
     }
 }
 
@@ -117,17 +112,12 @@ void testNearLimitDepthNesting(TestSuite& suite) {
     // 测试90层嵌套（接近表达式递归限制）
     std::string code = generateNestedParentheses(90);
 
-    try {
-        Parser parser(code);
-        auto parsed = parser.parse();
-        if (!parsed) {
-            throw parsed.error();
-        }
-        Chunk chunk = std::move(*parsed);
-        ASSERT_TRUE(suite, true, "Near limit depth (90) parsing succeeded");
-    } catch (const ParseError& e) {
-		std::cerr << "ParseError: " << e.what() << " at line " << e.getLine() << ", column " << e.getColumn() << std::endl;
-        ASSERT_TRUE(suite, false, "Near limit depth (90) should not throw");
+    Parser parser(code);
+    auto parsed = parser.parse();
+    ASSERT_TRUE(suite, parsed.has_value(), "Near limit depth (90) parsing should produce an AST");
+    if (parsed) {
+        ASSERT_EQ(suite, static_cast<usize>(1), parsed->statements.size(),
+                  "Near limit depth (90) parsing should preserve the top-level statement");
     }
 }
 
@@ -223,8 +213,7 @@ void testLua51FunctionVariableLimits(TestSuite& suite) {
     }
     upvalueSource += "b\n";
     for (int j = 1; j <= 70; ++j) {
-        upvalueSource += "function foo" + std::to_string(j) + " ()\n a" +
-                         std::to_string(j) + "=3\n";
+        upvalueSource += "function foo" + std::to_string(j) + " ()\n a" + std::to_string(j) + "=3\n";
     }
 
     try {
@@ -255,8 +244,7 @@ void testLua51FunctionVariableLimits(TestSuite& suite) {
         ASSERT_TRUE(suite, false, "Too many locals should throw");
     } catch (const ParseError& e) {
         std::string errorMsg = e.what();
-        ASSERT_TRUE(suite, errorMsg.find("line 2") != std::string::npos,
-                    "Too many locals reports function line");
+        ASSERT_TRUE(suite, errorMsg.find("line 2") != std::string::npos, "Too many locals reports function line");
     }
 }
 
@@ -267,7 +255,7 @@ void testLua51FunctionVariableLimits(TestSuite& suite) {
  */
 void registerParserRecursionTests() {
     auto& registry = TestRegistry::getInstance();
-    
+
     registry.registerTest(kSuiteName, "normal depth nesting", testNormalDepthNesting);
     registry.registerTest(kSuiteName, "near limit depth nesting", testNearLimitDepthNesting);
     registry.registerTest(kSuiteName, "exceed limit depth nesting", testExceedLimitDepthNesting);
@@ -276,4 +264,3 @@ void registerParserRecursionTests() {
     registry.registerTest(kSuiteName, "nested call argument limit", testNestedCallArgumentLimit);
     registry.registerTest(kSuiteName, "lua51 function variable limits", testLua51FunctionVariableLimits);
 }
-

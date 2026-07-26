@@ -4,6 +4,7 @@
 #include "vm/state/stack.hpp"
 #include "core/function.hpp"
 #include <stdexcept>
+#include <sstream>
 
 namespace LuaTest {
 
@@ -89,6 +90,48 @@ int LuaStdLibTestContext::invoke(const char* name, const std::function<void(Lua:
 
     // 调用 C 函数
     return func.asFunction()->getCFunction()(state_);
+}
+
+namespace {
+
+void testSkipAccountingContract(TestSuite& suite) {
+    TestSuite probe("skip-accounting-probe");
+    probe.addResult(TestResult("pass", true));
+    probe.addResult(TestResult("failure", false, "intentional probe failure"));
+    probe.addResult(TestResult::expectedSkip("expected", "missing optional environment capability"));
+    probe.addResult(TestResult::unexpectedSkip("unexpected", "unregistered skip"));
+
+    ASSERT_EQ(suite, 1, probe.getPassCount(), "skip accounting keeps ordinary passes separate");
+    ASSERT_EQ(suite, 1, probe.getFailCount(), "skip accounting keeps assertion failures separate");
+    ASSERT_EQ(suite, 1, probe.getExpectedSkipCount(), "expected skips are counted explicitly");
+    ASSERT_EQ(suite, 1, probe.getUnexpectedSkipCount(), "unexpected skips are counted explicitly");
+    ASSERT_EQ(suite, 2, probe.getBlockingCount(), "unexpected skips fail the enclosing test run");
+    ASSERT_EQ(suite, 4, probe.getTotalCount(), "all outcomes contribute to the result total");
+
+    std::ostringstream junit;
+    probe.writeJUnitXml(junit);
+    const std::string xml = junit.str();
+    ASSERT_TRUE(suite,
+                xml.find("<testsuite name=\"skip-accounting-probe\" tests=\"4\" failures=\"2\" skipped=\"1\">") !=
+                    std::string::npos,
+                "JUnit totals classify four outcomes");
+    ASSERT_TRUE(suite, xml.find("name=\"pass\" />") != std::string::npos, "JUnit classifies a pass");
+    ASSERT_TRUE(suite, xml.find("name=\"failure\">") != std::string::npos, "JUnit classifies an assertion failure");
+    ASSERT_TRUE(suite,
+                xml.find("name=\"expected\">") != std::string::npos &&
+                    xml.find("<skipped message=\"missing optional environment capability\" />") != std::string::npos,
+                "JUnit classifies an expected skip as skipped");
+    ASSERT_TRUE(suite,
+                xml.find("name=\"unexpected\">") != std::string::npos &&
+                    xml.find("<failure type=\"unexpected-skip\" message=\"unregistered skip\">") != std::string::npos,
+                "JUnit classifies an unexpected skip as a failure");
+}
+
+} // namespace
+
+void registerTestFrameworkContractTests() {
+    TestRegistry::getInstance().registerTest("Test Framework Contract", "Skip accounting is fail-closed",
+                                             testSkipAccountingContract);
 }
 
 } // namespace LuaTest
