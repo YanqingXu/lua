@@ -19,6 +19,7 @@
 #include "core/upvalue.hpp"
 #include "core/userdata.hpp"
 #include "runtime/lua_allocator.hpp"
+#include "runtime/runtime_output.hpp"
 #include "vm/state/global_state.hpp"
 #include <cstdio>
 #include <expected>
@@ -961,19 +962,26 @@ static i32 f_write_impl(LuaState* L, FileHandleData* handle, i32 firstArg, const
     i32 nargs = L->getTop() - firstArg + 1;
     bool success = true;
     bool shouldFlushLine = false;
+    RuntimeOutputSink* outputSink = L->getGlobalState().getRuntimeOutputSink();
+    const bool routeRuntimeOutput = outputSink != nullptr && (fp == stdout || fp == stderr);
+    Str routedOutput;
 
     for (i32 i = firstArg; i <= L->getTop(); i++) {
         if (L->isString(i)) {
             GCString* str = L->at(i).asString();
             const usize len = str->getLength();
-            if (std::fwrite(str->c_str(), 1, len, fp) != len) {
+            if (routeRuntimeOutput) {
+                routedOutput.append(str->c_str(), len);
+            } else if (std::fwrite(str->c_str(), 1, len, fp) != len) {
                 success = false;
                 break;
             }
             shouldFlushLine = shouldFlushLine || std::memchr(str->c_str(), '\n', len) != nullptr;
         } else if (L->isNumber(i)) {
             f64 num = L->toNumber(i);
-            if (std::fprintf(fp, "%.14g", num) < 0) {
+            if (routeRuntimeOutput) {
+                routedOutput += std::format("{:.14g}", num);
+            } else if (std::fprintf(fp, "%.14g", num) < 0) {
                 success = false;
                 break;
             }
@@ -984,6 +992,10 @@ static i32 f_write_impl(LuaState* L, FileHandleData* handle, i32 firstArg, const
 
     if (nargs <= 0) {
         success = true;
+    }
+
+    if (success && routeRuntimeOutput && !routedOutput.empty()) {
+        outputSink->writeRuntimeOutput(routedOutput, fp == stderr);
     }
 
     if (success && handle->lineBuffered && shouldFlushLine) {

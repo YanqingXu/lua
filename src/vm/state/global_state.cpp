@@ -7,6 +7,7 @@
  */
 
 #include "vm/state/global_state.hpp"
+#include "debugger/debug_runtime.hpp"
 #include "core/thread.hpp"
 #include "vm/state/lua_state.hpp"
 #include <array>
@@ -121,6 +122,11 @@ GlobalState::~GlobalState() {
         std::terminate();
     }
 
+    if (debugger_ != nullptr) {
+        debugger_->shutdown(Debugger::DisconnectAction::ContinueExecution);
+        debugger_.reset();
+    }
+
     // 注意：不需要手动删除registry_，因为GC会处理
     // 但需要从根对象中移除
     if (registry_) {
@@ -128,6 +134,29 @@ GlobalState::~GlobalState() {
     }
     stringPool_.setGarbageCollector(nullptr);
     stringPool_.setResourcePolicy(nullptr);
+}
+
+Debugger::DebugController& GlobalState::enableDebugger() {
+    return enableDebugger(Debugger::DebugResourceLimits{});
+}
+
+Debugger::DebugController& GlobalState::enableDebugger(const Debugger::DebugResourceLimits& limits) {
+    requireOwnerThread();
+    if (debugger_ == nullptr) {
+        debugger_ = makeUnique<Debugger::DebugController>(limits);
+        if (mainThread_ != nullptr) {
+            (void)debugger_->registerState(*mainThread_, "main", "root Lua state");
+        }
+    }
+    return *debugger_;
+}
+
+void GlobalState::disableDebugger(Debugger::DisconnectAction action) {
+    requireOwnerThread();
+    if (debugger_ != nullptr) {
+        debugger_->shutdown(action);
+        debugger_.reset();
+    }
 }
 
 // =====================================================================

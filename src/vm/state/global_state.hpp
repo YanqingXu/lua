@@ -47,6 +47,12 @@ namespace Lua {
 class LuaState;
 class Thread;
 class LuaAllocator;
+class RuntimeOutputSink;
+namespace Debugger {
+class DebugController;
+struct DebugResourceLimits;
+enum class DisconnectAction : u8;
+} // namespace Debugger
 
 /**
  * @brief 外部线程访问运行时状态前抛出的宿主逻辑错误
@@ -217,6 +223,22 @@ public:
 
     const NativeModuleRegistry& getNativeModules() const noexcept {
         return nativeModules_;
+    }
+
+    /** Lazily create the optional editor-independent debugger controller. */
+    [[nodiscard]] Debugger::DebugController& enableDebugger();
+    [[nodiscard]] Debugger::DebugController& enableDebugger(const Debugger::DebugResourceLimits& limits);
+    void disableDebugger(Debugger::DisconnectAction action);
+    [[nodiscard]] Debugger::DebugController* getDebugController() const noexcept {
+        return debugger_.get();
+    }
+
+    void setRuntimeOutputSink(RuntimeOutputSink* sink) {
+        requireOwnerThread();
+        runtimeOutputSink_ = sink;
+    }
+    [[nodiscard]] RuntimeOutputSink* getRuntimeOutputSink() const noexcept {
+        return runtimeOutputSink_;
     }
 
     /**
@@ -395,6 +417,12 @@ private:
      * @brief 垃圾回收器（由GlobalState拥有）
      */
     GarbageCollector gc_;
+
+    /** Null on the production fast path; allocated only when debugging is enabled. */
+    UPtr<Debugger::DebugController> debugger_;
+
+    /** Optional embedding/frontend output route; null preserves normal stdio behavior. */
+    RuntimeOutputSink* runtimeOutputSink_ = nullptr;
 
     /**
      * @brief 字符串驻留池（单例引用）

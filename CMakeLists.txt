@@ -198,6 +198,16 @@ set(LUA_CORE_SOURCES
     src/vm/vm.cpp
     src/debug/value_serializer.cpp
     src/debug/json_trace_sink.cpp
+    src/debugger/debug_info.cpp
+    src/debugger/breakpoint_manager.cpp
+    src/debugger/debug_cli.cpp
+    src/debugger/debug_runtime.cpp
+    src/debugger/remote_protocol.cpp
+    src/debugger/remote_messages.cpp
+    src/debugger/remote_server.cpp
+    src/debugger/remote_transport.cpp
+    src/debugger/source_registry.cpp
+    src/debugger/stack_inspector.cpp
     src/compiler/codegen/function_compiler.cpp
     src/runtime/native_module_registry.cpp
     src/runtime/bytecode_verifier.cpp
@@ -220,6 +230,13 @@ set(LUA_TEST_SOURCES
     ${LUA_REPL_SOURCES}
     tests/unit/framework/test_framework.cpp
     tests/unit/framework/test_runner.cpp
+    tests/unit/debugger/test_breakpoints.cpp
+    tests/unit/debugger/test_debug_cli.cpp
+    tests/unit/debugger/test_debug_info.cpp
+    tests/unit/debugger/test_debug_runtime.cpp
+    tests/unit/debugger/test_debug_types.cpp
+    tests/unit/debugger/test_remote_protocol.cpp
+    tests/unit/debugger/test_stack_inspector.cpp
     tests/unit/app/test_app_options.cpp
     tests/unit/app/test_repl_commands.cpp
     tests/unit/api/test_lua_c_api.cpp
@@ -401,7 +418,7 @@ install(FILES
 )
 
 if(LUA_CPP_BUILD_FUZZERS)
-    foreach(fuzzer_name IN ITEMS undump bytecode_verifier parser stdlib_numeric_arguments)
+    foreach(fuzzer_name IN ITEMS undump bytecode_verifier parser stdlib_numeric_arguments remote_protocol)
         add_executable(fuzz_${fuzzer_name} tests/fuzz/fuzz_${fuzzer_name}.cpp)
         target_link_libraries(fuzz_${fuzzer_name} PRIVATE lua_core)
         target_include_directories(fuzz_${fuzzer_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -415,6 +432,11 @@ if(LUA_CPP_BUILD_BENCHMARKS)
     target_link_libraries(lua_runtime_bench PRIVATE lua_core)
     target_include_directories(lua_runtime_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     lua_configure_target_warnings(lua_runtime_bench)
+
+    add_executable(lua_debugger_bench benchmarks/debugger_bench.cpp)
+    target_link_libraries(lua_debugger_bench PRIVATE lua_core)
+    target_include_directories(lua_debugger_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    lua_configure_target_warnings(lua_debugger_bench)
 endif()
 
 function(lua_configure_runtime_stack target_name)
@@ -479,6 +501,18 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_BENCHMARKS)
         LABELS benchmark
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         TIMEOUT 900
+    )
+
+    add_test(
+        NAME debugger_benchmark_contract
+        COMMAND $<TARGET_FILE:lua_debugger_bench>
+            --profile all
+            --json ${CMAKE_CURRENT_BINARY_DIR}/debugger-bench.json
+    )
+    set_tests_properties(debugger_benchmark_contract PROPERTIES
+        LABELS "benchmark;debugger"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        TIMEOUT 180
     )
 endif()
 

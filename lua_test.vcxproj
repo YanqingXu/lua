@@ -167,6 +167,13 @@
     <ClCompile Include="src\repl\repl_sig.cpp" />
     <ClCompile Include="tests\unit\framework\test_framework.cpp" />
     <ClCompile Include="tests\unit\framework\test_runner.cpp" />
+    <ClCompile Include="tests\unit\debugger\test_breakpoints.cpp" />
+    <ClCompile Include="tests\unit\debugger\test_debug_cli.cpp" />
+    <ClCompile Include="tests\unit\debugger\test_debug_info.cpp" />
+    <ClCompile Include="tests\unit\debugger\test_debug_runtime.cpp" />
+    <ClCompile Include="tests\unit\debugger\test_debug_types.cpp" />
+    <ClCompile Include="tests\unit\debugger\test_remote_protocol.cpp" />
+    <ClCompile Include="tests\unit\debugger\test_stack_inspector.cpp" />
     <ClCompile Include="tests\unit\app\test_app_options.cpp" />
     <ClCompile Include="tests\unit\app\test_repl_commands.cpp" />
     <ClCompile Include="tests\unit\api\test_lua_c_api.cpp" />

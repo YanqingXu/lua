@@ -10,6 +10,7 @@
 #include "debug/trace_sink.hpp"
 #include "debug/trace_types.hpp"
 #include "debug/value_serializer.hpp"
+#include "debugger/debug_runtime.hpp"
 #include "vm/state/call_info.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/state/stack.hpp"
@@ -132,12 +133,22 @@ bool isTraceDiffEnabled(RuntimeServices& services) {
 namespace VM::detail {
 
 void dispatchCallHook(LuaState* L) {
+    Debugger::DebugController* debugger = L->getGlobalState().getDebugController();
+    if (debugger != nullptr && debugger->semanticSafepoint(*L, Debugger::DebugSemanticEvent::FunctionEnter) ==
+                                   Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+        throw RuntimeError("debugger requested execution termination");
+    }
     if (L->hasDebugHookMask(HookMaskCall)) {
         L->callDebugHook(DebugHookEvent::Call);
     }
 }
 
 void dispatchReturnHook(LuaState* L) {
+    Debugger::DebugController* debugger = L->getGlobalState().getDebugController();
+    if (debugger != nullptr && debugger->semanticSafepoint(*L, Debugger::DebugSemanticEvent::FunctionReturn) ==
+                                   Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+        throw RuntimeError("debugger requested execution termination");
+    }
     if (L->hasDebugHookMask(HookMaskReturn)) {
         i32 tailcalls = 0;
         if (L->getCurrentCI() < L->getCallStack().size()) {

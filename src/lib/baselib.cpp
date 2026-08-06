@@ -25,6 +25,7 @@
 #include "vm/state/call_info.hpp"
 #include "vm/vm.hpp"
 #include "runtime/runtime_services.hpp"
+#include "runtime/runtime_output.hpp"
 #include "runtime/bytecode_verifier.hpp"
 #include "runtime/chunk_reader_limits.hpp"
 #include "compiler/parser/parser.hpp"
@@ -86,6 +87,8 @@ i32 luaB_print(LuaState* L) {
     i32 n = L->getTop(); // 参数数量
     L->consumeNativeWork(n == 0 ? 1 : static_cast<u64>(n));
 
+    Str line;
+
     for (i32 i = 1; i <= n; i++) {
         const char* s = nullptr;
         Str formatted;
@@ -112,12 +115,17 @@ i32 luaB_print(LuaState* L) {
         }
 
         if (i > 1) {
-            std::fputs("\t", stdout);
+            line.push_back('\t');
         }
-        std::fputs(s, stdout);
+        line += s;
     }
-    std::fputs("\n", stdout);
-    std::fflush(stdout);
+    line.push_back('\n');
+    if (RuntimeOutputSink* sink = L->getGlobalState().getRuntimeOutputSink()) {
+        sink->writeRuntimeOutput(line, false);
+    } else {
+        std::fwrite(line.data(), 1, line.size(), stdout);
+        std::fflush(stdout);
+    }
 
     return 0; // 不返回值
 }
@@ -890,7 +898,7 @@ public:
             throw std::runtime_error("binary chunk input limit exceeded");
         }
         readHeader();
-        Proto* proto = readProto(1);
+        Proto* proto = readProto(1, nullptr);
         if (pos_ != data_.size()) {
             throw std::runtime_error("binary chunk has trailing data");
         }
@@ -1048,7 +1056,7 @@ private:
         }
     }
 
-    Proto* readProto(usize depth) {
+    Proto* readProto(usize depth, GCString* inheritedSource) {
         if (depth > limits_.maxProtoDepth) {
             throw std::runtime_error("binary chunk Proto depth limit exceeded");
         }
@@ -1056,7 +1064,8 @@ private:
             throw std::runtime_error("binary chunk Proto count limit exceeded");
         }
         Proto* proto = gc_.create<Proto>();
-        proto->setSource(readMaybeString());
+        GCString* source = readMaybeString();
+        proto->setSource(source != nullptr ? source : inheritedSource);
         proto->setLineDefined(readI32());
         proto->setLastLineDefined(readI32());
         if (projectLocal_) {
@@ -1089,7 +1098,7 @@ private:
             throw std::runtime_error("binary chunk Proto count limit exceeded");
         }
         for (usize i = 0; i < subProtoCount; ++i) {
-            proto->addProto(readProto(depth + 1));
+            proto->addProto(readProto(depth + 1, proto->getSource()));
         }
 
         usize lineInfoCount = readSize();

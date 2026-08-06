@@ -20,6 +20,16 @@ as successful evidence after a correctness failure.
 | `gc_pause_p50_us` / `p95` / `p99` / `max` | One fixed-size `GarbageCollector::step` call per frame; allocation and Lua execution are outside the pause timer. |
 | `heap_growth_bytes_per_million_frames` | Linear slope of counting-allocator live bytes sampled after completed GC cycles, with a fixed retained set and transient per-frame allocations. |
 
+`lua_debugger_bench` adds three debugger-specific profiles over the same deterministic-loop style: `debugger-disabled`,
+`attached-no-breakpoint`, and `line-breakpoint`. The `all` contract uses multiple samples and medians, requires attached
+execution to stay within 5% of the disabled median, records one real line-breakpoint round trip, and measures a
+100-element variables page plus its serialized-text payload size. The disabled metric is intended for a paired
+base/head comparison with a 2% regression budget; a single absolute wall-clock run is not treated as that evidence.
+
+```powershell
+build/bench/Release/lua_debugger_bench.exe --profile all --json build/bench/debugger-bench.json
+```
+
 The GC `size` parameter is reported as `gc_step_size`. Its work accounting is the runtime's local approximation
 scaled by `stepmul`; it must not be interpreted as a precise number of traced bytes. Heap evidence records both the
 counting allocator's live bytes and the collector's estimated managed bytes/object count. Intermediate heap

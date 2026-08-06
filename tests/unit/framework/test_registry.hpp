@@ -20,6 +20,27 @@
  */
 void registerValueTests();
 
+/** Register editor-independent debugger metadata tests. */
+void registerDebuggerDebugInfoTests();
+
+/** Register protocol-independent debugger domain type tests. */
+void registerDebuggerDomainTypeTests();
+
+/** Register debugger attachment and lifecycle tests. */
+void registerDebuggerRuntimeTests();
+
+/** Register the versioned YanLua Debug Protocol tests. */
+void registerDebuggerRemoteProtocolTests();
+
+/** Register source breakpoint manager and VM-hit tests. */
+void registerDebuggerBreakpointTests();
+
+/** Register paused stack/scope/variable inspection tests. */
+void registerDebuggerStackInspectorTests();
+
+/** Register the protocol-independent internal debugger CLI test. */
+void registerDebuggerCliTests();
+
 /**
  * @brief 注册GCString和StringPool测试
  */

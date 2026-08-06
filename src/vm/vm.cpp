@@ -30,6 +30,7 @@
 #include "vm/state/global_state.hpp"
 #include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
+#include "debugger/debug_runtime.hpp"
 
 #include <cassert>
 
@@ -82,6 +83,10 @@ ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* 
     if (nexeccalls >= MAX_CALLS)
         throw StackOverflowError("VM: stack overflow (too many nested calls)");
 
+    if (services.debugger != nullptr) [[unlikely]] {
+        services.debugger->registerProto(*proto);
+    }
+
     VMContext context{services, L, proto, nexeccalls};
     DispatchStrategy& strategy =
         services.dispatchStrategy != nullptr ? *services.dispatchStrategy : defaultDispatchStrategy();
@@ -99,7 +104,64 @@ ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
 }
 
 ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
-    return executeProtoUnchecked(services, L, proto, nexeccalls);
+    try {
+        return executeProtoUnchecked(services, L, proto, nexeccalls);
+    } catch (const MemoryError& error) {
+        if (services.debugger != nullptr &&
+            services.debugger->exceptionSafepoint(*L, Debugger::DebugExceptionCategory::ResourceError, error.what(),
+                                                  error.hasErrorObject() ? &error.getErrorObject() : nullptr) ==
+                Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+            throw RuntimeError("debugger requested execution termination");
+        }
+        throw;
+    } catch (const StackOverflowError& error) {
+        if (services.debugger != nullptr &&
+            services.debugger->exceptionSafepoint(*L, Debugger::DebugExceptionCategory::ResourceError, error.what(),
+                                                  error.hasErrorObject() ? &error.getErrorObject() : nullptr) ==
+                Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+            throw RuntimeError("debugger requested execution termination");
+        }
+        throw;
+    } catch (const RuntimeError& error) {
+        Debugger::DebugExceptionCategory category = Debugger::DebugExceptionCategory::RuntimeError;
+        const ExecutionStopReason stopReason = services.globalState.getExecutionPolicy().lastStopReason();
+        if (stopReason == ExecutionStopReason::Cancelled) {
+            category = Debugger::DebugExceptionCategory::HostCancellation;
+        } else if (stopReason != ExecutionStopReason::None) {
+            category = Debugger::DebugExceptionCategory::ResourceError;
+        }
+        if (services.debugger != nullptr &&
+            services.debugger->exceptionSafepoint(*L, category, error.what(),
+                                                  error.hasErrorObject() ? &error.getErrorObject() : nullptr) ==
+                Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+            throw RuntimeError("debugger requested execution termination");
+        }
+        throw;
+    } catch (const std::bad_alloc&) {
+        if (services.debugger != nullptr &&
+            services.debugger->exceptionSafepoint(*L, Debugger::DebugExceptionCategory::ResourceError,
+                                                  "memory allocation failed") ==
+                Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+            throw RuntimeError("debugger requested execution termination");
+        }
+        throw;
+    } catch (const std::exception& error) {
+        if (services.debugger != nullptr &&
+            services.debugger->exceptionSafepoint(*L, Debugger::DebugExceptionCategory::RuntimeError,
+                                                  error.what()) ==
+                Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+            throw RuntimeError("debugger requested execution termination");
+        }
+        throw;
+    } catch (...) {
+        if (services.debugger != nullptr &&
+            services.debugger->exceptionSafepoint(*L, Debugger::DebugExceptionCategory::RuntimeError,
+                                                  "unknown runtime error") ==
+                Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+            throw RuntimeError("debugger requested execution termination");
+        }
+        throw;
+    }
 }
 
 std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls) {
@@ -112,8 +174,7 @@ std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* prot
 
 std::expected<ExecResult, RuntimeError> tryExecuteProto(RuntimeServices& services, LuaState* L, Proto* proto,
                                                         i32 nexeccalls) {
-    return VM::detail::captureRuntimeErrors<ExecResult>(
-        [&]() { return executeProtoUnchecked(services, L, proto, nexeccalls); });
+    return VM::detail::captureRuntimeErrors<ExecResult>([&]() { return executeProto(services, L, proto, nexeccalls); });
 }
 
 namespace {
@@ -155,6 +216,7 @@ ExecResult runDispatchBackend(VMContext& context, DispatchBackend backend) {
     Function* func = nullptr;
     Value* base = nullptr;
     usize pc = 0;
+    Debugger::DebugController* const debugger = services.debugger;
 
 reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 {
@@ -210,6 +272,14 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 
             CallInfo& currentCI = L->getCurrentCallInfo();
             currentCI.savedpc = code.data() + pc;
+
+            if (debugger != nullptr && debugger->requiresInstructionSafepoint()) [[unlikely]] {
+                const Debugger::DebugSafepointResult debugResult =
+                    debugger->instructionSafepoint(*L, *proto, instructionPc);
+                if (debugResult == Debugger::DebugSafepointResult::TerminateExecution) {
+                    throw RuntimeError("debugger requested execution termination");
+                }
+            }
 
             VM::detail::dispatchCountHook(L);
             base = refreshBase(L);

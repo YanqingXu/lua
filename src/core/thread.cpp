@@ -6,6 +6,7 @@
 #include "core/thread.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
+#include "vm/vm_internal.hpp"
 #include "core/function.hpp"
 #include "core/value.hpp"
 #include "core/upvalue.hpp"
@@ -15,6 +16,7 @@
 #include "runtime/runtime_services.hpp"
 #include "gc/garbage_collector.hpp"
 #include "common/lua_error.hpp"
+#include "debugger/debug_runtime.hpp"
 #include <algorithm>
 #include <utility>
 
@@ -303,9 +305,7 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
             }
             state_->setAbsoluteTop(callInfo.top);
 
-            if (state_->hasDebugHookMask(HookMaskCall)) {
-                state_->callDebugHook(DebugHookEvent::Call);
-            }
+            VM::detail::dispatchCallHook(state_.get());
 
             firstResume_ = false;
             savedNexeccalls_ = 1;
@@ -378,6 +378,13 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         yieldPermissionAdded = true;
         globalState.setRunningThread(this);
 
+        if (Debugger::DebugController* debugger = globalState.getDebugController();
+            debugger != nullptr &&
+            debugger->semanticSafepoint(*state_, Debugger::DebugSemanticEvent::CoroutineResume) ==
+                Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+            throw RuntimeError("debugger requested execution termination");
+        }
+
         RuntimeServices services(state_->getGlobalState());
         const ExecResult result = VM::executeProto(services, state_.get(), proto, savedNexeccalls_);
         restoreCallerContext();
@@ -386,6 +393,12 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         usize resultStart = 0;
         usize resultCount = 0;
         if (result == ExecResult::Yielded) {
+            if (Debugger::DebugController* debugger = globalState.getDebugController();
+                debugger != nullptr &&
+                debugger->semanticSafepoint(*state_, Debugger::DebugSemanticEvent::CoroutineYield) ==
+                    Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
+                throw RuntimeError("debugger requested execution termination");
+            }
             savedNexeccalls_ = state_->getSavedNexeccalls();
             coStatus_ = CoroutineStatus::Suspended;
             const i32 yieldResults = state_->getYieldResults();

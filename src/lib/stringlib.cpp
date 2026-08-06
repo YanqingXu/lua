@@ -1489,11 +1489,12 @@ public:
         }
     }
 
-    void proto(Proto* function, usize depth = 1) {
+    void proto(Proto* function, usize depth = 1, GCString* inheritedSource = nullptr) {
         if (function == nullptr || depth > maxDepth_) {
             state_->error("string.dump: Proto nesting limit exceeded");
         }
-        maybeString(function->getSource());
+        GCString* source = function->getSource();
+        maybeString(source == inheritedSource ? nullptr : source);
         i32Value(function->getLineDefined());
         i32Value(function->getLastLineDefined());
         byte(function->getNumParams());
@@ -1509,7 +1510,7 @@ public:
             constant(function->getConstant(i));
         size(function->getSubProtoCount());
         for (usize i = 0; i < function->getSubProtoCount(); ++i)
-            proto(function->getSubProto(i), depth + 1);
+            proto(function->getSubProto(i), depth + 1, source != nullptr ? source : inheritedSource);
         size(function->getLineInfo().size());
         for (i32 line : function->getLineInfo())
             i32Value(line);

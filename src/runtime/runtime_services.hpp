@@ -17,6 +17,10 @@ namespace VM {
 class DispatchStrategy;
 }
 
+namespace Debugger {
+class DebugController;
+}
+
 class EngineContext;
 
 /**
@@ -30,15 +34,16 @@ struct RuntimeServices {
     StringPool& strings;
     GarbageCollector& gc;
     VM::DispatchStrategy* dispatchStrategy;
+    Debugger::DebugController* debugger;
 
     explicit RuntimeServices(GlobalState& global, VM::DispatchStrategy* dispatch = nullptr)
         : globalState(global), strings((global.requireOwnerThread(), global.getStringPool())), gc(global.getGC()),
-          dispatchStrategy(dispatch) {}
+          dispatchStrategy(dispatch), debugger(global.getDebugController()) {}
 
     RuntimeServices(GlobalState& global, StringPool& stringPool, GarbageCollector& collector,
                     VM::DispatchStrategy* dispatch = nullptr)
         : globalState(global), strings((global.requireOwnerThread(), stringPool)), gc(collector),
-          dispatchStrategy(dispatch) {}
+          dispatchStrategy(dispatch), debugger(global.getDebugController()) {}
 
     static RuntimeServices fromSingletons() {
         return RuntimeServices(GlobalState::getInstance());

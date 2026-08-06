@@ -1040,6 +1040,16 @@ void testStringDump(TestSuite& suite) {
               "dumped open-vararg function preserves the final dynamic result");
 
     ok = runLua(L, R"lua(
+        local factory = assert(loadstring("return function() return 7 end", "@debugger/dumped_source.lua"))
+        local restoredFactory = assert(loadstring(string.dump(factory)))
+        local restoredNested = restoredFactory()
+        gDumpNestedSource = debug.getinfo(restoredNested, "S").source
+    )lua");
+    ASSERT_TRUE(suite, ok, "string.dump nested source inheritance round-trip runs");
+    ASSERT_EQ(suite, std::string("@debugger/dumped_source.lua"), getGlobalStr(L, "gDumpNestedSource"),
+              "dumped nested Proto inherits its parent source when the child source field is omitted");
+
+    ok = runLua(L, R"lua(
         local ok = pcall(function() return string.dump(print) end)
         gDumpCFunctionFailed = ok and 0 or 1
     )lua");

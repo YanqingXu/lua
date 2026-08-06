@@ -49,6 +49,9 @@
     <Filter Include="tests\official">
       <UniqueIdentifier>{da736ba3-4ee1-bec7-f99d-c58b1ea386f0}</UniqueIdentifier>
     </Filter>
+    <Filter Include="tests\debugger">
+      <UniqueIdentifier>{ae3e6737-54d2-4f9f-a9cc-66ec15cdf001}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tests\unit\framework\test_framework.hpp">
@@ -118,6 +121,27 @@
     </ClCompile>
     <ClCompile Include="tests\unit\framework\test_runner.cpp">
       <Filter>framework</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\debugger\test_debug_info.cpp">
+      <Filter>tests\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\debugger\test_breakpoints.cpp">
+      <Filter>tests\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\debugger\test_debug_cli.cpp">
+      <Filter>tests\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\debugger\test_debug_runtime.cpp">
+      <Filter>tests\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\debugger\test_debug_types.cpp">
+      <Filter>tests\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\debugger\test_remote_protocol.cpp">
+      <Filter>tests\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\unit\debugger\test_stack_inspector.cpp">
+      <Filter>tests\debugger</Filter>
     </ClCompile>
     <ClCompile Include="tests\unit\app\test_app_options.cpp">
       <Filter>tests\app</Filter>

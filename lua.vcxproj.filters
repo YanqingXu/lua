@@ -208,6 +208,36 @@
     <ClCompile Include="src\debug\json_trace_sink.cpp">
       <Filter>src\debug</Filter>
     </ClCompile>
+    <ClCompile Include="src\debugger\debug_info.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\debug_cli.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\breakpoint_manager.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\debug_runtime.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\remote_protocol.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\remote_messages.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\remote_server.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\remote_transport.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\source_registry.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debugger\stack_inspector.cpp">
+      <Filter>src\debugger</Filter>
+    </ClCompile>
     <ClCompile Include="src\lib\coroutinelib.cpp">
       <Filter>src\lib</Filter>
     </ClCompile>
@@ -435,6 +465,45 @@
     <ClInclude Include="src\debug\ring_trace_sink.hpp">
       <Filter>src\debug</Filter>
     </ClInclude>
+    <ClInclude Include="src\debugger\debug_info.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\debug_cli.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\breakpoint_manager.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\debug_runtime.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\debug_types.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\pause_handles.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\remote_protocol.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\remote_messages.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\remote_server.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\remote_protocol_generated.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\remote_transport.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\source_registry.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="src\debugger\stack_inspector.hpp">
+      <Filter>src\debugger</Filter>
+    </ClInclude>
     <ClInclude Include="src\lib\coroutinelib.hpp">
       <Filter>src\lib</Filter>
     </ClInclude>
@@ -535,6 +604,9 @@
     </Filter>
     <Filter Include="src\debug">
       <UniqueIdentifier>{d1a2b3c4-e5f6-7890-abcd-ef1234567890}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\debugger">
+      <UniqueIdentifier>{639d9b65-26c0-4cf4-97d2-d4f4f3c8d591}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\runtime">
       <UniqueIdentifier>{f2b3c4d5-e6f7-8901-bcde-f23456789012}</UniqueIdentifier>
