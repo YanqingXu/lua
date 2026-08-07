@@ -210,13 +210,15 @@ jobs:
           fuzz_bytecode_verifier
           fuzz_parser
           fuzz_stdlib_numeric_arguments
+          fuzz_remote_protocol
+          fuzz_debugger_expression
 
       - name: Run long fuzz campaign
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p build/fuzz-artifacts build/fuzz-corpus
-          targets=(undump bytecode_verifier parser stdlib_numeric_arguments)
+          targets=(undump bytecode_verifier parser stdlib_numeric_arguments remote_protocol debugger_expression)
           for target in "${targets[@]}"; do
             cp -R "tests/fuzz/corpus/${target}" "build/fuzz-corpus/${target}"
             "build/fuzz/fuzz_${target}" "build/fuzz-corpus/${target}" \
@@ -235,7 +237,7 @@ jobs:
           --kind long-fuzz-evidence
           --output build/evidence-metadata.json
           --parameter fuzz_seconds_per_target=$FUZZ_SECONDS_PER_TARGET
-          --parameter 'fuzz_targets=["undump","bytecode_verifier","parser","stdlib_numeric_arguments"]'
+          --parameter 'fuzz_targets=["undump","bytecode_verifier","parser","stdlib_numeric_arguments","remote_protocol","debugger_expression"]'
 
       - name: Upload fuzz evidence
         if: success()

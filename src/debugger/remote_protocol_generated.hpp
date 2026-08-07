@@ -7,7 +7,7 @@ namespace Lua::Debugger::Remote {
 
 inline constexpr u32 kProtocolMagic = 0x594C4431U;
 inline constexpr u16 kProtocolVersionMajor = 1U;
-inline constexpr u16 kProtocolVersionMinor = 0U;
+inline constexpr u16 kProtocolVersionMinor = 1U;
 inline constexpr usize kProtocolHeaderSize = 28U;
 inline constexpr usize kProtocolMaxFrameBytes = 1048576U;
 inline constexpr usize kProtocolMaxStringBytes = 65536U;
@@ -16,7 +16,7 @@ inline constexpr u32 kProtocolHandshakeTimeoutMs = 5000U;
 inline constexpr u32 kProtocolRequestTimeoutMs = 10000U;
 inline constexpr u32 kProtocolHeartbeatIntervalMs = 5000U;
 inline constexpr u32 kProtocolIdleTimeoutMs = 30000U;
-inline constexpr const char* kProtocolSchemaSha256 = "e9f558515fc1b2ac25fa77379c662b242d2697433d0fd9e43d5365ca9226df9f";
+inline constexpr const char* kProtocolSchemaSha256 = "f7829b094ea60c185f96c6c7e2694f6a4f735029544eb5aa192bc6b4933fac22";
 
 enum class ProtocolMessageKind : u8 {
     Hello = 1,
@@ -46,6 +46,10 @@ enum class ProtocolCommand : u16 {
     Detach = 14,
     States = 15,
     SelectState = 16,
+    SetFunctionBreakpoints = 17,
+    SetAdvancedBreakpoints = 18,
+    SetVariable = 19,
+    EvaluateSideEffects = 20,
 };
 enum class ProtocolEvent : u16 {
     None = 0,
@@ -88,6 +92,9 @@ enum class ProtocolCapability : u64 {
     SourcePathMapping = 1ULL << 9U,
     Reconnect = 1ULL << 10U,
     GlobalPauseOnly = 1ULL << 11U,
+    AdvancedBreakpoints = 1ULL << 12U,
+    VariableWrite = 1ULL << 13U,
+    SideEffectEvaluation = 1ULL << 14U,
 };
 
 constexpr u64 capabilityBit(ProtocolCapability capability) noexcept {

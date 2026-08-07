@@ -84,6 +84,8 @@ ProtocolStatus protocolStatus(DebugErrorCode code) noexcept {
         return ProtocolStatus::Timeout;
     case DebugErrorCode::Unsupported:
         return ProtocolStatus::NotSupported;
+    case DebugErrorCode::PermissionDenied:
+        return ProtocolStatus::Unauthorized;
     case DebugErrorCode::RuntimeFailure:
         return ProtocolStatus::InternalError;
     }
@@ -102,6 +104,8 @@ DebugErrorCode debugErrorCode(ProtocolStatus status) noexcept {
         return DebugErrorCode::Timeout;
     case ProtocolStatus::NotSupported:
         return DebugErrorCode::Unsupported;
+    case ProtocolStatus::Unauthorized:
+        return DebugErrorCode::PermissionDenied;
     case ProtocolStatus::InvalidArgument:
     case ProtocolStatus::NotFound:
         return DebugErrorCode::InvalidReference;
@@ -163,6 +167,88 @@ ProtocolResult<RemoteBreakpointRequest> decodeBreakpointRequest(std::span<const 
     return result;
 }
 
+ProtocolResult<Vec<u8>> encodeAdvancedBreakpointRequest(const RemoteBreakpointRequest& request) {
+    ProtocolWriter writer;
+    writer.writeString(request.sourcePath);
+    if (!writeCount(writer, request.breakpoints.size())) {
+        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many remote breakpoints", 0});
+    }
+    for (const SourceBreakpoint& breakpoint : request.breakpoints) {
+        writer.writeI64(breakpoint.line);
+        writer.writeString(breakpoint.condition);
+        writer.writeString(breakpoint.hitCondition);
+        writer.writeString(breakpoint.logMessage);
+    }
+    return std::move(writer).finish();
+}
+
+ProtocolResult<RemoteBreakpointRequest> decodeAdvancedBreakpointRequest(std::span<const u8> payload) {
+    ProtocolReader reader(payload);
+    auto source = reader.readString();
+    auto count = reader.readCount();
+    if (!source || !count || source->empty()) {
+        return std::unexpected(malformed("remote breakpoint source must be non-empty"));
+    }
+    RemoteBreakpointRequest result;
+    result.sourcePath = std::move(*source);
+    result.breakpoints.reserve(*count);
+    for (usize index = 0; index < *count; ++index) {
+        auto line = reader.readI64();
+        auto condition = reader.readString();
+        auto hitCondition = reader.readString();
+        auto logMessage = reader.readString();
+        if (!line || !condition || !hitCondition || !logMessage || *line < 1 ||
+            *line > std::numeric_limits<i32>::max()) {
+            return std::unexpected(malformed("advanced remote breakpoint is malformed"));
+        }
+        result.breakpoints.push_back({static_cast<i32>(*line), std::move(*condition),
+                                      std::move(*hitCondition), std::move(*logMessage)});
+    }
+    if (auto complete = reader.finish(); !complete) {
+        return std::unexpected(complete.error());
+    }
+    return result;
+}
+
+ProtocolResult<Vec<u8>>
+encodeFunctionBreakpointRequest(std::span<const FunctionBreakpoint> breakpoints) {
+    ProtocolWriter writer;
+    if (!writeCount(writer, breakpoints.size())) {
+        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit,
+                                             "too many remote function breakpoints", 0});
+    }
+    for (const FunctionBreakpoint& breakpoint : breakpoints) {
+        writer.writeString(breakpoint.name);
+        writer.writeString(breakpoint.condition);
+        writer.writeString(breakpoint.hitCondition);
+    }
+    return std::move(writer).finish();
+}
+
+ProtocolResult<Vec<FunctionBreakpoint>>
+decodeFunctionBreakpointRequest(std::span<const u8> payload) {
+    ProtocolReader reader(payload);
+    auto count = reader.readCount();
+    if (!count) {
+        return std::unexpected(count.error());
+    }
+    Vec<FunctionBreakpoint> result;
+    result.reserve(*count);
+    for (usize index = 0; index < *count; ++index) {
+        auto name = reader.readString();
+        auto condition = reader.readString();
+        auto hitCondition = reader.readString();
+        if (!name || !condition || !hitCondition || name->empty()) {
+            return std::unexpected(malformed("remote function breakpoint is malformed"));
+        }
+        result.push_back({std::move(*name), std::move(*condition), std::move(*hitCondition)});
+    }
+    if (auto complete = reader.finish(); !complete) {
+        return std::unexpected(complete.error());
+    }
+    return result;
+}
+
 ProtocolResult<Vec<u8>> encodeBreakpointBindings(std::span<const BreakpointBinding> bindings) {
     ProtocolWriter writer;
     if (!writeCount(writer, bindings.size())) {
@@ -201,6 +287,61 @@ ProtocolResult<Vec<BreakpointBinding>> decodeBreakpointBindings(std::span<const 
         }
         result.push_back({BreakpointId{*id}, SourceId{*source}, static_cast<i32>(*requested), static_cast<i32>(*line),
                           *verified, std::move(*message)});
+    }
+    if (auto complete = reader.finish(); !complete) {
+        return std::unexpected(complete.error());
+    }
+    return result;
+}
+
+ProtocolResult<Vec<u8>>
+encodeFunctionBreakpointBindings(std::span<const BreakpointBinding> bindings) {
+    ProtocolWriter writer;
+    if (!writeCount(writer, bindings.size())) {
+        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit,
+                                             "too many function breakpoint bindings", 0});
+    }
+    for (const BreakpointBinding& binding : bindings) {
+        writer.writeU64(binding.id.value());
+        writer.writeU64(binding.sourceId.value());
+        writer.writeI64(binding.line);
+        writer.writeBool(binding.verified);
+        writer.writeString(binding.message);
+        writer.writeString(binding.functionName.value_or(Str{}));
+    }
+    return std::move(writer).finish();
+}
+
+ProtocolResult<Vec<BreakpointBinding>>
+decodeFunctionBreakpointBindings(std::span<const u8> payload) {
+    ProtocolReader reader(payload);
+    auto count = reader.readCount();
+    if (!count) {
+        return std::unexpected(count.error());
+    }
+    Vec<BreakpointBinding> result;
+    result.reserve(*count);
+    for (usize index = 0; index < *count; ++index) {
+        auto id = reader.readU64();
+        auto source = reader.readU64();
+        auto line = reader.readI64();
+        auto verified = reader.readBool();
+        auto message = reader.readString();
+        auto functionName = reader.readString();
+        if (!id || !source || !line || !verified || !message || !functionName ||
+            *line < std::numeric_limits<i32>::min() || *line > std::numeric_limits<i32>::max()) {
+            return std::unexpected(malformed("remote function breakpoint binding is malformed"));
+        }
+        BreakpointBinding binding;
+        binding.id = BreakpointId{*id};
+        binding.sourceId = SourceId{*source};
+        binding.line = static_cast<i32>(*line);
+        binding.verified = *verified;
+        binding.message = std::move(*message);
+        if (!functionName->empty()) {
+            binding.functionName = std::move(*functionName);
+        }
+        result.push_back(std::move(binding));
     }
     if (auto complete = reader.finish(); !complete) {
         return std::unexpected(complete.error());
@@ -311,6 +452,29 @@ ProtocolResult<RemoteEvaluateRequest> decodeEvaluateRequest(std::span<const u8> 
         return std::unexpected(complete.error());
     }
     return RemoteEvaluateRequest{FrameId{*frame}, std::move(*expression)};
+}
+
+ProtocolResult<Vec<u8>> encodeSetVariableRequest(const RemoteSetVariableRequest& request) {
+    ProtocolWriter writer;
+    writer.writeU64(request.reference.value());
+    writer.writeString(request.name);
+    writer.writeString(request.valueExpression);
+    return std::move(writer).finish();
+}
+
+ProtocolResult<RemoteSetVariableRequest> decodeSetVariableRequest(std::span<const u8> payload) {
+    ProtocolReader reader(payload);
+    auto reference = reader.readU64();
+    auto name = reader.readString();
+    auto valueExpression = reader.readString();
+    if (!reference || !name || !valueExpression || *reference == 0 || name->empty() || valueExpression->empty()) {
+        return std::unexpected(malformed("remote setVariable request is malformed"));
+    }
+    if (auto complete = reader.finish(); !complete) {
+        return std::unexpected(complete.error());
+    }
+    return RemoteSetVariableRequest{VariableReference{*reference}, std::move(*name),
+                                    std::move(*valueExpression)};
 }
 
 ProtocolResult<Vec<u8>> encodeBooleanRequest(bool value) {
@@ -672,6 +836,26 @@ ProtocolResult<DebugState> decodeDebugStateEvent(std::span<const u8> payload) {
         return std::unexpected(states ? malformed("state event must contain exactly one state") : states.error());
     }
     return std::move(states->front());
+}
+
+ProtocolResult<Vec<u8>> encodeOutputEvent(StrView text, DebugOutputCategory category) {
+    ProtocolWriter writer;
+    writer.writeU8(static_cast<u8>(category));
+    writer.writeString(text);
+    return std::move(writer).finish();
+}
+
+ProtocolResult<std::pair<Str, DebugOutputCategory>> decodeOutputEvent(std::span<const u8> payload) {
+    ProtocolReader reader(payload);
+    auto category = reader.readU8();
+    auto text = reader.readString();
+    if (!category || !text || *category > static_cast<u8>(DebugOutputCategory::Stderr)) {
+        return std::unexpected(malformed("remote output event is malformed"));
+    }
+    if (auto complete = reader.finish(); !complete) {
+        return std::unexpected(complete.error());
+    }
+    return std::pair<Str, DebugOutputCategory>{std::move(*text), static_cast<DebugOutputCategory>(*category)};
 }
 
 } // namespace Lua::Debugger::Remote

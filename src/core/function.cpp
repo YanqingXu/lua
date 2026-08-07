@@ -23,7 +23,8 @@ Proto::Proto(LuaAllocator* allocator)
     : GCObject(GCObjectType::Proto), constants_(allocator),
       constantMap_(0, ConstantKeyHash{}, std::equal_to<ConstantKey>{}, ConstantMapAllocator(allocator)),
       code_(allocator), subProtos_(allocator), lineInfo_(allocator), locvars_(allocator), upvalueNames_(allocator),
-      source_(nullptr), linedefined_(0), lastlinedefined_(0), gclist_(nullptr), nups_(0), numParams_(0), isVararg_(0),
+      source_(nullptr), debugName_(nullptr), linedefined_(0), lastlinedefined_(0), gclist_(nullptr), nups_(0),
+      numParams_(0), isVararg_(0),
       maxStackSize_(0) {}
 
 Proto::~Proto() {
@@ -35,6 +36,13 @@ void Proto::setSource(GCString* src) {
         gc->writeBarrier(this, src);
     }
     source_ = src;
+}
+
+void Proto::setDebugName(GCString* name) {
+    if (GarbageCollector* gc = getOwnerCollector()) {
+        gc->writeBarrier(this, name);
+    }
+    debugName_ = name;
 }
 
 usize Proto::addConstant(const Value& value) {
@@ -263,6 +271,7 @@ GCString* Proto::getUpvalueName(usize index) const {
 void Proto::mark(GarbageCollector& gc) {
     // 标记源文件名
     gc.markObject(source_);
+    gc.markObject(debugName_);
 
     // 标记常量表中的GC对象
     for (const Value& val : constants_) {

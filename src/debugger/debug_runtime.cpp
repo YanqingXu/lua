@@ -12,6 +12,8 @@
 #include "vm/state/stack.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <future>
@@ -88,7 +90,9 @@ struct RegisteredDebugState {
 
 struct DebugControllerState {
     DebugControllerState(DebugResourceLimits limits, std::atomic<u8>& flags)
-        : inspector(breakpoints, limits), maxStates(limits.maxStates), instructionFlags(&flags) {}
+        : inspector(breakpoints, limits), maxStates(limits.maxStates),
+          maxLogMessageLength(limits.maxLogMessageLength),
+          maxLogMessagesPerSecond(limits.maxLogMessagesPerSecond), instructionFlags(&flags) {}
 
     mutable std::mutex mutex;
     std::condition_variable condition;
@@ -124,6 +128,13 @@ struct DebugControllerState {
     u64 nextStateId = 1;
     u64 nextThreadId = 1;
     usize maxStates = 256;
+    usize maxLogMessageLength = 4096;
+    usize maxLogMessagesPerSecond = 100;
+    std::chrono::steady_clock::time_point logWindowStart = std::chrono::steady_clock::now();
+    usize logMessagesInWindow = 0;
+    usize droppedLogMessages = 0;
+    u64 totalDroppedLogMessages = 0;
+    DebugWritePolicy writePolicy;
     std::atomic<u8>* instructionFlags = nullptr;
 };
 
@@ -307,7 +318,8 @@ DebugSessionSnapshot snapshotLocked(const DebugControllerState& state) {
             state.activeSessionId != 0,
             state.pauseRequested.load(std::memory_order_acquire),
             state.terminateRequested.load(std::memory_order_acquire),
-            state.pausedThread};
+            state.pausedThread,
+            state.totalDroppedLogMessages};
 }
 
 void publish(const Ptr<IDebugEventSink>& sink, const DebugSessionSnapshot& snapshot) noexcept {
@@ -318,6 +330,163 @@ void publish(const Ptr<IDebugEventSink>& sink, const DebugSessionSnapshot& snaps
         sink->onDebugStateChanged(snapshot);
     } catch (...) {
         // A client callback must not unwind into the VM or destroy lifecycle state.
+    }
+}
+
+struct EvaluatedBreakpointBehavior {
+    bool conditionMatched = true;
+    bool conditionError = false;
+    bool logError = false;
+    Opt<Str> logOutput;
+    Opt<DebugError> error;
+};
+
+EvaluatedBreakpointBehavior evaluateBreakpointBehavior(DebugControllerState& state, LuaState& luaState,
+                                                        const BreakpointBehavior& behavior) {
+    EvaluatedBreakpointBehavior result;
+    if (behavior.condition.empty() && behavior.logMessage.empty()) {
+        return result;
+    }
+
+    ThreadId thread;
+    Str threadName;
+    PauseGeneration temporaryGeneration;
+    {
+        std::lock_guard lock(state.mutex);
+        thread = pausedThreadLocked(state, &luaState);
+        threadName = pausedThreadNameLocked(state, &luaState);
+        temporaryGeneration = PauseGeneration{state.pauseGeneration.value() + 1};
+    }
+    state.inspector.beginPause(luaState, temporaryGeneration, thread, threadName);
+    struct EndTemporaryInspection {
+        StackInspector& inspector;
+        ~EndTemporaryInspection() {
+            inspector.endPause();
+        }
+    } end{state.inspector};
+
+    auto frames = state.inspector.stackTrace(thread, 0, 1);
+    if (!frames || frames->empty()) {
+        result.conditionError = !behavior.condition.empty();
+        result.logError = !behavior.logMessage.empty();
+        result.error = frames ? DebugError{DebugErrorCode::InvalidReference, "breakpoint has no live Lua frame"}
+                              : frames.error();
+        return result;
+    }
+    const FrameId frame = frames->front().id;
+    const auto evaluate = [&](StrView expression) { return state.inspector.evaluate(frame, expression); };
+
+    if (!behavior.condition.empty()) {
+        auto condition = evaluate(behavior.condition);
+        if (!condition) {
+            result.conditionError = true;
+            result.error = condition.error();
+            return result;
+        }
+        result.conditionMatched = condition->type != "nil" &&
+                                  !(condition->type == "boolean" && condition->value == "false");
+        if (!result.conditionMatched) {
+            return result;
+        }
+    }
+
+    if (behavior.logMessage.empty()) {
+        return result;
+    }
+    Str rendered;
+    rendered.reserve(std::min(behavior.logMessage.size(), state.maxLogMessageLength));
+    for (usize index = 0; index < behavior.logMessage.size();) {
+        const char character = behavior.logMessage[index];
+        if (character == '{' && index + 1 < behavior.logMessage.size() && behavior.logMessage[index + 1] == '{') {
+            rendered.push_back('{');
+            index += 2;
+        } else if (character == '}' && index + 1 < behavior.logMessage.size() &&
+                   behavior.logMessage[index + 1] == '}') {
+            rendered.push_back('}');
+            index += 2;
+        } else if (character == '{') {
+            const usize close = behavior.logMessage.find('}', index + 1);
+            if (close == Str::npos) {
+                result.logError = true;
+                result.error = DebugError{DebugErrorCode::Unsupported, "log point has an unmatched '{'"};
+                return result;
+            }
+            StrView expression(behavior.logMessage.data() + index + 1, close - index - 1);
+            while (!expression.empty() && std::isspace(static_cast<unsigned char>(expression.front())) != 0) {
+                expression.remove_prefix(1);
+            }
+            while (!expression.empty() && std::isspace(static_cast<unsigned char>(expression.back())) != 0) {
+                expression.remove_suffix(1);
+            }
+            if (expression.empty()) {
+                result.logError = true;
+                result.error = DebugError{DebugErrorCode::Unsupported, "log point interpolation is empty"};
+                return result;
+            }
+            auto value = evaluate(expression);
+            if (!value) {
+                result.logError = true;
+                result.error = value.error();
+                return result;
+            }
+            rendered += value->value;
+            index = close + 1;
+        } else if (character == '}') {
+            result.logError = true;
+            result.error = DebugError{DebugErrorCode::Unsupported, "log point has an unmatched '}'"};
+            return result;
+        } else {
+            rendered.push_back(character);
+            ++index;
+        }
+        if (rendered.size() > state.maxLogMessageLength) {
+            result.logError = true;
+            result.error = DebugError{DebugErrorCode::ResourceLimit,
+                                      "rendered log point exceeds the configured byte limit"};
+            return result;
+        }
+    }
+    rendered.push_back('\n');
+    result.logOutput = std::move(rendered);
+    return result;
+}
+
+void publishDebugOutput(DebugControllerState& state, Str message) noexcept {
+    Ptr<IDebugEventSink> sink;
+    Opt<Str> suppressed;
+    bool allowed = false;
+    {
+        std::lock_guard lock(state.mutex);
+        const auto now = std::chrono::steady_clock::now();
+        if (now - state.logWindowStart >= std::chrono::seconds(1)) {
+            if (state.droppedLogMessages != 0) {
+                suppressed = "[YanLua] suppressed " + std::to_string(state.droppedLogMessages) +
+                             " log point messages\n";
+            }
+            state.logWindowStart = now;
+            state.logMessagesInWindow = 0;
+            state.droppedLogMessages = 0;
+        }
+        if (state.logMessagesInWindow < state.maxLogMessagesPerSecond) {
+            ++state.logMessagesInWindow;
+            allowed = true;
+            sink = state.sink.lock();
+        } else {
+            ++state.droppedLogMessages;
+            ++state.totalDroppedLogMessages;
+        }
+    }
+    if (sink == nullptr) {
+        return;
+    }
+    try {
+        if (suppressed) {
+            sink->onDebugOutput(*suppressed, DebugOutputCategory::Console);
+        }
+        if (allowed) {
+            sink->onDebugOutput(message, DebugOutputCategory::Console);
+        }
+    } catch (...) {
     }
 }
 
@@ -345,6 +514,7 @@ void detachSession(const Ptr<DebugControllerState>& state, u64 sessionId, Discon
         state->stopReason.reset();
         clearStepLocked(*state);
         clearExceptionLocked(*state);
+        state->breakpoints.clearBreakpoints();
         cancelCommandsLocked(
             *state, DebugError{DebugErrorCode::StaleReference, "debug inspection cancelled because the pause ended"});
         state->breakpointEpoch.fetch_add(1, std::memory_order_release);
@@ -739,6 +909,18 @@ DebugResult<Vec<BreakpointBinding>> DebugController::setBreakpoints(SourceId sou
     DebugResult<Vec<BreakpointBinding>> result = state_->breakpoints.setBreakpoints(sourceId, requested);
     if (result) {
         state_->breakpointEpoch.fetch_add(1, std::memory_order_release);
+        std::lock_guard lock(state_->mutex);
+        refreshInstructionFlags(*state_);
+    }
+    return result;
+}
+
+DebugResult<Vec<BreakpointBinding>>
+DebugController::setFunctionBreakpoints(std::span<const FunctionBreakpoint> requested) {
+    DebugResult<Vec<BreakpointBinding>> result = state_->breakpoints.setFunctionBreakpoints(requested);
+    if (result) {
+        state_->breakpointEpoch.fetch_add(1, std::memory_order_release);
+        std::lock_guard lock(state_->mutex);
         refreshInstructionFlags(*state_);
     }
     return result;
@@ -815,6 +997,47 @@ DebugResult<DebugVariable> DebugController::evaluate(FrameId frame, StrView expr
         state_, [frame, copiedExpression](StackInspector& inspector) {
             return inspector.evaluate(frame, copiedExpression);
         });
+}
+
+DebugResult<DebugVariable> DebugController::evaluateWithSideEffects(FrameId frame, StrView expression) {
+    {
+        std::lock_guard lock(state_->mutex);
+        if (!state_->writePolicy.allowSideEffectEvaluation) {
+            return std::unexpected(DebugError{DebugErrorCode::PermissionDenied,
+                                              "side-effecting evaluation is disabled for this debug session"});
+        }
+    }
+    const Str copiedExpression(expression);
+    return enqueueOwnerCommand<DebugVariable>(
+        state_, [frame, copiedExpression](StackInspector& inspector) {
+            return inspector.evaluateWithSideEffects(frame, copiedExpression);
+        });
+}
+
+DebugResult<DebugVariable> DebugController::setVariable(VariableReference reference, StrView name,
+                                                        StrView valueExpression) {
+    {
+        std::lock_guard lock(state_->mutex);
+        if (!state_->writePolicy.allowVariableWrite) {
+            return std::unexpected(DebugError{DebugErrorCode::PermissionDenied,
+                                              "variable writes are disabled for this debug session"});
+        }
+    }
+    const Str copiedName(name);
+    const Str copiedValue(valueExpression);
+    return enqueueOwnerCommand<DebugVariable>(
+        state_, [reference, copiedName, copiedValue](StackInspector& inspector) {
+            return inspector.setVariable(reference, copiedName, copiedValue);
+        });
+}
+
+DebugResult<void> DebugController::configureWritePolicy(DebugWritePolicy policy) {
+    std::lock_guard lock(state_->mutex);
+    if (state_->activeSessionId != 0 && state_->state != DebugSessionState::Starting) {
+        return std::unexpected(invalidState("write policy can only change before configurationDone"));
+    }
+    state_->writePolicy = policy;
+    return {};
 }
 
 DebugSessionSnapshot DebugController::snapshot() const {
@@ -908,18 +1131,48 @@ DebugSafepointResult DebugController::instructionSafepoint(LuaState& pausedState
             state_->suppressingBreakpoint = false;
         }
 
-        const Opt<BreakpointHit> hit = state_->breakpoints.match(proto, pc);
-        if (!hit) {
+        const Ptr<const BreakpointHitList> hits = state_->breakpoints.match(proto, pc);
+        if (hits == nullptr || hits->empty()) {
             state_->suppressingBreakpoint = false;
         } else if (state_->suppressingBreakpoint && state_->suppressedProto == &proto &&
-                   state_->suppressedLine == hit->line && pc > state_->suppressedLastPc) {
+                   state_->suppressedLine == hits->front().line && pc > state_->suppressedLastPc) {
             state_->suppressedLastPc = pc;
         } else {
             state_->suppressingBreakpoint = true;
             state_->suppressedProto = &proto;
-            state_->suppressedLine = hit->line;
+            state_->suppressedLine = hits->front().line;
             state_->suppressedLastPc = pc;
-            return waitForSafepointRequest(state_, DebugStopReason::Breakpoint, &pausedState);
+            bool shouldStop = false;
+            for (const BreakpointHit& hit : *hits) {
+                const Opt<BreakpointActivation> activation = state_->breakpoints.recordHit(hit.id);
+                if (!activation || !activation->hitTargetReached) {
+                    continue;
+                }
+                const BreakpointBehavior emptyBehavior;
+                const BreakpointBehavior& behavior =
+                    activation->behavior == nullptr ? emptyBehavior : *activation->behavior;
+                EvaluatedBreakpointBehavior evaluated = evaluateBreakpointBehavior(*state_, pausedState, behavior);
+                if (evaluated.error) {
+                    const Str prefix = evaluated.conditionError ? "[YanLua breakpoint condition] "
+                                                                : "[YanLua log point] ";
+                    publishDebugOutput(*state_, prefix + evaluated.error->message + "\n");
+                    if (evaluated.conditionError) {
+                        shouldStop = true;
+                    }
+                    continue;
+                }
+                if (!evaluated.conditionMatched) {
+                    continue;
+                }
+                if (evaluated.logOutput) {
+                    publishDebugOutput(*state_, std::move(*evaluated.logOutput));
+                    continue;
+                }
+                shouldStop = true;
+            }
+            if (shouldStop) {
+                return waitForSafepointRequest(state_, DebugStopReason::Breakpoint, &pausedState);
+            }
         }
     }
 
@@ -1009,11 +1262,11 @@ void DebugController::registerProto(const Proto& root) {
         return;
     }
     state_->breakpointEpoch.fetch_add(1, std::memory_order_release);
-    refreshInstructionFlags(*state_);
 
     Ptr<IDebugEventSink> sink;
     {
         std::lock_guard lock(state_->mutex);
+        refreshInstructionFlags(*state_);
         sink = state_->sink.lock();
     }
     if (sink == nullptr) {

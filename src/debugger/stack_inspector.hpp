@@ -7,12 +7,12 @@
 
 #include "debugger/breakpoint_manager.hpp"
 #include "debugger/pause_handles.hpp"
+#include "core/value.hpp"
 
 namespace Lua {
 class Function;
 class LuaState;
 class Table;
-class Value;
 } // namespace Lua
 
 namespace Lua::Debugger {
@@ -39,6 +39,9 @@ public:
     variables(VariableReference reference, usize start, usize count,
               DebugVariableFilter filter = DebugVariableFilter::All);
     [[nodiscard]] DebugResult<DebugVariable> evaluate(FrameId frame, StrView expression);
+    [[nodiscard]] DebugResult<DebugVariable> evaluateWithSideEffects(FrameId frame, StrView expression);
+    [[nodiscard]] DebugResult<DebugVariable> setVariable(VariableReference reference, StrView name,
+                                                         StrView valueExpression);
 
 private:
     struct FrameDescriptor {
@@ -52,7 +55,10 @@ private:
     enum class VariableNodeKind : u8 {
         Locals,
         Upvalues,
-        Table,
+        TableRaw,
+        TableOverview,
+        TableArray,
+        TableHash,
         Exception,
     };
 
@@ -62,14 +68,25 @@ private:
         Table* table = nullptr;
     };
 
+    struct RawEvaluatedValue {
+        Value value;
+        Opt<Str> stringLiteral;
+    };
+
     [[nodiscard]] DebugResult<void> ensureFrames();
     [[nodiscard]] DebugResult<VariableReference> addNode(VariableNode node);
-    [[nodiscard]] DebugResult<Vec<DebugVariable>> localVariables(const FrameDescriptor& frame);
-    [[nodiscard]] DebugResult<Vec<DebugVariable>> upvalueVariables(const FrameDescriptor& frame);
+    [[nodiscard]] DebugResult<Vec<DebugVariable>> localVariables(FrameId frameId, const FrameDescriptor& frame);
+    [[nodiscard]] DebugResult<Vec<DebugVariable>> upvalueVariables(FrameId frameId, const FrameDescriptor& frame);
     [[nodiscard]] DebugResult<Vec<DebugVariable>> tableVariables(Table& table, usize start, usize count,
                                                                  DebugVariableFilter filter);
-    [[nodiscard]] DebugResult<DebugVariable> makeVariable(Str name, const Value& value);
-    [[nodiscard]] DebugResult<VariableReference> tableReference(Table& table);
+    [[nodiscard]] DebugResult<Vec<DebugVariable>> tableOverview(const VariableNode& node);
+    [[nodiscard]] DebugResult<VariableReference> tableSectionReference(Table& table, FrameId originFrame,
+                                                                       VariableNodeKind kind);
+    [[nodiscard]] Str weakTableSummary(const Table& table) const;
+    [[nodiscard]] DebugResult<RawEvaluatedValue> evaluateRaw(FrameId frame, StrView expression);
+    [[nodiscard]] DebugResult<Value> materializeValue(RawEvaluatedValue evaluated);
+    [[nodiscard]] DebugResult<DebugVariable> makeVariable(Str name, const Value& value, FrameId originFrame = {});
+    [[nodiscard]] DebugResult<VariableReference> tableReference(Table& table, FrameId originFrame = {});
     [[nodiscard]] Str formatValue(const Value& value) const;
     [[nodiscard]] Str formatString(StrView value) const;
     [[nodiscard]] Str valueTypeName(const Value& value) const;
@@ -86,6 +103,8 @@ private:
     Vec<DebugStackFrame> stackFrames_;
     HashMap<u64, Vec<DebugScope>> scopesByFrame_;
     HashMap<const Table*, VariableReference> tableReferences_;
+    HashMap<const Table*, VariableReference> tableArrayReferences_;
+    HashMap<const Table*, VariableReference> tableHashReferences_;
     const Value* exceptionValueStorage_ = nullptr;
     bool framesBuilt_ = false;
 };

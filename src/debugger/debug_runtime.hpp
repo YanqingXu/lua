@@ -49,6 +49,12 @@ enum class DebugSemanticEvent : u8 {
     CoroutineResume,
 };
 
+enum class DebugOutputCategory : u8 {
+    Console,
+    Stdout,
+    Stderr,
+};
+
 enum class DebugSafepointResult : u8 {
     ContinueExecution,
     TerminateExecution,
@@ -64,6 +70,7 @@ struct DebugSessionSnapshot {
     bool pausePending = false;
     bool terminatePending = false;
     ThreadId activeThread{1};
+    u64 droppedLogMessages = 0;
 };
 
 class IDebugEventSink {
@@ -73,6 +80,7 @@ public:
     virtual void onDebugSemanticEvent(DebugSemanticEvent) {}
     virtual void onBreakpointChanged(const BreakpointBinding&) {}
     virtual void onDebugExecutionUnitChanged(const DebugState&, bool) {}
+    virtual void onDebugOutput(StrView, DebugOutputCategory) {}
 };
 
 struct DebugControllerState;
@@ -125,6 +133,8 @@ public:
     [[nodiscard]] virtual Opt<RegisteredSource> source(SourceId sourceId) const = 0;
     [[nodiscard]] virtual DebugResult<Vec<BreakpointBinding>>
     setBreakpoints(SourceId sourceId, std::span<const SourceBreakpoint> requested) = 0;
+    [[nodiscard]] virtual DebugResult<Vec<BreakpointBinding>>
+    setFunctionBreakpoints(std::span<const FunctionBreakpoint> requested) = 0;
     [[nodiscard]] virtual DebugResult<Vec<DebugThread>> threads() = 0;
     [[nodiscard]] virtual DebugResult<Vec<DebugState>> states() const = 0;
     [[nodiscard]] virtual DebugResult<void> selectState(StateId state) = 0;
@@ -135,6 +145,9 @@ public:
     variables(VariableReference reference, usize start, usize count,
               DebugVariableFilter filter = DebugVariableFilter::All) = 0;
     [[nodiscard]] virtual DebugResult<DebugVariable> evaluate(FrameId frame, StrView expression) = 0;
+    [[nodiscard]] virtual DebugResult<DebugVariable> evaluateWithSideEffects(FrameId frame, StrView expression) = 0;
+    [[nodiscard]] virtual DebugResult<DebugVariable> setVariable(VariableReference reference, StrView name,
+                                                                 StrView valueExpression) = 0;
     [[nodiscard]] virtual DebugSessionSnapshot snapshot() const = 0;
 };
 
@@ -165,6 +178,8 @@ public:
     [[nodiscard]] Opt<RegisteredSource> source(SourceId sourceId) const override;
     [[nodiscard]] DebugResult<Vec<BreakpointBinding>>
     setBreakpoints(SourceId sourceId, std::span<const SourceBreakpoint> requested) override;
+    [[nodiscard]] DebugResult<Vec<BreakpointBinding>>
+    setFunctionBreakpoints(std::span<const FunctionBreakpoint> requested) override;
     [[nodiscard]] DebugResult<Vec<DebugThread>> threads() override;
     [[nodiscard]] DebugResult<Vec<DebugState>> states() const override;
     [[nodiscard]] DebugResult<void> selectState(StateId state) override;
@@ -175,6 +190,9 @@ public:
     variables(VariableReference reference, usize start, usize count,
               DebugVariableFilter filter = DebugVariableFilter::All) override;
     [[nodiscard]] DebugResult<DebugVariable> evaluate(FrameId frame, StrView expression) override;
+    [[nodiscard]] DebugResult<DebugVariable> evaluateWithSideEffects(FrameId frame, StrView expression) override;
+    [[nodiscard]] DebugResult<DebugVariable> setVariable(VariableReference reference, StrView name,
+                                                         StrView valueExpression) override;
     [[nodiscard]] DebugSessionSnapshot snapshot() const override;
 
     /** VM-owner-thread lifecycle notifications. */
@@ -199,6 +217,9 @@ public:
     /** Low-cost request probes used by future VM safepoints. */
     [[nodiscard]] bool pauseRequested() const noexcept;
     [[nodiscard]] bool terminateRequested() const noexcept;
+
+    /** Policy changes are accepted only while detached or before configurationDone. */
+    [[nodiscard]] DebugResult<void> configureWritePolicy(DebugWritePolicy policy);
 
     [[nodiscard]] bool requiresInstructionSafepoint() const noexcept {
         return instructionFlags_.load(std::memory_order_relaxed) != 0;

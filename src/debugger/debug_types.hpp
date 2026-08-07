@@ -142,6 +142,16 @@ struct DebugResourceLimits {
     usize maxEvaluationDepth = 64;
     usize maxEvaluationSteps = 256;
     usize maxStates = 256;
+    usize maxLogMessageLength = 4096;
+    usize maxLogMessagesPerSecond = 100;
+    usize maxSideEffectEnvironmentEntries = 4096;
+    u64 maxSideEffectInstructions = 100000;
+    u32 sideEffectTimeoutMs = 250;
+};
+
+struct DebugWritePolicy {
+    bool allowVariableWrite = false;
+    bool allowSideEffectEvaluation = false;
 };
 
 enum class DebugErrorCode : u8 {
@@ -151,6 +161,7 @@ enum class DebugErrorCode : u8 {
     ResourceLimit,
     Timeout,
     Unsupported,
+    PermissionDenied,
     RuntimeFailure,
 };
 

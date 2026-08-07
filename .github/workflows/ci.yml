@@ -325,12 +325,14 @@ jobs:
           fuzz_bytecode_verifier
           fuzz_parser
           fuzz_stdlib_numeric_arguments
+          fuzz_remote_protocol
+          fuzz_debugger_expression
 
       - name: Run bounded fuzz smoke
         shell: bash
         run: |
           mkdir -p build/fuzz-artifacts
-          targets=(undump bytecode_verifier parser stdlib_numeric_arguments)
+          targets=(undump bytecode_verifier parser stdlib_numeric_arguments remote_protocol debugger_expression)
           for target in "${targets[@]}"; do
             "build/fuzz/fuzz_${target}" "tests/fuzz/corpus/${target}" \
               -max_total_time=30 \

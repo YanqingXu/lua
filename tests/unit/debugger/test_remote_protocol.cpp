@@ -6,6 +6,7 @@
 #include "../framework/test_framework.hpp"
 
 #include "debugger/remote_protocol.hpp"
+#include "debugger/remote_messages.hpp"
 #include "debugger/remote_transport.hpp"
 
 #include <array>
@@ -13,6 +14,7 @@
 #include <thread>
 
 using namespace Lua;
+using namespace Lua::Debugger;
 using namespace Lua::Debugger::Remote;
 using namespace LuaTest;
 
@@ -189,6 +191,49 @@ void testRemoteProtocolHandshake(TestSuite& suite) {
                 "Incompatible protocol major versions fail with a stable status");
 }
 
+void testRemoteAdvancedBreakpointMessages(TestSuite& suite) {
+    RemoteBreakpointRequest request;
+    request.sourcePath = "/srv/game/advanced.lua";
+    request.breakpoints.push_back(SourceBreakpoint{17, "enabled", "3", "value={value}"});
+    auto encoded = encodeAdvancedBreakpointRequest(request);
+    auto decoded = encoded ? decodeAdvancedBreakpointRequest(bytesOf(*encoded))
+                           : ProtocolResult<RemoteBreakpointRequest>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite, decoded && decoded->sourcePath == request.sourcePath && decoded->breakpoints.size() == 1 &&
+                           decoded->breakpoints[0].condition == "enabled" &&
+                           decoded->breakpoints[0].hitCondition == "3" &&
+                           decoded->breakpoints[0].logMessage == "value={value}",
+                "Advanced source breakpoint fields round trip over the versioned YLDP codec");
+
+    const std::array functions{FunctionBreakpoint{"worker", "ready", "2"}};
+    auto functionPayload = encodeFunctionBreakpointRequest(functions);
+    auto decodedFunctions = functionPayload
+                                ? decodeFunctionBreakpointRequest(bytesOf(*functionPayload))
+                                : ProtocolResult<Vec<FunctionBreakpoint>>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite, decodedFunctions && decodedFunctions->size() == 1 &&
+                           decodedFunctions->front().name == "worker" &&
+                           decodedFunctions->front().condition == "ready" &&
+                           decodedFunctions->front().hitCondition == "2",
+                "Function breakpoint name, condition, and hit count round trip over YLDP");
+
+    auto outputPayload = encodeOutputEvent("safe log output", DebugOutputCategory::Console);
+    auto output = outputPayload
+                      ? decodeOutputEvent(bytesOf(*outputPayload))
+                      : ProtocolResult<std::pair<Str, DebugOutputCategory>>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite, output && output->first == "safe log output" &&
+                           output->second == DebugOutputCategory::Console,
+                "Remote log point output retains its bounded text and category");
+
+    RemoteSetVariableRequest setVariable{VariableReference{44}, "captured", "'updated'"};
+    auto setVariablePayload = encodeSetVariableRequest(setVariable);
+    auto decodedSetVariable =
+        setVariablePayload ? decodeSetVariableRequest(bytesOf(*setVariablePayload))
+                           : ProtocolResult<RemoteSetVariableRequest>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite, decodedSetVariable && decodedSetVariable->reference == VariableReference{44} &&
+                           decodedSetVariable->name == "captured" &&
+                           decodedSetVariable->valueExpression == "'updated'",
+                "Remote setVariable carries only an opaque scope handle, name, and bounded value expression");
+}
+
 void testRemoteProtocolMutationCorpus(TestSuite& suite) {
     ProtocolFrame seed;
     seed.kind = ProtocolMessageKind::Response;
@@ -263,6 +308,7 @@ void registerDebuggerRemoteProtocolTests() {
     registry.registerTest(kSuiteName, "Incremental Frames", testRemoteProtocolFrames);
     registry.registerTest(kSuiteName, "Malformed Inputs", testRemoteProtocolMalformedInputs);
     registry.registerTest(kSuiteName, "Versioned Handshake", testRemoteProtocolHandshake);
+    registry.registerTest(kSuiteName, "Advanced Breakpoint Messages", testRemoteAdvancedBreakpointMessages);
     registry.registerTest(kSuiteName, "Mutation Corpus", testRemoteProtocolMutationCorpus);
     registry.registerTest(kSuiteName, "Loopback TCP Transport", testRemoteProtocolLoopbackTransport);
 }

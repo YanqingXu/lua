@@ -101,6 +101,7 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
     Function* indexMetamethod = new Function(inspectorIndexMetamethod);
     services.gc.registerObject(indexMetamethod);
     metatable->set(Value(services.strings.intern("__index")), Value(indexMetamethod));
+    metatable->set(Value(services.strings.intern("__mode")), Value(services.strings.intern("kv")));
     rawTable->setMetatable(metatable);
     Userdata* userdata = services.gc.create<Userdata>(16);
     Str longText(300, 'x');
@@ -138,6 +139,7 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
     bool localsValid = false;
     bool upvaluesValid = false;
     bool tablePagingValid = false;
+    bool tableGroupsValid = false;
     bool tableFiltersValid = false;
     bool selfReferenceStable = false;
     bool formatterCoverage = false;
@@ -225,13 +227,24 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
                                     argument->value == "7" && shared != nullptr && shared->variablesReference.valid();
                     if (shared != nullptr) {
                         oldVariables = shared->variablesReference;
-                        auto firstVariables = runtime.variables(oldVariables, 0, 2);
-                        auto nextVariables = runtime.variables(oldVariables, 2, 2);
+                        auto overview = runtime.variables(oldVariables, 0, 100);
+                        const DebugVariable* arraySection = overview ? findVariable(*overview, "[array]") : nullptr;
+                        const DebugVariable* hashSection = overview ? findVariable(*overview, "[hash]") : nullptr;
+                        auto firstVariables = arraySection != nullptr
+                                                  ? runtime.variables(arraySection->variablesReference, 0, 2)
+                                                  : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                        auto nextVariables = arraySection != nullptr
+                                                 ? runtime.variables(arraySection->variablesReference, 2, 2)
+                                                 : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
                         tablePagingValid = firstVariables && nextVariables && firstVariables->size() == 2 &&
-                                           nextVariables->size() == 2;
-                        auto allVariables = runtime.variables(oldVariables, 0, 100);
-                        const DebugVariable* self = allVariables ? findVariable(*allVariables, "self") : nullptr;
+                                           nextVariables->size() == 1;
+                        auto namedSection = hashSection != nullptr
+                                                ? runtime.variables(hashSection->variablesReference, 0, 100)
+                                                : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                        const DebugVariable* self = namedSection ? findVariable(*namedSection, "self") : nullptr;
                         selfReferenceStable = self != nullptr && self->variablesReference == oldVariables;
+                        tableGroupsValid = overview && overview->size() == 2 && arraySection != nullptr &&
+                                           hashSection != nullptr;
                         auto indexedVariables =
                             runtime.variables(oldVariables, 0, 100, DebugVariableFilter::Indexed);
                         auto namedVariables = runtime.variables(oldVariables, 0, 100, DebugVariableFilter::Named);
@@ -259,10 +272,19 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
                     objectFormatCoverage = cfunction != nullptr && cfunction->value == "C function" &&
                                            fullUserdata != nullptr && fullUserdata->value == "userdata (16 bytes)" &&
                                            thread != nullptr && thread->value.starts_with("thread") &&
-                                           light != nullptr && light->value == "lightuserdata" && table != nullptr;
+                                           light != nullptr && light->value == "lightuserdata" && table != nullptr &&
+                                           table->value.find("table#") != Str::npos &&
+                                           table->value.find("weak keys+values") != Str::npos;
                     formatterCoverage = basicFormatCoverage && stringFormatCoverage && objectFormatCoverage;
                     if (table != nullptr) {
-                        auto oversizedPage = runtime.variables(table->variablesReference, 0, 1000);
+                        auto overview = runtime.variables(table->variablesReference, 0, 100);
+                        const DebugVariable* arraySection = overview ? findVariable(*overview, "[array]") : nullptr;
+                        const DebugVariable* metatableSection =
+                            overview ? findVariable(*overview, "[metatable]") : nullptr;
+                        tableGroupsValid = tableGroupsValid && arraySection != nullptr && metatableSection != nullptr;
+                        auto oversizedPage = arraySection != nullptr
+                                                 ? runtime.variables(arraySection->variablesReference, 0, 1000)
+                                                 : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
                         hardPageLimitApplied = oversizedPage && oversizedPage->size() == 100;
                     }
                     inspectionHadNoMetamethodSideEffect =
@@ -304,6 +326,8 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
     ASSERT_TRUE(suite, localsValid, "Locals honor PC lifetimes and expose expected values");
     ASSERT_TRUE(suite, upvaluesValid, "Upvalues use Proto names and closure slot values");
     ASSERT_TRUE(suite, tablePagingValid, "Raw table expansion enforces requested pages");
+    ASSERT_TRUE(suite, tableGroupsValid,
+                "Table overview exposes stable array, hash, and metatable section handles");
     ASSERT_TRUE(suite, tableFiltersValid, "Indexed and named table views have independent deterministic pages");
     ASSERT_TRUE(suite, selfReferenceStable, "Self-referential table reuses its existing object handle");
     ASSERT_TRUE(
@@ -445,9 +469,162 @@ void testInspectorResourceLimitIsStructured(TestSuite& suite) {
     context.gc().clearAll(context.strings());
 }
 
+void testWritableVariablesAndGcBarriers(TestSuite& suite) {
+    constexpr StrView source = "local shared = {name = 'old', [1] = 1}\n"
+                               "local function makeWorker()\n"
+                               "    local captured = 'before'\n"
+                               "    return function()\n"
+                               "        local localValue = 'local-old'\n"
+                               "        local marker = 1\n"
+                               "        debug_write_result = localValue .. ':' .. captured .. ':' .. shared.name .. ':' .. shared[1]\n"
+                               "        return marker\n"
+                               "    end\n"
+                               "end\n"
+                               "local worker = makeWorker()\n"
+                               "worker()\n"
+                               "return debug_write_result\n";
+    EngineContext context;
+    DebugController& controller = context.globalState().enableDebugger();
+    const bool policyConfigured =
+        controller.configureWritePolicy(DebugWritePolicy{true, true}).has_value();
+    RuntimeServices services = context.services();
+    UPtr<LuaState> state = LuaState::create(context);
+    Proto* proto = compileInspectorChunk(services, source, "@debugger/writable_variables.lua");
+    Function* function = createInspectorFunction(services, state.get(), proto);
+    const SourceId sourceId = controller.registerFilePath("debugger/writable_variables.lua");
+    const std::array breakpoints{SourceBreakpoint{7}};
+    (void)controller.setBreakpoints(sourceId, breakpoints);
+    auto attached = controller.attachSession();
+    DebugSession session = std::move(*attached);
+    (void)controller.configurationDone();
+
+    bool writesSucceeded = false;
+    bool sideEffectEvaluationSucceeded = false;
+    bool sideEffectBudgetEnforced = false;
+    bool expressionMutationCorpusBounded = false;
+    bool syntheticGroupWriteRejected = false;
+    bool valuesRefreshed = false;
+    bool timedOut = false;
+    std::thread control([&]() {
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (std::chrono::steady_clock::now() < deadline) {
+            if (controller.snapshot().state != DebugSessionState::Suspended) {
+                std::this_thread::yield();
+                continue;
+            }
+            auto frames = controller.stackTrace(ThreadId{1}, 0, 1);
+            auto scopes = frames && !frames->empty() ? controller.scopes(frames->front().id)
+                                                     : DebugResult<Vec<DebugScope>>(std::unexpected(DebugError{}));
+            if (!scopes) {
+                break;
+            }
+            const DebugScope* localsScope = findScope(*scopes, DebugScopeKind::Locals);
+            const DebugScope* upvaluesScope = findScope(*scopes, DebugScopeKind::Upvalues);
+            auto upvalues = upvaluesScope != nullptr
+                                ? controller.variables(upvaluesScope->variablesReference, 0, 100)
+                                : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+            const DebugVariable* shared = upvalues ? findVariable(*upvalues, "shared") : nullptr;
+            auto syntheticGroupWrite = shared != nullptr
+                                           ? controller.setVariable(shared->variablesReference, "[array]", "nil")
+                                           : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
+            syntheticGroupWriteRejected =
+                !syntheticGroupWrite && syntheticGroupWrite.error().code == DebugErrorCode::Unsupported;
+            expressionMutationCorpusBounded = true;
+            try {
+                const Str seed = "shared['name']";
+                for (usize index = 0; index < seed.size(); ++index) {
+                    for (const char replacement : std::array<char, 4>{'\0', '[', '\'', static_cast<char>(0xff)}) {
+                        Str mutation = seed;
+                        mutation[index] = replacement;
+                        (void)controller.evaluate(frames->front().id, mutation);
+                    }
+                }
+            } catch (...) {
+                expressionMutationCorpusBounded = false;
+            }
+            auto localWrite = localsScope != nullptr
+                                  ? controller.setVariable(localsScope->variablesReference, "localValue", "'local-new'")
+                                  : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
+            auto upvalueWrite = upvaluesScope != nullptr
+                                    ? controller.setVariable(upvaluesScope->variablesReference, "captured", "'after'")
+                                    : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
+            auto fieldWrite = shared != nullptr
+                                  ? controller.setVariable(shared->variablesReference, "name", "'updated'")
+                                  : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
+            auto arrayWrite = shared != nullptr
+                                  ? controller.setVariable(shared->variablesReference, "[1]", "99")
+                                  : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
+            writesSucceeded = localWrite && upvalueWrite && fieldWrite && arrayWrite &&
+                              localWrite->type == "string" && upvalueWrite->type == "string" &&
+                              fieldWrite->value == "\"updated\"" && arrayWrite->value == "99";
+            auto sideEffect = controller.evaluateWithSideEffects(
+                frames->front().id,
+                "(function() localValue = 'console-local'; captured = 'console-up'; "
+                "shared.name = 'console-table'; return localValue end)()");
+            sideEffectEvaluationSucceeded =
+                sideEffect && sideEffect->value == "\"console-local\"" && sideEffect->type == "string";
+            auto runaway = controller.evaluateWithSideEffects(
+                frames->front().id, "(function() while true do end end)()");
+            sideEffectBudgetEnforced =
+                !runaway && runaway.error().code == DebugErrorCode::ResourceLimit;
+            auto refreshedLocals = localsScope != nullptr
+                                       ? controller.variables(localsScope->variablesReference, 0, 100)
+                                       : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+            auto refreshedTable = shared != nullptr
+                                      ? controller.variables(shared->variablesReference, 0, 100,
+                                                             DebugVariableFilter::Named)
+                                      : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+            auto refreshedArray = shared != nullptr
+                                      ? controller.variables(shared->variablesReference, 0, 100,
+                                                             DebugVariableFilter::Indexed)
+                                      : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+            const DebugVariable* localValue = refreshedLocals ? findVariable(*refreshedLocals, "localValue") : nullptr;
+            const DebugVariable* name = refreshedTable ? findVariable(*refreshedTable, "name") : nullptr;
+            const DebugVariable* first = refreshedArray ? findVariable(*refreshedArray, "[1]") : nullptr;
+            valuesRefreshed = localValue != nullptr && localValue->value == "\"console-local\"" &&
+                              name != nullptr && name->value == "\"console-table\"" && first != nullptr &&
+                              first->value == "99";
+            (void)controller.continueExecution(ThreadId{1});
+            return;
+        }
+        timedOut = true;
+        (void)controller.terminateExecution();
+    });
+
+    bool executed = true;
+    try {
+        VM::execute(services, state.get(), function);
+    } catch (const RuntimeError&) {
+        executed = false;
+    }
+    control.join();
+    const Value finalValue = state->getGlobal("debug_write_result");
+    ASSERT_TRUE(suite, policyConfigured && !timedOut && writesSucceeded,
+                "Explicit write permission enables local, upvalue, and raw table field updates");
+    ASSERT_TRUE(suite, sideEffectEvaluationSucceeded,
+                "Explicit Debug Console permission evaluates calls and writes back locals, upvalues, and fenv values");
+    ASSERT_TRUE(suite, sideEffectBudgetEnforced,
+                "Side-effecting Debug Console evaluation has an independent instruction and deadline budget");
+    ASSERT_TRUE(suite, expressionMutationCorpusBounded,
+                "Read-only expression mutation corpus returns bounded errors without C++ exceptions");
+    ASSERT_TRUE(suite, syntheticGroupWriteRejected,
+                "Synthetic table group rows cannot be mistaken for writable raw table fields");
+    ASSERT_TRUE(suite, valuesRefreshed,
+                "Variables responses immediately reflect writes in the same pause generation");
+    ASSERT_TRUE(suite, executed && finalValue.isString() &&
+                           finalValue.asString()->view() == "console-local:console-up:console-table:99",
+                "String writes survive closed-upvalue and table GC barriers and affect resumed Lua execution");
+
+    session.disconnect(DisconnectAction::ContinueExecution);
+    context.globalState().disableDebugger(DisconnectAction::ContinueExecution);
+    state.reset();
+    context.gc().clearAll(context.strings());
+}
+
 void registerDebuggerStackInspectorTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "Scopes Variables And Stale Handles", testStackScopesVariablesAndStaleHandles);
     registry.registerTest(kSuiteName, "Tail Call Placeholders", testTailCallPlaceholders);
     registry.registerTest(kSuiteName, "Structured Resource Limits", testInspectorResourceLimitIsStructured);
+    registry.registerTest(kSuiteName, "Writable Variables And GC Barriers", testWritableVariablesAndGcBarriers);
 }

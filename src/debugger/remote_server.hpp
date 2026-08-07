@@ -20,6 +20,8 @@ struct DebugServerConfig {
     u16 port = 0;
     Str authToken;
     bool allowNonLoopback = false;
+    bool allowVariableWrite = false;
+    bool allowSideEffectEvaluation = false;
     usize maxConnections = 1;
     usize maxFrameBytes = kProtocolMaxFrameBytes;
     u32 handshakeTimeoutMs = kProtocolHandshakeTimeoutMs;
@@ -60,9 +62,10 @@ public:
 
 private:
     void run() noexcept;
-    void serve(const Ptr<Connection>& connection) noexcept;
+    void serve(const Ptr<Connection>& connection);
 
     DebugController& runtime_;
+    mutable std::mutex lifecycleMutex_;
     mutable std::mutex mutex_;
     DebugServerConfig config_;
     DebugServerEndpoint endpoint_;

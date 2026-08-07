@@ -329,6 +329,12 @@ public:
      */
     void setSource(GCString* src);
 
+    /** Stable debugger-facing function name; never derived from an object address. */
+    GCString* getDebugName() const noexcept {
+        return debugName_;
+    }
+    void setDebugName(GCString* name);
+
     // =====================================================================
     // 常量表操作（简化版）
     // =====================================================================
@@ -690,6 +696,9 @@ private:
      * @brief 源文件名：函数所在的源文件
      */
     GCString* source_;
+
+    /** Compiler-provided debugger name, or null for anonymous functions. */
+    GCString* debugName_;
 
     /**
      * @brief 函数定义开始行号

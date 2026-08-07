@@ -13,7 +13,7 @@ namespace Lua::Debugger::Remote {
 
 namespace {
 
-constexpr u64 kServerCapabilities = capabilityBit(ProtocolCapability::Breakpoints) |
+constexpr u64 kBaseServerCapabilities = capabilityBit(ProtocolCapability::Breakpoints) |
                                     capabilityBit(ProtocolCapability::PauseContinue) |
                                     capabilityBit(ProtocolCapability::Stepping) |
                                     capabilityBit(ProtocolCapability::Stack) |
@@ -24,7 +24,8 @@ constexpr u64 kServerCapabilities = capabilityBit(ProtocolCapability::Breakpoint
                                     capabilityBit(ProtocolCapability::CoroutineThreads) |
                                     capabilityBit(ProtocolCapability::SourcePathMapping) |
                                     capabilityBit(ProtocolCapability::Reconnect) |
-                                    capabilityBit(ProtocolCapability::GlobalPauseOnly);
+                                    capabilityBit(ProtocolCapability::GlobalPauseOnly) |
+                                    capabilityBit(ProtocolCapability::AdvancedBreakpoints);
 
 bool constantTimeEqual(StrView left, StrView right) noexcept {
     const usize extent = std::max(left.size(), right.size());
@@ -160,7 +161,21 @@ public:
         ProtocolFrame frame;
         frame.kind = ProtocolMessageKind::Event;
         frame.command = static_cast<ProtocolCommand>(ProtocolEvent::BreakpointChanged);
-        auto payload = encodeBreakpointBindings(std::span<const BreakpointBinding>(&binding, 1));
+        frame.flags = binding.functionName ? 1U : 0U;
+        auto payload = binding.functionName
+                           ? encodeFunctionBreakpointBindings(std::span<const BreakpointBinding>(&binding, 1))
+                           : encodeBreakpointBindings(std::span<const BreakpointBinding>(&binding, 1));
+        if (payload) {
+            frame.payload = std::move(*payload);
+            send(std::move(frame));
+        }
+    }
+
+    void onDebugOutput(StrView text, DebugOutputCategory category) override {
+        ProtocolFrame frame;
+        frame.kind = ProtocolMessageKind::Event;
+        frame.command = static_cast<ProtocolCommand>(ProtocolEvent::Output);
+        auto payload = encodeOutputEvent(text, category);
         if (payload) {
             frame.payload = std::move(*payload);
             send(std::move(frame));
@@ -266,10 +281,14 @@ RuntimeDebugServer::~RuntimeDebugServer() {
 }
 
 ProtocolResult<DebugServerEndpoint> RuntimeDebugServer::start(DebugServerConfig config) {
-    std::lock_guard lock(mutex_);
+    std::lock_guard lifecycleLock(lifecycleMutex_);
     if (running_.load(std::memory_order_acquire)) {
         return std::unexpected(ProtocolError{ProtocolStatus::InvalidState, "debug server is already running", 0});
     }
+    if (thread_.joinable()) {
+        thread_.join();
+    }
+    std::lock_guard lock(mutex_);
     if (!config.enabled) {
         return std::unexpected(
             ProtocolError{ProtocolStatus::InvalidState, "remote debugging must be explicitly enabled", 0});
@@ -287,7 +306,8 @@ ProtocolResult<DebugServerEndpoint> RuntimeDebugServer::start(DebugServerConfig 
             ProtocolError{ProtocolStatus::InvalidArgument, "this runtime supports exactly one debug client", 0});
     }
     if (config.maxFrameBytes < kProtocolHeaderSize || config.maxFrameBytes > kProtocolMaxFrameBytes ||
-        config.heartbeatIntervalMs == 0 || config.idleTimeoutMs < config.heartbeatIntervalMs) {
+        config.handshakeTimeoutMs == 0 || config.heartbeatIntervalMs == 0 ||
+        config.idleTimeoutMs < config.heartbeatIntervalMs) {
         return std::unexpected(ProtocolError{ProtocolStatus::InvalidArgument, "invalid remote debug resource limits", 0});
     }
     auto listener = TcpListener::listen(config.bindAddress, config.port, 1);
@@ -310,6 +330,7 @@ ProtocolResult<DebugServerEndpoint> RuntimeDebugServer::start(DebugServerConfig 
 }
 
 void RuntimeDebugServer::stop() noexcept {
+    std::lock_guard lifecycleLock(lifecycleMutex_);
     running_.store(false, std::memory_order_release);
     Ptr<Connection> active;
     {
@@ -347,21 +368,34 @@ DebugServerStats RuntimeDebugServer::stats() const noexcept {
 
 void RuntimeDebugServer::run() noexcept {
     while (running_.load(std::memory_order_acquire)) {
-        auto accepted = listener_.accept();
+        ProtocolResult<TcpConnection> accepted = std::unexpected(ProtocolError{});
+        try {
+            accepted = listener_.accept();
+        } catch (...) {
+            protocolFailures_.fetch_add(1, std::memory_order_relaxed);
+            break;
+        }
         if (!accepted) {
             if (running_.load(std::memory_order_acquire)) {
                 protocolFailures_.fetch_add(1, std::memory_order_relaxed);
             }
             break;
         }
-        acceptedConnections_.fetch_add(1, std::memory_order_relaxed);
-        auto connection = makePtr<Connection>(std::move(*accepted), config_.maxFrameBytes);
-        {
-            std::lock_guard lock(mutex_);
-            activeConnection_ = connection;
+        Ptr<Connection> connection;
+        try {
+            acceptedConnections_.fetch_add(1, std::memory_order_relaxed);
+            connection = makePtr<Connection>(std::move(*accepted), config_.maxFrameBytes);
+            {
+                std::lock_guard lock(mutex_);
+                activeConnection_ = connection;
+            }
+            serve(connection);
+        } catch (...) {
+            protocolFailures_.fetch_add(1, std::memory_order_relaxed);
         }
-        serve(connection);
-        connection->close();
+        if (connection) {
+            connection->close();
+        }
         {
             std::lock_guard lock(mutex_);
             if (activeConnection_ == connection) {
@@ -372,7 +406,7 @@ void RuntimeDebugServer::run() noexcept {
     running_.store(false, std::memory_order_release);
 }
 
-void RuntimeDebugServer::serve(const Ptr<Connection>& connection) noexcept {
+void RuntimeDebugServer::serve(const Ptr<Connection>& connection) {
     if (!connection->setTimeouts(config_.handshakeTimeoutMs, config_.handshakeTimeoutMs)) {
         return;
     }
@@ -401,7 +435,14 @@ void RuntimeDebugServer::serve(const Ptr<Connection>& connection) noexcept {
         authenticationFailures_.fetch_add(1, std::memory_order_relaxed);
         return;
     }
-    auto negotiated = negotiateHello(*hello, kServerCapabilities, authenticatedSessions_.load() + 1,
+    u64 availableCapabilities = kBaseServerCapabilities;
+    if (config_.allowVariableWrite) {
+        availableCapabilities |= capabilityBit(ProtocolCapability::VariableWrite);
+    }
+    if (config_.allowSideEffectEvaluation) {
+        availableCapabilities |= capabilityBit(ProtocolCapability::SideEffectEvaluation);
+    }
+    auto negotiated = negotiateHello(*hello, availableCapabilities, authenticatedSessions_.load() + 1,
                                      config_.serverVersion);
     if (!negotiated) {
         ProtocolFrame rejected;
@@ -415,6 +456,27 @@ void RuntimeDebugServer::serve(const Ptr<Connection>& connection) noexcept {
         (void)connection->send(std::move(rejected));
         return;
     }
+
+    auto writePolicy = runtime_.configureWritePolicy(
+        DebugWritePolicy{config_.allowVariableWrite, config_.allowSideEffectEvaluation});
+    if (!writePolicy) {
+        ProtocolFrame rejected;
+        rejected.kind = ProtocolMessageKind::HelloAck;
+        rejected.requestId = helloFrame->requestId;
+        rejected.status = ProtocolStatus::InvalidState;
+        auto message = encodeErrorMessage(writePolicy.error().message);
+        if (message) {
+            rejected.payload = std::move(*message);
+        }
+        (void)connection->send(std::move(rejected));
+        return;
+    }
+    struct ResetWritePolicy {
+        DebugController& runtime;
+        ~ResetWritePolicy() {
+            (void)runtime.configureWritePolicy({});
+        }
+    } resetWritePolicy{runtime_};
 
     Ptr<ServerEventSink> sink = makePtr<ServerEventSink>(connection);
     auto attached = runtime_.attachSession(sink, config_.disconnectAction);
@@ -544,8 +606,11 @@ void RuntimeDebugServer::serve(const Ptr<Connection>& connection) noexcept {
 
         const auto payload = std::span<const u8>(frame->payload.data(), frame->payload.size());
         switch (frame->command) {
-        case ProtocolCommand::SetBreakpoints: {
-            auto request = decodeBreakpointRequest(payload);
+        case ProtocolCommand::SetBreakpoints:
+        case ProtocolCommand::SetAdvancedBreakpoints: {
+            auto request = frame->command == ProtocolCommand::SetAdvancedBreakpoints
+                               ? decodeAdvancedBreakpointRequest(payload)
+                               : decodeBreakpointRequest(payload);
             if (!request) {
                 (void)sendResponse(connection, *frame, std::unexpected(request.error()));
                 break;
@@ -556,6 +621,20 @@ void RuntimeDebugServer::serve(const Ptr<Connection>& connection) noexcept {
                 (void)sendVoidDebugResult(connection, *frame, std::unexpected(result.error()));
             } else {
                 (void)sendResponse(connection, *frame, encodeBreakpointBindings(*result));
+            }
+            break;
+        }
+        case ProtocolCommand::SetFunctionBreakpoints: {
+            auto request = decodeFunctionBreakpointRequest(payload);
+            if (!request) {
+                (void)sendResponse(connection, *frame, std::unexpected(request.error()));
+                break;
+            }
+            auto result = runtime_.setFunctionBreakpoints(*request);
+            if (!result) {
+                (void)sendVoidDebugResult(connection, *frame, std::unexpected(result.error()));
+            } else {
+                (void)sendResponse(connection, *frame, encodeFunctionBreakpointBindings(*result));
             }
             break;
         }
@@ -670,13 +749,42 @@ void RuntimeDebugServer::serve(const Ptr<Connection>& connection) noexcept {
             }
             break;
         }
-        case ProtocolCommand::Evaluate: {
+        case ProtocolCommand::Evaluate:
+        case ProtocolCommand::EvaluateSideEffects: {
+            if (frame->command == ProtocolCommand::EvaluateSideEffects && !config_.allowSideEffectEvaluation) {
+                (void)sendResponse(connection, *frame,
+                                   std::unexpected(ProtocolError{ProtocolStatus::Unauthorized,
+                                                                 "remote side-effect evaluation is disabled", 0}));
+                break;
+            }
             auto request = decodeEvaluateRequest(payload);
             if (!request) {
                 (void)sendResponse(connection, *frame, std::unexpected(request.error()));
                 break;
             }
-            auto result = runtime_.evaluate(request->frame, request->expression);
+            auto result = frame->command == ProtocolCommand::EvaluateSideEffects
+                              ? runtime_.evaluateWithSideEffects(request->frame, request->expression)
+                              : runtime_.evaluate(request->frame, request->expression);
+            if (!result) {
+                (void)sendVoidDebugResult(connection, *frame, std::unexpected(result.error()));
+            } else {
+                (void)sendResponse(connection, *frame, encodeVariable(*result));
+            }
+            break;
+        }
+        case ProtocolCommand::SetVariable: {
+            if (!config_.allowVariableWrite) {
+                (void)sendResponse(connection, *frame,
+                                   std::unexpected(ProtocolError{ProtocolStatus::Unauthorized,
+                                                                 "remote variable writes are disabled", 0}));
+                break;
+            }
+            auto request = decodeSetVariableRequest(payload);
+            if (!request) {
+                (void)sendResponse(connection, *frame, std::unexpected(request.error()));
+                break;
+            }
+            auto result = runtime_.setVariable(request->reference, request->name, request->valueExpression);
             if (!result) {
                 (void)sendVoidDebugResult(connection, *frame, std::unexpected(result.error()));
             } else {

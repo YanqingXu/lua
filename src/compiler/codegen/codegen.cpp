@@ -76,6 +76,7 @@ Proto* CodeGenerator::generateUnchecked(const Chunk& chunk, StrView sourceName) 
     GCAllocationGuard<Proto> protoGuard(state_.services.gc, state_.proto);
     state_.resetForProto(*state_.proto, true);
     state_.bytecode.setSource(sourceName);
+    state_.proto->setDebugName(state_.pool->intern("<chunk>"));
 
     // 生成语句块
     statements_.block(chunk.statements);

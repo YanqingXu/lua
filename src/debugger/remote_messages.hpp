@@ -33,6 +33,12 @@ struct RemoteEvaluateRequest {
     Str expression;
 };
 
+struct RemoteSetVariableRequest {
+    VariableReference reference;
+    Str name;
+    Str valueExpression;
+};
+
 struct RemoteStackFrame {
     DebugStackFrame frame;
     Str sourceName;
@@ -57,8 +63,18 @@ struct RemoteTerminatedEvent {
 
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeBreakpointRequest(const RemoteBreakpointRequest& request);
 [[nodiscard]] ProtocolResult<RemoteBreakpointRequest> decodeBreakpointRequest(std::span<const u8> payload);
+[[nodiscard]] ProtocolResult<Vec<u8>> encodeAdvancedBreakpointRequest(const RemoteBreakpointRequest& request);
+[[nodiscard]] ProtocolResult<RemoteBreakpointRequest> decodeAdvancedBreakpointRequest(std::span<const u8> payload);
+[[nodiscard]] ProtocolResult<Vec<u8>>
+encodeFunctionBreakpointRequest(std::span<const FunctionBreakpoint> breakpoints);
+[[nodiscard]] ProtocolResult<Vec<FunctionBreakpoint>>
+decodeFunctionBreakpointRequest(std::span<const u8> payload);
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeBreakpointBindings(std::span<const BreakpointBinding> bindings);
 [[nodiscard]] ProtocolResult<Vec<BreakpointBinding>> decodeBreakpointBindings(std::span<const u8> payload);
+[[nodiscard]] ProtocolResult<Vec<u8>>
+encodeFunctionBreakpointBindings(std::span<const BreakpointBinding> bindings);
+[[nodiscard]] ProtocolResult<Vec<BreakpointBinding>>
+decodeFunctionBreakpointBindings(std::span<const u8> payload);
 
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeThreadRequest(ThreadId thread);
 [[nodiscard]] ProtocolResult<ThreadId> decodeThreadRequest(std::span<const u8> payload);
@@ -70,6 +86,8 @@ struct RemoteTerminatedEvent {
 [[nodiscard]] ProtocolResult<RemoteVariablesRequest> decodeVariablesRequest(std::span<const u8> payload);
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeEvaluateRequest(const RemoteEvaluateRequest& request);
 [[nodiscard]] ProtocolResult<RemoteEvaluateRequest> decodeEvaluateRequest(std::span<const u8> payload);
+[[nodiscard]] ProtocolResult<Vec<u8>> encodeSetVariableRequest(const RemoteSetVariableRequest& request);
+[[nodiscard]] ProtocolResult<RemoteSetVariableRequest> decodeSetVariableRequest(std::span<const u8> payload);
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeBooleanRequest(bool value);
 [[nodiscard]] ProtocolResult<bool> decodeBooleanRequest(std::span<const u8> payload);
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeStateRequest(StateId state);
@@ -96,5 +114,7 @@ struct RemoteTerminatedEvent {
 [[nodiscard]] ProtocolResult<RemoteTerminatedEvent> decodeTerminatedEvent(std::span<const u8> payload);
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeDebugStateEvent(const DebugState& state);
 [[nodiscard]] ProtocolResult<DebugState> decodeDebugStateEvent(std::span<const u8> payload);
+[[nodiscard]] ProtocolResult<Vec<u8>> encodeOutputEvent(StrView text, DebugOutputCategory category);
+[[nodiscard]] ProtocolResult<std::pair<Str, DebugOutputCategory>> decodeOutputEvent(std::span<const u8> payload);
 
 } // namespace Lua::Debugger::Remote

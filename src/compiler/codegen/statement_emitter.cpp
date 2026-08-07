@@ -976,6 +976,18 @@ void StatementEmitter::emitStmt(const FunctionStmt& s) {
     }
 
     CompiledFunction function = compileFunction(s.params, s.isVararg, s.body, linedefined, lastlinedefined);
+    Str debugName;
+    if (!s.tablePath.empty()) {
+        for (const Str& component : s.tablePath) {
+            if (!debugName.empty()) {
+                debugName.push_back('.');
+            }
+            debugName += component;
+        }
+        debugName += s.isMethod ? ":" : ".";
+    }
+    debugName += s.name;
+    function.proto->setDebugName(state_.pool->intern(debugName));
 
     if (s.isLocal) {
         codeABx(OpCode::CLOSURE, localReg, function.protoIndex);

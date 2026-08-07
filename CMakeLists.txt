@@ -418,7 +418,7 @@ install(FILES
 )
 
 if(LUA_CPP_BUILD_FUZZERS)
-    foreach(fuzzer_name IN ITEMS undump bytecode_verifier parser stdlib_numeric_arguments remote_protocol)
+    foreach(fuzzer_name IN ITEMS undump bytecode_verifier parser stdlib_numeric_arguments remote_protocol debugger_expression)
         add_executable(fuzz_${fuzzer_name} tests/fuzz/fuzz_${fuzzer_name}.cpp)
         target_link_libraries(fuzz_${fuzzer_name} PRIVATE lua_core)
         target_include_directories(fuzz_${fuzzer_name} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
