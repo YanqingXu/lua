@@ -42,6 +42,7 @@ class WorkflowEvidenceTests(unittest.TestCase):
         release = (repository / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
         ci_fuzz = ci[ci.index("  linux-fuzzers:") : ci.index("  portability:")]
+        ci_allocator = ci[ci.index("  allocator-failure-contract:") : ci.index("  linux-fuzzers:")]
         ci_coverage = ci[ci.index("  linux-coverage:") : ci.index("  linux-runtime-benchmark:")]
         ci_benchmark = ci[ci.index("  linux-runtime-benchmark:") :]
         nightly_fuzz = nightly[nightly.index("  long-fuzz:") :]
@@ -51,6 +52,8 @@ class WorkflowEvidenceTests(unittest.TestCase):
         self.assertIn("-DLUA_CPP_BUILD_DEBUGGER=ON", nightly_fuzz)
         self.assertEqual(ci_benchmark.count("-DLUA_CPP_BUILD_DEBUGGER=OFF"), 2)
         self.assertEqual(release.count("-DLUA_CPP_BUILD_DEBUGGER=OFF"), 2)
+        self.assertIn("-G 'Visual Studio 17 2022' -A x64", ci_allocator)
+        self.assertIn('build/allocator/Debug/lua_test.exe', ci_allocator)
 
     def test_fuzz_target_policy_matches_workflows_cmake_and_release_verifier(self) -> None:
         repository = Path(__file__).resolve().parents[1]

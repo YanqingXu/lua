@@ -174,11 +174,15 @@ install(FILES "`${CMAKE_CURRENT_BINARY_DIR}/built-revision.txt" DESTINATION shar
     ) "fixture commit A"
     $commitA = Get-FixtureHead $source
 
-    Invoke-Checked cmake @(
+    $fixtureConfigureArguments = @(
         "-S", $source,
         "-B", $build,
         "-DBUILD_TESTING=OFF"
-    ) "fixture configure A"
+    )
+    if ($env:OS -ne "Windows_NT") {
+        $fixtureConfigureArguments += "-DCMAKE_BUILD_TYPE=Release"
+    }
+    Invoke-Checked cmake $fixtureConfigureArguments "fixture configure A"
     $positive = Test-LuaCppBuildProvenance `
         -BuildDirectory $build `
         -Repository $source `

@@ -109,8 +109,7 @@ u64 protoContentIdentity(const Proto& proto) {
 
 } // namespace
 
-BreakpointManager::BreakpointManager()
-    : emptySnapshot_(makePtr<const LookupSnapshot>()), snapshot_(emptySnapshot_) {}
+BreakpointManager::BreakpointManager() : emptySnapshot_(makePtr<const LookupSnapshot>()), snapshot_(emptySnapshot_) {}
 
 usize BreakpointManager::InstructionKeyHash::operator()(const InstructionKey& key) const noexcept {
     const usize protoHash = std::hash<const Proto*>{}(key.proto);
@@ -154,8 +153,8 @@ DebugResult<Vec<BreakpointBinding>> BreakpointManager::setBreakpoints(SourceId s
         replacement.binding.id = BreakpointId{nextBreakpointId_++};
         replacement.binding.sourceId = sourceId;
         replacement.binding.requestedLine = sourceBreakpoint.line;
-        ParsedBehavior parsed = parseBehavior(sourceBreakpoint.condition, sourceBreakpoint.hitCondition,
-                                              sourceBreakpoint.logMessage);
+        ParsedBehavior parsed =
+            parseBehavior(sourceBreakpoint.condition, sourceBreakpoint.hitCondition, sourceBreakpoint.logMessage);
         replacement.behavior = std::move(parsed.behavior);
         replacement.validationError = std::move(parsed.error);
         bindLocked(replacement);
@@ -233,7 +232,7 @@ void BreakpointManager::clearBreakpoints() noexcept {
     requestedBySource_.clear();
     requestedFunctions_.clear();
     hasBreakpoints_.store(false, std::memory_order_release);
-    snapshot_.store(emptySnapshot_, std::memory_order_release);
+    storeSnapshot(emptySnapshot_);
 }
 
 Vec<BreakpointBinding> BreakpointManager::registerProto(const Proto& root) {
@@ -300,8 +299,7 @@ Vec<BreakpointBinding> BreakpointManager::registerProto(const Proto& root) {
             const BreakpointBinding previous = breakpoint.binding;
             bindLocked(breakpoint);
             if (reloadedSources.contains(sourceValue) || previous.verified != breakpoint.binding.verified ||
-                previous.line != breakpoint.binding.line ||
-                previous.message != breakpoint.binding.message) {
+                previous.line != breakpoint.binding.line || previous.message != breakpoint.binding.message) {
                 changed.push_back(breakpoint.binding);
             }
         }
@@ -310,8 +308,8 @@ Vec<BreakpointBinding> BreakpointManager::registerProto(const Proto& root) {
         const BreakpointBinding previous = breakpoint.binding;
         bindFunctionLocked(breakpoint);
         if (!reloadedSources.empty() || previous.verified != breakpoint.binding.verified ||
-            previous.line != breakpoint.binding.line ||
-            previous.sourceId != breakpoint.binding.sourceId || previous.message != breakpoint.binding.message) {
+            previous.line != breakpoint.binding.line || previous.sourceId != breakpoint.binding.sourceId ||
+            previous.message != breakpoint.binding.message) {
             changed.push_back(breakpoint.binding);
         }
     }
@@ -320,7 +318,7 @@ Vec<BreakpointBinding> BreakpointManager::registerProto(const Proto& root) {
 }
 
 Ptr<const BreakpointHitList> BreakpointManager::match(const Proto& proto, usize pc) const noexcept {
-    const Ptr<const LookupSnapshot> snapshot = snapshot_.load(std::memory_order_acquire);
+    const Ptr<const LookupSnapshot> snapshot = loadSnapshot();
     const auto found = snapshot->hits.find(InstructionKey{&proto, pc});
     if (found == snapshot->hits.end()) {
         return {};
@@ -415,9 +413,8 @@ void BreakpointManager::rebuildSnapshotLocked() {
                 continue;
             }
             for (const DebugCodeLocation& location : breakpoint.locations) {
-                staged[InstructionKey{location.proto, location.pc}].push_back(
-                    BreakpointHit{breakpoint.binding.id, breakpoint.binding.sourceId, breakpoint.binding.line,
-                                  breakpoint.behavior});
+                staged[InstructionKey{location.proto, location.pc}].push_back(BreakpointHit{
+                    breakpoint.binding.id, breakpoint.binding.sourceId, breakpoint.binding.line, breakpoint.behavior});
             }
         }
     }
@@ -427,8 +424,8 @@ void BreakpointManager::rebuildSnapshotLocked() {
         }
         for (const DebugCodeLocation& location : breakpoint.locations) {
             staged[InstructionKey{location.proto, location.pc}].push_back(
-                BreakpointHit{breakpoint.binding.id, sources_.registerNormalizedSource(location.source),
-                              location.line, breakpoint.behavior});
+                BreakpointHit{breakpoint.binding.id, sources_.registerNormalizedSource(location.source), location.line,
+                              breakpoint.behavior});
         }
     }
     next->hits.reserve(staged.size());
@@ -436,7 +433,23 @@ void BreakpointManager::rebuildSnapshotLocked() {
         next->hits.emplace(instruction, makePtr<const BreakpointHitList>(std::move(hits)));
     }
     hasBreakpoints_.store(!next->hits.empty(), std::memory_order_release);
-    snapshot_.store(std::move(next), std::memory_order_release);
+    storeSnapshot(std::move(next));
+}
+
+Ptr<const BreakpointManager::LookupSnapshot> BreakpointManager::loadSnapshot() const noexcept {
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
+    return snapshot_.load(std::memory_order_acquire);
+#else
+    return std::atomic_load_explicit(&snapshot_, std::memory_order_acquire);
+#endif
+}
+
+void BreakpointManager::storeSnapshot(Ptr<const LookupSnapshot> snapshot) noexcept {
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
+    snapshot_.store(std::move(snapshot), std::memory_order_release);
+#else
+    std::atomic_store_explicit(&snapshot_, std::move(snapshot), std::memory_order_release);
+#endif
 }
 
 } // namespace Lua::Debugger

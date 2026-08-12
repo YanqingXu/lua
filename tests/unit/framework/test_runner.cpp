@@ -235,7 +235,7 @@ bool installProcessMemoryLimit(std::size_t limitMb, std::string& message) {
     message = "Process memory limit: " + std::to_string(limitMb) + " MB";
     return true;
 #else
-    struct rlimit limit{};
+    struct rlimit limit {};
     limit.rlim_cur = static_cast<rlim_t>(limitBytes);
     limit.rlim_max = static_cast<rlim_t>(limitBytes);
 
