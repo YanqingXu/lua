@@ -9,9 +9,12 @@
 #include "debugger/remote_messages.hpp"
 #include "debugger/remote_server.hpp"
 #include "debugger/remote_transport.hpp"
+#include "runtime/runtime_services.hpp"
+#include "vm/state/lua_state.hpp"
 
 #include <array>
 #include <chrono>
+#include <deque>
 #include <span>
 #include <thread>
 
@@ -36,23 +39,35 @@ ProtocolResult<void> sendFrame(TcpConnection& connection, ProtocolFrame frame) {
     return connection.sendAll(bytesOf(*bytes));
 }
 
-ProtocolResult<ProtocolFrame> receiveFrame(TcpConnection& connection, ProtocolFrameDecoder& decoder) {
-    for (;;) {
-        auto bytes = connection.receiveSome();
-        if (!bytes) {
-            return std::unexpected(bytes.error());
-        }
-        auto frames = decoder.feed(bytesOf(*bytes));
-        if (!frames) {
-            return std::unexpected(frames.error());
-        }
-        if (!frames->empty()) {
-            return std::move(frames->front());
+class ProtocolFrameReader {
+public:
+    ProtocolResult<ProtocolFrame> receive(TcpConnection& connection) {
+        for (;;) {
+            if (!pending_.empty()) {
+                ProtocolFrame frame = std::move(pending_.front());
+                pending_.pop_front();
+                return frame;
+            }
+            auto bytes = connection.receiveSome();
+            if (!bytes) {
+                return std::unexpected(bytes.error());
+            }
+            auto frames = decoder_.feed(bytesOf(*bytes));
+            if (!frames) {
+                return std::unexpected(frames.error());
+            }
+            for (ProtocolFrame& frame : *frames) {
+                pending_.push_back(std::move(frame));
+            }
         }
     }
-}
 
-ProtocolResult<ProtocolFrame> exchangeRequest(TcpConnection& connection, ProtocolFrameDecoder& decoder,
+private:
+    ProtocolFrameDecoder decoder_;
+    std::deque<ProtocolFrame> pending_;
+};
+
+ProtocolResult<ProtocolFrame> exchangeRequest(TcpConnection& connection, ProtocolFrameReader& reader,
                                               ProtocolCommand command, u64 requestId, Vec<u8> payload = {}) {
     ProtocolFrame request;
     request.kind = ProtocolMessageKind::Request;
@@ -62,18 +77,22 @@ ProtocolResult<ProtocolFrame> exchangeRequest(TcpConnection& connection, Protoco
     if (auto sent = sendFrame(connection, std::move(request)); !sent) {
         return std::unexpected(sent.error());
     }
-    return receiveFrame(connection, decoder);
+    return reader.receive(connection);
 }
 
-ProtocolResult<ProtocolFrame> exchangeHello(TcpConnection& connection, ProtocolFrameDecoder& decoder, Str token,
-                                            u64 requestId = 1) {
+ProtocolResult<ProtocolFrame> exchangeHello(TcpConnection& connection, ProtocolFrameReader& reader, Str token,
+                                            u64 requestId = 1, u16 minimumMajor = kProtocolVersionMajor,
+                                            u16 maximumMajor = kProtocolVersionMajor, Str stateSelector = {}) {
     ProtocolHello hello;
+    hello.minimumMajor = minimumMajor;
+    hello.maximumMajor = maximumMajor;
     hello.clientName = "lua-cpp contract client";
     hello.clientVersion = "1.0";
     hello.authToken = std::move(token);
     hello.requestedCapabilities =
         capabilityBit(ProtocolCapability::Breakpoints) | capabilityBit(ProtocolCapability::MultipleStates) |
         capabilityBit(ProtocolCapability::VariableWrite) | capabilityBit(ProtocolCapability::SideEffectEvaluation);
+    hello.stateSelector = std::move(stateSelector);
     auto payload = encodeHello(hello);
     if (!payload) {
         return std::unexpected(payload.error());
@@ -85,7 +104,7 @@ ProtocolResult<ProtocolFrame> exchangeHello(TcpConnection& connection, ProtocolF
     if (auto sent = sendFrame(connection, std::move(frame)); !sent) {
         return std::unexpected(sent.error());
     }
-    return receiveFrame(connection, decoder);
+    return reader.receive(connection);
 }
 
 bool waitForServerStats(const RuntimeDebugServer& server, u64 acceptedConnections, u64 authenticatedSessions,
@@ -311,6 +330,121 @@ void testRemoteAdvancedBreakpointMessages(TestSuite& suite) {
                 "Remote setVariable carries only an opaque scope handle, name, and bounded value expression");
 }
 
+void testRemoteRuntimePayloadMessages(TestSuite& suite) {
+    auto errorPayload = encodeErrorMessage("bounded remote error");
+    auto error = errorPayload ? decodeErrorMessage(bytesOf(*errorPayload))
+                              : ProtocolResult<Str>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite, error && *error == "bounded remote error", "Remote error text round trips over YLDP");
+
+    const std::array sourceBindings{BreakpointBinding{BreakpointId{3}, SourceId{5}, 17, 19, true, "bound", {}}};
+    auto sourcePayload = encodeBreakpointBindings(sourceBindings);
+    auto decodedSources = sourcePayload ? decodeBreakpointBindings(bytesOf(*sourcePayload))
+                                        : ProtocolResult<Vec<BreakpointBinding>>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedSources && decodedSources->size() == 1 && decodedSources->front().id == BreakpointId{3} &&
+                    decodedSources->front().requestedLine == 17 && decodedSources->front().line == 19 &&
+                    decodedSources->front().verified,
+                "Source breakpoint bindings retain resolved locations and verification state");
+
+    const std::array functionBindings{
+        BreakpointBinding{BreakpointId{7}, SourceId{9}, 0, 23, true, "resolved", Opt<Str>{"worker"}}};
+    auto functionPayload = encodeFunctionBreakpointBindings(functionBindings);
+    auto decodedFunctions = functionPayload ? decodeFunctionBreakpointBindings(bytesOf(*functionPayload))
+                                            : ProtocolResult<Vec<BreakpointBinding>>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedFunctions && decodedFunctions->size() == 1 &&
+                    decodedFunctions->front().functionName == Opt<Str>{"worker"} &&
+                    decodedFunctions->front().line == 23,
+                "Function breakpoint bindings retain their resolved symbol and line");
+
+    const std::array threads{DebugThread{ThreadId{11}, "main", DebugThreadState::Paused}};
+    auto threadPayload = encodeThreads(threads);
+    auto decodedThreads = threadPayload ? decodeThreads(bytesOf(*threadPayload))
+                                        : ProtocolResult<Vec<DebugThread>>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedThreads && decodedThreads->size() == 1 && decodedThreads->front().id == ThreadId{11} &&
+                    decodedThreads->front().state == DebugThreadState::Paused,
+                "Debug thread snapshots retain identity and lifecycle state");
+
+    const DebugState state{StateId{13}, ThreadId{11}, "game", "Game VM", DebugThreadState::Running, true};
+    auto statePayload = encodeDebugStateEvent(state);
+    auto decodedState = statePayload ? decodeDebugStateEvent(bytesOf(*statePayload))
+                                     : ProtocolResult<DebugState>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedState && decodedState->id == StateId{13} && decodedState->threadId == ThreadId{11} &&
+                    decodedState->label == "Game VM" && decodedState->selected,
+                "Debug state events retain their selected runtime identity");
+
+    const std::array frames{RemoteStackFrame{
+        DebugStackFrame{FrameId{17}, ThreadId{11}, "tick", SourceLocation{SourceId{5}, 29, 4, 8}, false},
+        "/srv/game/main.lua", true}};
+    auto framePayload = encodeStackFrames(frames);
+    auto decodedFrames = framePayload ? decodeStackFrames(bytesOf(*framePayload))
+                                      : ProtocolResult<Vec<RemoteStackFrame>>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedFrames && decodedFrames->size() == 1 && decodedFrames->front().frame.id == FrameId{17} &&
+                    decodedFrames->front().frame.location.line == 29 && decodedFrames->front().sourceIsFile,
+                "Remote stack frames retain source coordinates and source kind");
+
+    const std::array scopes{DebugScope{"Locals", DebugScopeKind::Locals, VariableReference{21}, false}};
+    auto scopePayload = encodeScopes(scopes);
+    auto decodedScopes = scopePayload ? decodeScopes(bytesOf(*scopePayload))
+                                      : ProtocolResult<Vec<DebugScope>>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedScopes && decodedScopes->size() == 1 &&
+                    decodedScopes->front().variablesReference == VariableReference{21} &&
+                    decodedScopes->front().kind == DebugScopeKind::Locals,
+                "Remote scopes retain their opaque variable handle and category");
+
+    const DebugVariable variable{"score", "42", "number", Opt<Str>{"score"}, VariableReference{31}, 2, 3};
+    auto variablePayload = encodeVariable(variable);
+    auto decodedVariable = variablePayload ? decodeVariable(bytesOf(*variablePayload))
+                                           : ProtocolResult<DebugVariable>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedVariable && decodedVariable->name == "score" && decodedVariable->value == "42" &&
+                    decodedVariable->evaluateName == Opt<Str>{"score"} && decodedVariable->namedVariables == 2 &&
+                    decodedVariable->indexedVariables == 3,
+                "Remote variables retain evaluation metadata and child counts");
+
+    const std::array variables{variable};
+    auto variablesPayload = encodeVariables(variables);
+    auto decodedVariables = variablesPayload ? decodeVariables(bytesOf(*variablesPayload))
+                                             : ProtocolResult<Vec<DebugVariable>>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite, decodedVariables && decodedVariables->size() == 1 && decodedVariables->front().type == "number",
+                "Remote variable collections use the same bounded value codec");
+
+    const DebugExceptionInfo exception{"runtime", "attempt to index nil", "always",
+                                       DebugExceptionCategory::RuntimeError};
+    auto exceptionPayload = encodeExceptionInfo(exception);
+    auto decodedException = exceptionPayload ? decodeExceptionInfo(bytesOf(*exceptionPayload))
+                                             : ProtocolResult<DebugExceptionInfo>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedException && decodedException->exceptionId == "runtime" &&
+                    decodedException->description == "attempt to index nil" &&
+                    decodedException->category == DebugExceptionCategory::RuntimeError,
+                "Remote exception information retains its stable identity and category");
+
+    const RemoteStoppedEvent stopped{DebugStopReason::Breakpoint, ThreadId{11}, PauseGeneration{37}};
+    auto stoppedPayload = encodeStoppedEvent(stopped);
+    auto decodedStopped = stoppedPayload ? decodeStoppedEvent(bytesOf(*stoppedPayload))
+                                         : ProtocolResult<RemoteStoppedEvent>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedStopped && decodedStopped->reason == DebugStopReason::Breakpoint &&
+                    decodedStopped->thread == ThreadId{11} && decodedStopped->generation == PauseGeneration{37},
+                "Stopped events retain the pause generation used to reject stale handles");
+
+    const RemoteTerminatedEvent terminated{DebugTerminationReason::RuntimeError,
+                                           DebugError{DebugErrorCode::RuntimeFailure, "runtime failed", false}};
+    auto terminatedPayload = encodeTerminatedEvent(terminated);
+    auto decodedTerminated = terminatedPayload
+                                 ? decodeTerminatedEvent(bytesOf(*terminatedPayload))
+                                 : ProtocolResult<RemoteTerminatedEvent>(std::unexpected(ProtocolError{}));
+    ASSERT_TRUE(suite,
+                decodedTerminated && decodedTerminated->reason == DebugTerminationReason::RuntimeError &&
+                    decodedTerminated->error && decodedTerminated->error->message == "runtime failed",
+                "Terminated events retain their optional structured runtime error");
+}
+
 void testRemoteProtocolMutationCorpus(TestSuite& suite) {
     ProtocolFrame seed;
     seed.kind = ProtocolMessageKind::Response;
@@ -443,12 +577,60 @@ void testRuntimeDebugServerLoopback(TestSuite& suite) {
                 "Malformed handshake increments the protocol failure counter");
 
     {
+        auto malformedHello = TcpConnection::connect(started->address, started->port, 3000);
+        ASSERT_TRUE(suite, malformedHello.has_value(), "Malformed hello client connects to the server");
+        if (malformedHello) {
+            (void)malformedHello->setTimeouts(3000, 3000);
+            ProtocolFrame frame;
+            frame.kind = ProtocolMessageKind::Hello;
+            frame.requestId = 1;
+            frame.payload = {0xffU};
+            ProtocolFrameReader malformedReader;
+            auto sent = sendFrame(*malformedHello, std::move(frame));
+            auto rejected = sent ? malformedReader.receive(*malformedHello)
+                                 : ProtocolResult<ProtocolFrame>(std::unexpected(sent.error()));
+            ASSERT_TRUE(suite, rejected && rejected->status == ProtocolStatus::ProtocolError,
+                        "Remote server rejects a malformed hello payload with a protocol response");
+            malformedHello->close();
+        }
+    }
+    ASSERT_TRUE(suite, waitForServerStats(server, 2, 0, 0, 2),
+                "Malformed hello payload increments the protocol failure counter");
+
+    {
+        auto incompatible = TcpConnection::connect(started->address, started->port, 3000);
+        ASSERT_TRUE(suite, incompatible.has_value(), "Version-mismatch client connects to the server");
+        if (incompatible) {
+            (void)incompatible->setTimeouts(3000, 3000);
+            ProtocolFrameReader incompatibleReader;
+            auto rejected = exchangeHello(*incompatible, incompatibleReader, config.authToken, 1, 2, 2);
+            ASSERT_TRUE(suite, rejected && rejected->status == ProtocolStatus::VersionMismatch,
+                        "Remote server rejects an incompatible protocol major version");
+            incompatible->close();
+        }
+    }
+
+    {
+        auto missingState = TcpConnection::connect(started->address, started->port, 3000);
+        ASSERT_TRUE(suite, missingState.has_value(), "Missing-state client connects to the server");
+        if (missingState) {
+            (void)missingState->setTimeouts(3000, 3000);
+            ProtocolFrameReader missingStateReader;
+            auto rejected = exchangeHello(*missingState, missingStateReader, config.authToken, 1, kProtocolVersionMajor,
+                                          kProtocolVersionMajor, "missing-runtime-state");
+            ASSERT_TRUE(suite, rejected && rejected->status == ProtocolStatus::InvalidArgument,
+                        "Remote server rejects a requested runtime state that does not exist");
+            missingState->close();
+        }
+    }
+
+    {
         auto unauthorized = TcpConnection::connect(started->address, started->port, 3000);
         ASSERT_TRUE(suite, unauthorized.has_value(), "Unauthorized client connects to the loopback server");
         if (unauthorized) {
             (void)unauthorized->setTimeouts(3000, 3000);
-            ProtocolFrameDecoder decoder;
-            auto rejected = exchangeHello(*unauthorized, decoder, "wrong-token-12345");
+            ProtocolFrameReader reader;
+            auto rejected = exchangeHello(*unauthorized, reader, "wrong-token-12345");
             ASSERT_TRUE(suite,
                         rejected && rejected->kind == ProtocolMessageKind::HelloAck &&
                             rejected->status == ProtocolStatus::Unauthorized,
@@ -456,7 +638,7 @@ void testRuntimeDebugServerLoopback(TestSuite& suite) {
             unauthorized->close();
         }
     }
-    ASSERT_TRUE(suite, waitForServerStats(server, 2, 0, 1, 1),
+    ASSERT_TRUE(suite, waitForServerStats(server, 5, 0, 1, 2),
                 "Authentication failure is recorded without stopping the listener");
 
     auto client = TcpConnection::connect(started->address, started->port, 3000);
@@ -465,25 +647,35 @@ void testRuntimeDebugServerLoopback(TestSuite& suite) {
         return;
     }
     ASSERT_TRUE(suite, client->setTimeouts(3000, 3000).has_value(), "Authenticated client configures bounded I/O");
-    ProtocolFrameDecoder decoder;
-    auto acknowledged = exchangeHello(*client, decoder, config.authToken);
+    ProtocolFrameReader reader;
+    auto acknowledged = exchangeHello(*client, reader, config.authToken);
     ASSERT_TRUE(suite,
                 acknowledged && acknowledged->kind == ProtocolMessageKind::HelloAck &&
                     acknowledged->status == ProtocolStatus::Okay,
                 "Authenticated handshake negotiates a debugger session");
 
+    auto serverPing = reader.receive(*client);
+    ASSERT_TRUE(suite, serverPing && serverPing->kind == ProtocolMessageKind::Ping,
+                "Idle authenticated session receives a bounded server heartbeat");
+    if (serverPing) {
+        ProtocolFrame heartbeat;
+        heartbeat.kind = ProtocolMessageKind::Pong;
+        heartbeat.requestId = serverPing->requestId;
+        ASSERT_TRUE(suite, sendFrame(*client, std::move(heartbeat)).has_value(),
+                    "Authenticated client acknowledges the server heartbeat");
+    }
+
     ProtocolFrame ping;
     ping.kind = ProtocolMessageKind::Ping;
     ping.requestId = 7;
     auto pingSent = sendFrame(*client, std::move(ping));
-    auto pong =
-        pingSent ? receiveFrame(*client, decoder) : ProtocolResult<ProtocolFrame>(std::unexpected(pingSent.error()));
+    auto pong = pingSent ? reader.receive(*client) : ProtocolResult<ProtocolFrame>(std::unexpected(pingSent.error()));
     ASSERT_TRUE(suite, pong && pong->kind == ProtocolMessageKind::Pong && pong->requestId == 7,
                 "Authenticated session answers heartbeat pings");
 
     u64 requestId = 10;
     auto expectResponse = [&](ProtocolCommand command, Vec<u8> payload, ProtocolStatus expected) {
-        auto response = exchangeRequest(*client, decoder, command, requestId++, std::move(payload));
+        auto response = exchangeRequest(*client, reader, command, requestId++, std::move(payload));
         ASSERT_TRUE(suite,
                     response && response->kind == ProtocolMessageKind::Response && response->command == command &&
                         response->status == expected,
@@ -497,8 +689,20 @@ void testRuntimeDebugServerLoopback(TestSuite& suite) {
                    encodeAdvancedBreakpointRequest(breakpoints).value_or(Vec<u8>{}), ProtocolStatus::Okay);
     expectResponse(ProtocolCommand::SetFunctionBreakpoints, encodeFunctionBreakpointRequest({}).value_or(Vec<u8>{}),
                    ProtocolStatus::Okay);
+
+    EngineContext context;
+    UPtr<LuaState> state = LuaState::create(context);
+    const StateId stateId = controller.registerState(*state, "remote-contract", "Remote Contract");
+    auto stateStarted = reader.receive(*client);
+    auto threadStarted = reader.receive(*client);
+    ASSERT_TRUE(suite,
+                stateId.valid() && stateStarted && threadStarted && stateStarted->kind == ProtocolMessageKind::Event &&
+                    threadStarted->kind == ProtocolMessageKind::Event,
+                "Runtime state registration publishes state and thread events");
+
     expectResponse(ProtocolCommand::Threads, {}, ProtocolStatus::Okay);
     expectResponse(ProtocolCommand::States, {}, ProtocolStatus::Okay);
+    expectResponse(ProtocolCommand::SelectState, encodeStateRequest(stateId).value_or(Vec<u8>{}), ProtocolStatus::Okay);
     expectResponse(ProtocolCommand::SelectState, encodeStateRequest(StateId{999}).value_or(Vec<u8>{}),
                    ProtocolStatus::NotFound);
     expectResponse(ProtocolCommand::StackTrace,
@@ -520,25 +724,112 @@ void testRuntimeDebugServerLoopback(TestSuite& suite) {
                    ProtocolStatus::Okay);
     expectResponse(static_cast<ProtocolCommand>(0xffffU), {}, ProtocolStatus::NotSupported);
 
+    expectResponse(ProtocolCommand::Pause, encodeThreadRequest(DebugController::mainThreadId()).value_or(Vec<u8>{}),
+                   ProtocolStatus::Okay);
+    ASSERT_TRUE(suite, controller.notifySuspended(DebugStopReason::Pause).has_value(),
+                "Owner safepoint confirms the remote pause request");
+    auto stopped = reader.receive(*client);
+    ASSERT_TRUE(suite,
+                stopped && stopped->kind == ProtocolMessageKind::Event &&
+                    stopped->command == static_cast<ProtocolCommand>(ProtocolEvent::Stopped),
+                "Remote server publishes the stopped lifecycle event");
+
+    const std::array stepCommands{ProtocolCommand::Next, ProtocolCommand::StepIn, ProtocolCommand::StepOut};
+    for (ProtocolCommand command : stepCommands) {
+        expectResponse(command, encodeThreadRequest(DebugController::mainThreadId()).value_or(Vec<u8>{}),
+                       ProtocolStatus::Okay);
+        ASSERT_TRUE(suite, controller.confirmResumed().has_value(), "Owner confirms the remote step resume");
+        auto continued = reader.receive(*client);
+        ASSERT_TRUE(suite,
+                    continued && continued->kind == ProtocolMessageKind::Event &&
+                        continued->command == static_cast<ProtocolCommand>(ProtocolEvent::Continued),
+                    "Remote server publishes the continued lifecycle event");
+        ASSERT_TRUE(suite, controller.notifySuspended(DebugStopReason::Step).has_value(),
+                    "Owner reports the next remote step suspension");
+        stopped = reader.receive(*client);
+        ASSERT_TRUE(suite, stopped && stopped->command == static_cast<ProtocolCommand>(ProtocolEvent::Stopped),
+                    "Remote server publishes each step completion event");
+    }
+
+    expectResponse(ProtocolCommand::Continue, encodeThreadRequest(DebugController::mainThreadId()).value_or(Vec<u8>{}),
+                   ProtocolStatus::Okay);
+    ASSERT_TRUE(suite, controller.confirmResumed().has_value(), "Owner confirms the final remote continue");
+    auto continued = reader.receive(*client);
+    ASSERT_TRUE(suite, continued && continued->command == static_cast<ProtocolCommand>(ProtocolEvent::Continued),
+                "Remote server publishes the final continued event");
+
+    controller.unregisterState(*state);
+    auto stateExited = reader.receive(*client);
+    auto threadExited = reader.receive(*client);
+    ASSERT_TRUE(suite,
+                stateExited && threadExited && stateExited->kind == ProtocolMessageKind::Event &&
+                    threadExited->kind == ProtocolMessageKind::Event,
+                "Runtime state removal publishes state and thread exit events");
+
     const u64 duplicateId = requestId++;
-    auto first = exchangeRequest(*client, decoder, ProtocolCommand::Threads, duplicateId);
-    auto duplicate = exchangeRequest(*client, decoder, ProtocolCommand::Threads, duplicateId);
+    auto first = exchangeRequest(*client, reader, ProtocolCommand::Threads, duplicateId);
+    auto duplicate = exchangeRequest(*client, reader, ProtocolCommand::Threads, duplicateId);
     ASSERT_TRUE(suite,
                 first && first->status == ProtocolStatus::Okay && duplicate &&
                     duplicate->status == ProtocolStatus::ProtocolError,
                 "Remote server rejects duplicate request identifiers without dropping the session");
 
-    auto detached = exchangeRequest(*client, decoder, ProtocolCommand::Detach, requestId,
+    controller.notifyProgramTerminated(DebugTerminationReason::Completed);
+    auto terminated = reader.receive(*client);
+    ASSERT_TRUE(suite,
+                terminated && terminated->kind == ProtocolMessageKind::Event &&
+                    terminated->command == static_cast<ProtocolCommand>(ProtocolEvent::Terminated),
+                "Remote server publishes the terminated lifecycle event");
+
+    auto detached = exchangeRequest(*client, reader, ProtocolCommand::Detach, requestId,
                                     encodeBooleanRequest(false).value_or(Vec<u8>{}));
     ASSERT_TRUE(suite, detached && detached->status == ProtocolStatus::Okay,
                 "Remote detach receives an acknowledgement before disconnecting");
     client->close();
-    ASSERT_TRUE(suite, waitForServerStats(server, 3, 1, 1, 1),
+    ASSERT_TRUE(suite, waitForServerStats(server, 6, 1, 1, 2),
                 "Remote server records accepted, authenticated, rejected, and malformed sessions");
 
     server.stop();
     ASSERT_TRUE(suite, !server.running() && server.endpoint().port == 0,
                 "Stopping the remote server clears its published endpoint");
+
+    DebugController busyController;
+    auto heldSession = busyController.attachSession();
+    RuntimeDebugServer busyServer(busyController);
+    DebugServerConfig busyConfig = config;
+    auto busyStarted = busyServer.start(busyConfig);
+    ASSERT_TRUE(suite, heldSession && busyStarted, "Busy-session fixture starts with a held debugger attachment");
+    if (busyStarted) {
+        auto busyClient = TcpConnection::connect(busyStarted->address, busyStarted->port, 3000);
+        ASSERT_TRUE(suite, busyClient.has_value(), "Busy-session client connects to the remote server");
+        if (busyClient) {
+            (void)busyClient->setTimeouts(3000, 3000);
+            ProtocolFrameReader busyReader;
+            auto rejected = exchangeHello(*busyClient, busyReader, busyConfig.authToken);
+            ASSERT_TRUE(suite, rejected && rejected->status == ProtocolStatus::Busy,
+                        "Remote server rejects a second debugger attachment as busy");
+            busyClient->close();
+        }
+    }
+    busyServer.stop();
+
+    ASSERT_TRUE(suite, busyController.configurationDone().has_value(),
+                "Held debugger session advances beyond the write-policy configuration phase");
+    busyStarted = busyServer.start(busyConfig);
+    ASSERT_TRUE(suite, busyStarted.has_value(), "Write-policy rejection fixture restarts its listener");
+    if (busyStarted) {
+        auto policyClient = TcpConnection::connect(busyStarted->address, busyStarted->port, 3000);
+        ASSERT_TRUE(suite, policyClient.has_value(), "Write-policy client connects to the remote server");
+        if (policyClient) {
+            (void)policyClient->setTimeouts(3000, 3000);
+            ProtocolFrameReader policyReader;
+            auto rejected = exchangeHello(*policyClient, policyReader, busyConfig.authToken);
+            ASSERT_TRUE(suite, rejected && rejected->status == ProtocolStatus::InvalidState,
+                        "Remote server rejects policy changes after configurationDone");
+            policyClient->close();
+        }
+    }
+    busyServer.stop();
 }
 
 void registerDebuggerRemoteProtocolTests() {
@@ -548,6 +839,7 @@ void registerDebuggerRemoteProtocolTests() {
     registry.registerTest(kSuiteName, "Malformed Inputs", testRemoteProtocolMalformedInputs);
     registry.registerTest(kSuiteName, "Versioned Handshake", testRemoteProtocolHandshake);
     registry.registerTest(kSuiteName, "Advanced Breakpoint Messages", testRemoteAdvancedBreakpointMessages);
+    registry.registerTest(kSuiteName, "Runtime Payload Messages", testRemoteRuntimePayloadMessages);
     registry.registerTest(kSuiteName, "Mutation Corpus", testRemoteProtocolMutationCorpus);
     registry.registerTest(kSuiteName, "Loopback TCP Transport", testRemoteProtocolLoopbackTransport);
     registry.registerTest(kSuiteName, "Authenticated Runtime Server", testRuntimeDebugServerLoopback);
