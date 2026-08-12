@@ -52,7 +52,7 @@ class WorkflowEvidenceTests(unittest.TestCase):
         self.assertIn("-DLUA_CPP_BUILD_DEBUGGER=ON", nightly_fuzz)
         self.assertEqual(ci_benchmark.count("-DLUA_CPP_BUILD_DEBUGGER=OFF"), 2)
         self.assertEqual(release.count("-DLUA_CPP_BUILD_DEBUGGER=OFF"), 2)
-        self.assertIn("-G 'Visual Studio 17 2022' -A x64", ci_allocator)
+        self.assertIn("cmake -S . -B build/allocator -A x64", ci_allocator)
         self.assertIn('build/allocator/Debug/lua_test.exe', ci_allocator)
 
     def test_fuzz_target_policy_matches_workflows_cmake_and_release_verifier(self) -> None:

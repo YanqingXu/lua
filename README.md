@@ -150,7 +150,7 @@ bin\lua_test.exe --report=junit
 报告为测试通过。
 
 测试运行器会在输出中报告实时测试数量、断言结果以及 expected/unexpected skip。2026-08-12
-的调试器开启 Release 基线为 **830 registered tests, 7051 assertion results, 0 failures,
+的调试器开启 Release 基线为 **831 registered tests, 7087 assertion results, 0 failures,
 0 expected skips, 0 unexpected skips**；调试器关闭的正式包边界为 791 registered tests、6804
 assertion results，同样 0 failures/skips。其中 `Lua C API` suite 为 61 个测试、2910 个断言、
 0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。生产配置扩展的合并提交

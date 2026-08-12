@@ -53,6 +53,7 @@ function Invoke-Checker {
 
     $outputText = ($output | ForEach-Object { $_.ToString() }) -join "`n"
     $searchText = [regex]::Replace($outputText, '\x1B\[[0-?]*[ -/]*[@-~]', '')
+    $searchText = $searchText.Replace('|', ' ')
     $searchText = [regex]::Replace($searchText, '\s+', ' ').Trim()
     return [pscustomobject]@{
         ExitCode = $exitCode

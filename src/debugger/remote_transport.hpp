@@ -25,7 +25,7 @@ public:
     [[nodiscard]] static ProtocolResult<TcpConnection> connect(StrView address, u16 port, u32 timeoutMs);
     [[nodiscard]] bool valid() const noexcept;
     [[nodiscard]] ProtocolResult<void> sendAll(std::span<const u8> bytes);
-    [[nodiscard]] ProtocolResult<Vec<u8>> receiveSome(usize maxBytes = 64U * 1024U);
+    [[nodiscard]] ProtocolResult<Vec<u8>> receiveSome(usize maxBytes = usize{64} * 1024U);
     [[nodiscard]] ProtocolResult<void> setTimeouts(u32 receiveTimeoutMs, u32 sendTimeoutMs);
     void close() noexcept;
 

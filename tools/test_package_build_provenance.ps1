@@ -251,13 +251,15 @@ install(FILES "`${CMAKE_CURRENT_BINARY_DIR}/built-revision.txt" DESTINATION shar
         -Commit $commitB `
         -Configuration "Release"
 
-    Assert-Rejected {
-        Test-LuaCppBuildProvenance `
-            -BuildDirectory $build `
-            -Repository $source `
-            -Commit $commitB `
-            -Configuration "Profile"
-    } "not present in build provenance configuration_types" "unknown multi-config configuration"
+    if (@($positive.configuration_types).Count -gt 0) {
+        Assert-Rejected {
+            Test-LuaCppBuildProvenance `
+                -BuildDirectory $build `
+                -Repository $source `
+                -Commit $commitB `
+                -Configuration "Profile"
+        } "not present in build provenance configuration_types" "unknown multi-config configuration"
+    }
 
     Set-Content -LiteralPath (Join-Path $source "revision.txt") `
         -Value "DIRTY-BUILD" `

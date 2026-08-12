@@ -278,7 +278,7 @@ jobs:
         shell: pwsh
         run: |
           if ($IsWindows) {
-            cmake -S . -B build/allocator -G 'Visual Studio 17 2022' -A x64 `
+            cmake -S . -B build/allocator -A x64 `
               -DLUA_CPP_BUILD_TOOLS=OFF
           } else {
             cmake -S . -B build/allocator -G Ninja `
