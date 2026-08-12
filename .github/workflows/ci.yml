@@ -275,19 +275,26 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Configure allocator contract
-        run: >-
-          cmake -S . -B build/allocator -G Ninja
-          -DCMAKE_BUILD_TYPE=Debug
-          -DLUA_CPP_BUILD_TOOLS=OFF
+        shell: pwsh
+        run: |
+          if ($IsWindows) {
+            cmake -S . -B build/allocator -A x64 `
+              -DLUA_CPP_BUILD_TOOLS=OFF
+          } else {
+            cmake -S . -B build/allocator -G Ninja `
+              -DCMAKE_BUILD_TYPE=Debug `
+              -DLUA_CPP_BUILD_TOOLS=OFF
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build allocator contract
-        run: cmake --build build/allocator --parallel 2 --target lua_test
+        run: cmake --build build/allocator --config Debug --parallel 2 --target lua_test
 
       - name: Run with process memory limit and fail-on-N enabled
         shell: pwsh
         run: |
           Remove-Item Env:LUA_TEST_DISABLE_MEMORY_LIMIT -ErrorAction SilentlyContinue
-          $executable = if ($IsWindows) { "build/allocator/lua_test.exe" } else { "build/allocator/lua_test" }
+          $executable = if ($IsWindows) { "build/allocator/Debug/lua_test.exe" } else { "build/allocator/lua_test" }
           & $executable --exclude-filter "Lua 5.1 Official"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -315,6 +322,7 @@ jobs:
           cmake -S . -B build/fuzz
           -DCMAKE_BUILD_TYPE=Debug
           -DLUA_CPP_BUILD_FUZZERS=ON
+          -DLUA_CPP_BUILD_DEBUGGER=ON
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
 
@@ -408,6 +416,7 @@ jobs:
           cmake -S . -B build/coverage
           -DCMAKE_BUILD_TYPE=Debug
           -DLUA_CPP_ENABLE_COVERAGE=ON
+          -DLUA_CPP_BUILD_DEBUGGER=ON
 
       - name: Build coverage runner
         run: cmake --build build/coverage --parallel 2 --target lua_test lua_app
@@ -491,6 +500,7 @@ jobs:
           cmake -S build/benchmark-base-source -B build/benchmark-base
           -DCMAKE_BUILD_TYPE=Release
           -DLUA_CPP_BUILD_BENCHMARKS=ON
+          -DLUA_CPP_BUILD_DEBUGGER=OFF
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
 
@@ -499,6 +509,7 @@ jobs:
           cmake -S . -B build/benchmark-head
           -DCMAKE_BUILD_TYPE=Release
           -DLUA_CPP_BUILD_BENCHMARKS=ON
+          -DLUA_CPP_BUILD_DEBUGGER=OFF
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
 

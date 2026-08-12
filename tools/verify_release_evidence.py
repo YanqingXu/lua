@@ -90,6 +90,8 @@ EXPECTED_FUZZ_TARGETS = (
     "bytecode_verifier",
     "parser",
     "stdlib_numeric_arguments",
+    "remote_protocol",
+    "debugger_expression",
 )
 WORKFLOW_EVIDENCE_FIELDS = {
     "schema",
@@ -112,6 +114,7 @@ REQUIRED_NOTES_EVIDENCE_TERMS = ("CI", "nightly", "SHA-256", "SBOM")
 EXPECTED_COVERAGE_THRESHOLDS = {
     "bytecode_verifier": 84.0,
     "c_api": 83.0,
+    "debugger_core": 75.0,
     "gc_phases": 86.0,
     "opcode_handlers": 84.0,
     "parser_codegen": 90.0,
@@ -131,6 +134,7 @@ EXPECTED_COVERAGE_COMPONENT_PATTERNS = {
     "gc_phases": ("/src/gc/",),
     "c_api": ("/src/api/",),
     "bytecode_verifier": ("/src/runtime/bytecode_verifier.cpp",),
+    "debugger_core": ("/src/debugger/",),
     "sandbox_denied_paths": (
         "/src/runtime/sandbox_policy.hpp",
         "/src/vm/state/global_state.cpp",
@@ -141,6 +145,7 @@ EXPECTED_COVERAGE_COMPONENT_PATTERNS = {
 MINIMUM_COVERAGE_SCOPE = {
     "bytecode_verifier": {"files": 1, "total_lines": 200},
     "c_api": {"files": 2, "total_lines": 1800},
+    "debugger_core": {"files": 8, "total_lines": 3000},
     "gc_phases": {"files": 6, "total_lines": 1100},
     "opcode_handlers": {"files": 10, "total_lines": 900},
     "parser_codegen": {"files": 20, "total_lines": 4000},
@@ -183,7 +188,7 @@ EXPECTED_BENCHMARK_POLICY = {
 }
 TIMED_JOB_STEPS = {
     "Runtime and native-module soak": ("Run runtime soak", 45 * 60),
-    "Long sanitizer fuzz": ("Run long fuzz campaign", 4 * 600),
+    "Long sanitizer fuzz": ("Run long fuzz campaign", len(EXPECTED_FUZZ_TARGETS) * 600),
 }
 ARTIFACT_TIMED_JOBS = {
     "runtime-soak-evidence": "Runtime and native-module soak",

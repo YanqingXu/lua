@@ -43,8 +43,8 @@ def make_job(run_id: int, index: int, name: str) -> dict[str, object]:
             started_at = "2026-07-26T01:05:00Z"
             completed_at = "2026-07-26T01:50:00Z"
         else:
-            started_at = "2026-07-26T01:10:00Z"
-            completed_at = "2026-07-26T01:50:00Z"
+            started_at = "2026-07-26T01:00:00Z"
+            completed_at = "2026-07-26T02:00:00Z"
         job["required_timed_steps"] = [
             {
                 "name": step_name,

@@ -7,10 +7,13 @@
  */
 
 #include "vm/state/lua_state.hpp"
+#include "common/features.hpp"
 #include "lua.h"
 #include "common/lua_error.hpp"
 #include "common/number_conversion.hpp"
+#if LUA_CPP_ENABLE_DEBUGGER
 #include "debugger/debug_runtime.hpp"
+#endif
 #include "core/gc_string.hpp"
 #include "core/userdata.hpp"
 #include "core/function.hpp"
@@ -322,9 +325,11 @@ LuaState* LuaState::newThread(LuaState* parentL) {
         L->stack_.push(Value()); // nil
         L->top_ = 1;
         L->status_ = ThreadStatus::OK;
+#if LUA_CPP_ENABLE_DEBUGGER
         if (Debugger::DebugController* debugger = globalState.getDebugController()) {
             (void)debugger->registerState(*L);
         }
+#endif
     } catch (...) {
         destroyState(L);
         return nullptr;
@@ -359,9 +364,11 @@ LuaState::LuaState(GlobalState& globalState)
       globalTable_(nullptr), status_(ThreadStatus::OK), openUpvalues_(nullptr) {}
 
 LuaState::~LuaState() {
+#if LUA_CPP_ENABLE_DEBUGGER
     if (Debugger::DebugController* debugger = globalState_.getDebugController()) {
         debugger->unregisterState(*this);
     }
+#endif
 
     /** @brief 关闭所有开放上值。 */
     closeUpvalues(0);
@@ -409,9 +416,11 @@ void LuaState::initialize() {
     // 在栈上放置一个nil值作为虚拟函数
     stack_.push(Value()); // nil
     top_ = 1;             // 栈顶指向下一个可用位置
+#if LUA_CPP_ENABLE_DEBUGGER
     if (Debugger::DebugController* debugger = globalState_.getDebugController()) {
         (void)debugger->registerState(*this, "main", "root Lua state");
     }
+#endif
 }
 
 void LuaState::setGlobalTable(Table* table) {

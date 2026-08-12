@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; docs/release/platform-support.md; docs/release/platform-baseline.json; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; cmake/LuaCppPlatformBaseline.cmake; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; tests/unit/framework/test_runner.cpp; tests/quality/test_signal_allowlist.json; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/run_quality_gate.ps1; tools/test_quality_gate.ps1; tools/check_test_signal_integrity.ps1; tools/check_test_binary_sha.ps1; tools/check_release_readiness.ps1; tools/package_release.ps1; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/verify_release_package_consumer.py; tools/test_verify_release_package_consumer.py
-last_checked: 2026-07-26
+last_checked: 2026-08-12
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
@@ -69,6 +69,12 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - REPL 支持元命令、历史记录、增量解析、Tab 补全、字节码查看、AST 查看和 GC 信息查询。
 - 兼容性验证包含 Lua 5.1 官方测试套件的 staged smoke、Release 原样 strict `all.lua`、TestC 脚本、项目内 Lua 回归脚本和 C++ 单元测试；当前 strict `all.lua`、`api.lua` 与经 SHA 锁定 Lua 5.1.5 `luac` oracle 校正的 `code.lua` 均为 required PASS，TestC 不保留已知 XFAIL。
 - 项目包含复杂第三方 Lua 库 `alien-signals-in-lua` 的运行验证，用于检验闭包、元表、协程、模块加载、debug 反射和嵌套表操作等组合场景。
+
+### 开发中的调试器核心
+
+- `src/debugger/` 提供编辑器无关的 safepoint、断点、单步、暂停句柄、栈/变量检查、受限表达式求值和远程协议核心；编辑器适配器与 VS Code 扩展位于独立的 [LuaDebugger](https://github.com/YanqingXu/LuaDebugger) 仓库。
+- 调试器属于 `v0.2` 能力线。开发构建默认启用，可用 `-DLUA_CPP_BUILD_DEBUGGER=OFF` 完全排除实现、测试、fuzz 和 benchmark；正式 `0.1.x` Runtime Preview 包固定关闭该选项，不把调试器 API 纳入 0.1 SDK/ABI 承诺。
+- 调试器开启时由独立单元测试、两个 libFuzzer 目标、benchmark 合同和 `debugger_core` 组件覆盖率阈值约束。
 
 ## 快速开始
 
@@ -143,15 +149,17 @@ bin\lua_test.exe --report=junit
 显式 `--filter` / `--exclude-filter` 若最终选中 0 个已注册测试，会以退出码 2 失败，不能把空选择
 报告为测试通过。
 
-测试运行器会在输出中报告实时测试数量、断言结果以及 expected/unexpected skip。2026-07-26
-的当前本地 Release 基线为 **791 registered tests, 6773 assertion results, 0 failures,
-0 expected skips, 0 unexpected skips**；其中 `Lua C API` suite 为 61 个测试、2910 个断言、
+测试运行器会在输出中报告实时测试数量、断言结果以及 expected/unexpected skip。2026-08-12
+的调试器开启 Release 基线为 **832 registered tests, 7140 assertion results, 0 failures,
+0 expected skips, 0 unexpected skips**；调试器关闭的正式包边界为 791 registered tests、6804
+assertion results，同样 0 failures/skips。其中 `Lua C API` suite 为 61 个测试、2910 个断言、
 0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。生产配置扩展的合并提交
 `079b16c` 已在 [`main` 的 Actions run 30079569799](https://github.com/YanqingXu/lua/actions/runs/30079569799)
 取得 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、
 macOS、benchmark 和 lint。该历史运行不是当前工作树的候选证据；Nightly endurance、RC
 治理与跨平台制品验证仍须按 [发布检查清单](docs/release/release-checklist.md) 独立完成，
-不能由历史常规 CI 全绿替代。
+不能由历史常规 CI 全绿替代。最新远端检查点 `76c5eb4` 没有关联 PR 或 check run，因此当前
+`main` 不能继承上述历史绿色结论。
 
 ### CMake / CTest 与 SDK 安装
 
@@ -176,6 +184,9 @@ cmake -S . -B build\sdk -A x64 -DCMAKE_INSTALL_PREFIX=out\lua-cpp
 cmake --build build\sdk --config Release
 cmake --install build\sdk --config Release
 ```
+
+上述开发态默认包含调试器核心。要复现正式 `0.1.x` SDK 的范围，应在 configure 时同时传入
+`-DLUA_CPP_BUILD_DEBUGGER=OFF`；发布 workflow 强制使用该设置。
 
 外部 CMake 工程可直接消费：
 

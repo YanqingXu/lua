@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/architecture/overview.md; docs/architecture/execution-pipeline/overview.md; docs/compiler/lexer.md; docs/compiler/parser.md; docs/compiler/bytecode-generation.md; docs/vm/runtime/overview.md; docs/runtime/value/overview.md; docs/runtime/table/overview.md; docs/runtime/functions/overview.md; docs/runtime/services.md; docs/runtime/execution-policy.md; docs/runtime/sandbox-policy.md; docs/runtime/memory-contract.md; docs/gc/implementation.md; docs/knowledge/source-document-map.md; src/compiler/; src/vm/; src/core/; src/gc/; tests/lua/official/
-last_checked: 2026-07-15
+last_checked: 2026-08-12
 applies_to: technical documentation entry point
 ---
 
@@ -23,7 +23,7 @@ applies_to: technical documentation entry point
 | GC | root/object graph、mark/sweep、barrier、weak table、finalizer 和 StringPool | [GC 总览](gc/overview.md)、[GC 实现](gc/implementation.md)、[周期 walkthrough](gc/cycle-walkthrough.md) |
 | Standard Library | native function 注册、公共栈协议和 Lua 5.1 库语义 | [注册架构](stdlib/overview.md)、[库实现边界](stdlib/library-reference/overview.md) |
 | Compatibility | Lua 5.1 支持面、实现自由度、高风险差异和验证门槛 | [兼容性边界](compatibility/lua51/overview.md) |
-| Diagnostics | 错误分类、阶段二分、trace、source/line、traceback 与交互式调试边界 | [诊断指南](debugging/overview.md)、[调试器架构](../../Debugger/docs/architecture.md)、[调试信息合同](../../Debugger/docs/debug-info-contract.md) |
+| Diagnostics | 错误分类、阶段二分、trace、source/line、traceback 与交互式调试边界 | [诊断指南](debugging/overview.md)、[调试器架构](https://github.com/YanqingXu/LuaDebugger/blob/main/docs/architecture.md)、[调试信息合同](https://github.com/YanqingXu/LuaDebugger/blob/main/docs/debug-info-contract.md) |
 | Testing | unit、Lua behavior、official、regression 与 golden 的证据分工 | [测试策略](testing/testing-strategy.md) |
 | Source Map | 源码、文档与测试责任区 | [源码映射](knowledge/source-document-map.md)、[目录地图](knowledge/source-map/directory-map.md) |
 

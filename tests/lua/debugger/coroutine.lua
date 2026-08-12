@@ -8,4 +8,3 @@ end)
 local first_ok, first = coroutine.resume(worker, 40)
 local second_ok, second = coroutine.resume(worker)
 return first_ok, first, second_ok, second
-

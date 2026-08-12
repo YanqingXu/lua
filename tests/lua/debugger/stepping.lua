@@ -12,4 +12,3 @@ for index = 1, 3 do
 end
 
 return total
-

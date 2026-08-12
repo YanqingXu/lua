@@ -1,3 +1,5 @@
+cmake_minimum_required(VERSION 3.20)
+
 if(NOT DEFINED PROJECT_SOURCE_DIR OR NOT DEFINED EVIDENCE_OUTPUT)
     message(FATAL_ERROR "PROJECT_SOURCE_DIR and EVIDENCE_OUTPUT are required")
 endif()

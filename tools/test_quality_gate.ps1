@@ -167,7 +167,9 @@ Assert-FileContains ".clang-tidy" @(
     "bugprone-\*",
     "performance-\*",
     "readability-\*",
-    "WarningsAsErrors:"
+    "WarningsAsErrors:",
+    "bugprone-unused-return-value\.AllowCastToVoid",
+    "value:\s*'true'"
 )
 
 Assert-FileContains "tools/run_quality_gate.ps1" @(

@@ -51,9 +51,14 @@ function Invoke-Checker {
         $ErrorActionPreference = $previousErrorActionPreference
     }
 
+    $outputText = ($output | ForEach-Object { $_.ToString() }) -join "`n"
+    $searchText = [regex]::Replace($outputText, '\x1B\[[0-?]*[ -/]*[@-~]', '')
+    $searchText = $searchText.Replace('|', ' ')
+    $searchText = [regex]::Replace($searchText, '\s+', ' ').Trim()
     return [pscustomobject]@{
         ExitCode = $exitCode
-        Output = ($output | ForEach-Object { $_.ToString() }) -join "`n"
+        Output = $outputText
+        SearchText = $searchText
     }
 }
 
@@ -78,7 +83,7 @@ function Assert-FailedWith {
     if ($Result.ExitCode -eq 0) {
         throw "$Scenario should fail"
     }
-    if ($Result.Output -notmatch $Pattern) {
+    if ($Result.SearchText -notmatch $Pattern) {
         throw "$Scenario failed without expected diagnostic '$Pattern':`n$($Result.Output)"
     }
 }

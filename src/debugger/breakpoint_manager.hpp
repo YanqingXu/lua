@@ -11,6 +11,7 @@
 #include <atomic>
 #include <mutex>
 #include <span>
+#include <version>
 
 namespace Lua {
 class Proto;
@@ -124,6 +125,8 @@ private:
     void bindLocked(RequestedBreakpoint& breakpoint);
     void bindFunctionLocked(RequestedBreakpoint& breakpoint);
     void rebuildSnapshotLocked();
+    [[nodiscard]] Ptr<const LookupSnapshot> loadSnapshot() const noexcept;
+    void storeSnapshot(Ptr<const LookupSnapshot> snapshot) noexcept;
 
     mutable std::mutex mutex_;
     SourceRegistry sources_;
@@ -133,7 +136,11 @@ private:
     Vec<RequestedBreakpoint> requestedFunctions_;
     HashSet<const Proto*> registeredProtos_;
     Ptr<const LookupSnapshot> emptySnapshot_;
+#if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
     std::atomic<Ptr<const LookupSnapshot>> snapshot_;
+#else
+    Ptr<const LookupSnapshot> snapshot_;
+#endif
     std::atomic<bool> hasBreakpoints_ = false;
     u64 nextBreakpointId_ = 1;
 };

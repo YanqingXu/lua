@@ -3,6 +3,7 @@
   "components": {
     "bytecode_verifier": 84.0,
     "c_api": 83.0,
+    "debugger_core": 75.0,
     "gc_phases": 86.0,
     "opcode_handlers": 84.0,
     "parser_codegen": 90.0,

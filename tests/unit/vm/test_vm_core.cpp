@@ -21,12 +21,27 @@
 #include "lib/iolib.hpp"
 #include <array>
 #include <cstdio>
+#include <filesystem>
 #include <thread>
+
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 using namespace Lua;
 using namespace LuaTest;
 
 namespace {
+
+i32 currentTestProcessId() noexcept {
+#ifdef _WIN32
+    return static_cast<i32>(_getpid());
+#else
+    return static_cast<i32>(getpid());
+#endif
+}
 
 FILE* openTrackedTestFile(const char* path) {
 #ifdef _WIN32
@@ -428,11 +443,14 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
         return;
     }
 
-    const char* path = "test_vm_core_iolib_default.txt";
+    const std::filesystem::path path =
+        std::filesystem::temp_directory_path() /
+        ("lua_cpp_vm_core_iolib_default_" + std::to_string(currentTestProcessId()) + ".txt");
+    const std::string pathText = path.string();
 
     L->getStack().clear();
     L->setAbsoluteTop(0);
-    L->pushString(pool.intern(path));
+    L->pushString(pool.intern(pathText));
     i32 ret = ioOutput->getCFunction()(L);
     ASSERT_EQ(suite, ret, 1, "io.output returns one value");
     ASSERT_TRUE(suite, L->top().isUserdata(), "io.output returns file handle");
@@ -453,10 +471,11 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
 
     L->getStack().clear();
     L->setAbsoluteTop(0);
-    L->pushString(pool.intern(path));
+    L->pushString(pool.intern(pathText));
     ret = ioInput->getCFunction()(L);
     ASSERT_EQ(suite, ret, 1, "io.input returns one value");
     ASSERT_TRUE(suite, L->top().isUserdata(), "io.input returns file handle");
+    const Value inputHandle = L->top();
 
     L->getStack().clear();
     L->setAbsoluteTop(0);
@@ -478,8 +497,15 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
         ASSERT_EQ(suite, 123.0, L->top().asNumber(), "io.read('*n') reads numeric suffix");
     }
 
-    std::remove(path);
+    L->getStack().clear();
+    L->setAbsoluteTop(0);
+    L->pushValue(inputHandle);
+    ret = ioClose->getCFunction()(L);
+    ASSERT_EQ(suite, ret, 1, "io.close(input) returns one value");
+    ASSERT_TRUE(suite, L->top().isBoolean() && L->top().asBoolean(), "io.close(input) succeeds");
+
     delete L;
+    std::filesystem::remove(path);
 }
 
 void testIOLibFileRegistryIsStateIsolated(TestSuite& suite) {
