@@ -17,7 +17,7 @@ from typing import Any
 POLICY_SCHEMA = "lua-cpp.platform-baseline/v1"
 EVIDENCE_SCHEMA = "lua-cpp.platform-evidence/v1"
 SUPPORTED_RIDS = ("windows-x64", "linux-x64", "macos-arm64")
-VERSION_RE = re.compile(r"^[0-9]+(?:\.[0-9]+)*$")
+VERSION_RE = re.compile(r"^(?P<core>[0-9]+(?:\.[0-9]+)*)(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$")
 ARCHITECTURE_ALIASES = {
     "windows-x64": {"amd64", "x64", "x86_64", "x86-64"},
     "linux-x64": {"amd64", "x64", "x86_64", "x86-64"},
@@ -74,9 +74,10 @@ def _nonempty_string(value: Any, label: str) -> str:
 
 def _version(value: Any, label: str) -> tuple[int, ...]:
     text = _nonempty_string(value, label)
-    if not VERSION_RE.fullmatch(text):
-        raise BaselineError(f"{label} must be a dotted numeric version")
-    return tuple(int(part) for part in text.split("."))
+    match = VERSION_RE.fullmatch(text)
+    if match is None:
+        raise BaselineError(f"{label} must be a dotted numeric version with an optional toolchain suffix")
+    return tuple(int(part) for part in match.group("core").split("."))
 
 
 def _version_at_least(actual: str, minimum: str, label: str) -> None:

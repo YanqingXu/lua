@@ -10,6 +10,7 @@
  */
 
 #include "test_framework.hpp"
+#include "common/features.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -42,6 +43,7 @@ extern void registerGCTests();
 extern void registerLuaStateInitTests();
 extern void registerRuntimeServicesTests();
 extern void registerVMTraceDebugTests();
+#if LUA_CPP_ENABLE_DEBUGGER
 extern void registerDebuggerDebugInfoTests();
 extern void registerDebuggerDomainTypeTests();
 extern void registerDebuggerRuntimeTests();
@@ -49,6 +51,7 @@ extern void registerDebuggerRemoteProtocolTests();
 extern void registerDebuggerBreakpointTests();
 extern void registerDebuggerStackInspectorTests();
 extern void registerDebuggerCliTests();
+#endif
 extern void registerAstVisitorTests();
 extern void registerBinaryUnaryExprTests();
 extern void registerFunctionCodegenTests();
@@ -357,6 +360,7 @@ void registerAllTests() {
     registerLuaStateInitTests();
     registerRuntimeServicesTests();
     registerVMTraceDebugTests();
+#if LUA_CPP_ENABLE_DEBUGGER
     registerDebuggerDebugInfoTests();
     registerDebuggerDomainTypeTests();
     registerDebuggerRuntimeTests();
@@ -364,6 +368,7 @@ void registerAllTests() {
     registerDebuggerBreakpointTests();
     registerDebuggerStackInspectorTests();
     registerDebuggerCliTests();
+#endif
     registerAstVisitorTests();
     registerBinaryUnaryExprTests();
     registerFunctionCodegenTests();

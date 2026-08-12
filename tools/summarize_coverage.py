@@ -15,6 +15,7 @@ COMPONENTS: dict[str, tuple[str, ...]] = {
     "gc_phases": ("/src/gc/",),
     "c_api": ("/src/api/",),
     "bytecode_verifier": ("/src/runtime/bytecode_verifier.cpp",),
+    "debugger_core": ("/src/debugger/",),
     "sandbox_denied_paths": (
         "/src/runtime/sandbox_policy.hpp",
         "/src/vm/state/global_state.cpp",

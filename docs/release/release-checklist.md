@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: CMakeLists.txt; src/lua_cpp_version.h; CHANGELOG.md; SECURITY.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; docs/release/platform-support.md; docs/release/platform-baseline.json; cmake/LuaCppPlatformBaseline.cmake; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/check_release_readiness.ps1; tools/release_identity.psm1; tools/test_release_identity.ps1; tools/verify_source_readiness_evidence.py; tools/test_verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/test_verify_release_governance.py; tools/write_workflow_evidence.py; tools/test_write_workflow_evidence.py; tools/verify_release_evidence.py; tools/test_verify_release_evidence.py; tools/build_release_body.py; tools/test_build_release_body.py; tools/verify_release_tag.py; tools/test_verify_release_tag.py; cmake/WriteBuildProvenance.cmake; tools/build_provenance.psm1; tools/test_package_build_provenance.ps1; tools/package_release.ps1; tools/generate_sbom.py; tools/validate_release_artifacts.py; tools/verify_release_package_consumer.py; tools/test_verify_release_package_consumer.py; tests/packaging/consumer/CMakeLists.txt; tests/packaging/consumer/main.c
-last_checked: 2026-07-26
+last_checked: 2026-08-12
 applies_to: 0.1.x release candidates and releases
 ---
 
@@ -42,15 +42,16 @@ applies_to: 0.1.x release candidates and releases
 - 内部元数据的 schema、kind、repository、candidate SHA、run ID/attempt、event、workflow、
   job、passed result 和时间必须精确绑定选中的 run；CI 参数必须为空；
 - coverage ZIP 必须包含原始 `llvm.coverage.json.export`、固定阈值文件、组件摘要和 HTML。
-  verifier 从每个原始 file summary 重新聚合六组件 line coverage，要求阈值文件与仓库批准策略
+  verifier 从每个原始 file summary 重新聚合七组件 line coverage，要求阈值文件与仓库批准策略
   精确一致，并用最小文件数/可覆盖行数拒绝伪造的 scope 收缩；
 - benchmark ZIP 必须包含 comparison、run-order 及每次 base/head 原始结果。verifier 重新计算
   median、paired regression 与合并 GC pause 的 p99/max，要求 base 是 candidate 的严格祖先，
   并从 GitHub commit/root-tree API 独立证明 `CMakeLists.txt`、`cmake/`、`src/` 的对象身份。
   每个 head 原始结果还必须满足 Linux/ci/Release 固定范围内的 10 项绝对 SLO；
 - 两类 nightly 内部参数必须分别证明至少 45 分钟 runtime soak、1000 次 native-module
-  lifecycle，以及 `undump`、`bytecode_verifier`、`parser`、`stdlib_numeric_arguments`
-  四个目标各至少 600 秒 fuzz。机器 JSON/log/corpus 必须与声明一致，且 GitHub jobs API 中
+  lifecycle，以及 `undump`、`bytecode_verifier`、`parser`、`stdlib_numeric_arguments`、
+  `remote_protocol`、`debugger_expression`
+  六个目标各至少 600 秒 fuzz。机器 JSON/log/corpus 必须与声明一致，且 GitHub jobs API 中
   对应 step 的真实开始/结束时间必须达到下限；自报时长不能替代权威 step 时间。
 
 成功后上传 `release-evidence` Actions artifact，其中的 `release-evidence.json` 记录 schema、

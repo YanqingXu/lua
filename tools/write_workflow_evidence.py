@@ -30,6 +30,8 @@ LONG_FUZZ_TARGETS = (
     "bytecode_verifier",
     "parser",
     "stdlib_numeric_arguments",
+    "remote_protocol",
+    "debugger_expression",
 )
 KIND_CONTEXT = {
     "component-coverage": ("ci.yml", "linux-coverage"),
@@ -128,9 +130,7 @@ def _validate_parameters(kind: str, parameters: Mapping[str, Any]) -> dict[str, 
         targets = validated.get("fuzz_targets")
         if not isinstance(targets, list) or tuple(targets) != LONG_FUZZ_TARGETS:
             expected = ", ".join(LONG_FUZZ_TARGETS)
-            raise EvidenceError(
-                f"long-fuzz fuzz_targets must be the ordered four-target set: {expected}"
-            )
+            raise EvidenceError(f"long-fuzz fuzz_targets must match the ordered target set: {expected}")
 
     return validated
 

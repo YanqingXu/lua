@@ -5,4 +5,3 @@ local function fail()
 end
 
 fail()
-

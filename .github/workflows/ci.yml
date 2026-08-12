@@ -315,6 +315,7 @@ jobs:
           cmake -S . -B build/fuzz
           -DCMAKE_BUILD_TYPE=Debug
           -DLUA_CPP_BUILD_FUZZERS=ON
+          -DLUA_CPP_BUILD_DEBUGGER=ON
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
 
@@ -408,6 +409,7 @@ jobs:
           cmake -S . -B build/coverage
           -DCMAKE_BUILD_TYPE=Debug
           -DLUA_CPP_ENABLE_COVERAGE=ON
+          -DLUA_CPP_BUILD_DEBUGGER=ON
 
       - name: Build coverage runner
         run: cmake --build build/coverage --parallel 2 --target lua_test lua_app
@@ -491,6 +493,7 @@ jobs:
           cmake -S build/benchmark-base-source -B build/benchmark-base
           -DCMAKE_BUILD_TYPE=Release
           -DLUA_CPP_BUILD_BENCHMARKS=ON
+          -DLUA_CPP_BUILD_DEBUGGER=OFF
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
 
@@ -499,6 +502,7 @@ jobs:
           cmake -S . -B build/benchmark-head
           -DCMAKE_BUILD_TYPE=Release
           -DLUA_CPP_BUILD_BENCHMARKS=ON
+          -DLUA_CPP_BUILD_DEBUGGER=OFF
           -DLUA_CPP_BUILD_TESTS=OFF
           -DLUA_CPP_BUILD_TOOLS=OFF
 

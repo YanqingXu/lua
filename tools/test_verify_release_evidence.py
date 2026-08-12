@@ -76,8 +76,8 @@ def make_job(
         "name": name,
         "status": "completed",
         "conclusion": "success",
-        "started_at": "2026-07-25T01:05:00Z",
-        "completed_at": "2026-07-25T01:55:00Z",
+        "started_at": "2026-07-25T01:00:00Z",
+        "completed_at": "2026-07-25T02:00:00Z",
         "html_url": f"https://github.com/{REPOSITORY}/actions/runs/{run_id}/job/{len(name)}",
     }
     if lint_steps:
@@ -126,8 +126,8 @@ def make_job(
                 "name": "Run long fuzz campaign",
                 "status": "completed",
                 "conclusion": "success",
-                "started_at": "2026-07-25T01:10:00Z",
-                "completed_at": "2026-07-25T01:50:00Z",
+                "started_at": "2026-07-25T01:00:00Z",
+                "completed_at": "2026-07-25T02:00:00Z",
             },
         ]
     return job
@@ -158,6 +158,7 @@ def coverage_payloads() -> dict[str, object]:
     baseline = {
         "bytecode_verifier": (1, 239, 277),
         "c_api": (2, 1961, 2285),
+        "debugger_core": (10, 2400, 3100),
         "gc_phases": (8, 1283, 1443),
         "opcode_handlers": (14, 1048, 1212),
         "parser_codegen": (29, 4732, 5150),
@@ -168,6 +169,10 @@ def coverage_payloads() -> dict[str, object]:
         "c_api": [
             "/repo/src/api/lapi.cpp",
             "/repo/src/api/lauxlib.cpp",
+        ],
+        "debugger_core": [
+            f"/repo/src/debugger/debugger_{index}.cpp"
+            for index in range(10)
         ],
         "gc_phases": [
             f"/repo/src/gc/gc_{index}.cpp"
@@ -1429,8 +1434,8 @@ class ReleaseEvidenceTests(unittest.TestCase):
                 SCHEDULE_RUN_ID,
                 "Long sanitizer fuzz",
                 "Run long fuzz campaign",
-                "2026-07-25T01:11:00Z",
-                "shorter than 2400 seconds",
+                "2026-07-25T01:01:00Z",
+                "shorter than 3600 seconds",
             ),
         )
         for run_id, job_name, step_name, completed_at, expected in cases:

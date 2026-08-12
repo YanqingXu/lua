@@ -223,6 +223,7 @@ jobs:
           if ($IsWindows) {
             cmake -S . -B build/release -A x64 `
               -DLUA_CPP_BUILD_BENCHMARKS=ON `
+              -DLUA_CPP_BUILD_DEBUGGER=OFF `
               @baselineArguments
           } else {
             if ('${{ matrix.rid }}' -eq 'linux-x64') {
@@ -236,6 +237,7 @@ jobs:
             cmake -S . -B build/release -G '${{ matrix.generator }}' `
               -DCMAKE_BUILD_TYPE=Release `
               -DLUA_CPP_BUILD_BENCHMARKS=ON `
+              -DLUA_CPP_BUILD_DEBUGGER=OFF `
               @baselineArguments `
               @platformArguments
           }

@@ -7,7 +7,9 @@
  */
 
 #include "vm/state/global_state.hpp"
+#if LUA_CPP_ENABLE_DEBUGGER
 #include "debugger/debug_runtime.hpp"
+#endif
 #include "core/thread.hpp"
 #include "vm/state/lua_state.hpp"
 #include <array>
@@ -122,10 +124,12 @@ GlobalState::~GlobalState() {
         std::terminate();
     }
 
+#if LUA_CPP_ENABLE_DEBUGGER
     if (debugger_ != nullptr) {
         debugger_->shutdown(Debugger::DisconnectAction::ContinueExecution);
         debugger_.reset();
     }
+#endif
 
     // 注意：不需要手动删除registry_，因为GC会处理
     // 但需要从根对象中移除
@@ -136,6 +140,7 @@ GlobalState::~GlobalState() {
     stringPool_.setResourcePolicy(nullptr);
 }
 
+#if LUA_CPP_ENABLE_DEBUGGER
 Debugger::DebugController& GlobalState::enableDebugger() {
     return enableDebugger(Debugger::DebugResourceLimits{});
 }
@@ -158,6 +163,7 @@ void GlobalState::disableDebugger(Debugger::DisconnectAction action) {
         debugger_.reset();
     }
 }
+#endif
 
 // =====================================================================
 // 元表管理

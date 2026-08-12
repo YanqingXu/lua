@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include "common/features.hpp"
 #include "common/types.hpp"
 #include "core/value.hpp"
 #include "core/table.hpp"
@@ -226,11 +227,17 @@ public:
     }
 
     /** Lazily create the optional editor-independent debugger controller. */
+#if LUA_CPP_ENABLE_DEBUGGER
     [[nodiscard]] Debugger::DebugController& enableDebugger();
     [[nodiscard]] Debugger::DebugController& enableDebugger(const Debugger::DebugResourceLimits& limits);
     void disableDebugger(Debugger::DisconnectAction action);
+#endif
     [[nodiscard]] Debugger::DebugController* getDebugController() const noexcept {
+#if LUA_CPP_ENABLE_DEBUGGER
         return debugger_.get();
+#else
+        return nullptr;
+#endif
     }
 
     void setRuntimeOutputSink(RuntimeOutputSink* sink) {
@@ -419,7 +426,9 @@ private:
     GarbageCollector gc_;
 
     /** Null on the production fast path; allocated only when debugging is enabled. */
+#if LUA_CPP_ENABLE_DEBUGGER
     UPtr<Debugger::DebugController> debugger_;
+#endif
 
     /** Optional embedding/frontend output route; null preserves normal stdio behavior. */
     RuntimeOutputSink* runtimeOutputSink_ = nullptr;

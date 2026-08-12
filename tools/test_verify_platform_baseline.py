@@ -57,6 +57,11 @@ def evidence_for(policy: dict, rid: str) -> dict:
 
 
 class PlatformBaselineTests(unittest.TestCase):
+    def test_version_comparison_accepts_cmake_vendor_suffix(self) -> None:
+        self.assertEqual((4, 3, 1), verifier._version("4.3.1-msvc1", "CMake version"))
+        with self.assertRaisesRegex(verifier.BaselineError, "optional toolchain suffix"):
+            verifier._version("4.3.1-", "CMake version")
+
     def test_canonical_policy(self) -> None:
         verifier.validate_policy(load_policy())
 

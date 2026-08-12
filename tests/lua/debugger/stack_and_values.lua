@@ -20,4 +20,3 @@ local function recurse(depth)
 end
 
 return recurse(2)
-

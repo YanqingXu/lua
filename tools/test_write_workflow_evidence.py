@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import io
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -13,6 +14,7 @@ from pathlib import Path
 from unittest import mock
 
 import write_workflow_evidence as evidence
+import verify_release_evidence as release_evidence
 
 
 NOW = datetime(2026, 7, 26, 8, 9, 10, tzinfo=timezone.utc)
@@ -33,6 +35,53 @@ def github_environment(kind: str = "runtime-soak-evidence") -> dict[str, str]:
 
 
 class WorkflowEvidenceTests(unittest.TestCase):
+    def test_debugger_build_modes_match_ci_and_release_boundaries(self) -> None:
+        repository = Path(__file__).resolve().parents[1]
+        ci = (repository / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        nightly = (repository / ".github/workflows/nightly.yml").read_text(encoding="utf-8")
+        release = (repository / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+        ci_fuzz = ci[ci.index("  linux-fuzzers:") : ci.index("  portability:")]
+        ci_coverage = ci[ci.index("  linux-coverage:") : ci.index("  linux-runtime-benchmark:")]
+        ci_benchmark = ci[ci.index("  linux-runtime-benchmark:") :]
+        nightly_fuzz = nightly[nightly.index("  long-fuzz:") :]
+
+        self.assertIn("-DLUA_CPP_BUILD_DEBUGGER=ON", ci_fuzz)
+        self.assertIn("-DLUA_CPP_BUILD_DEBUGGER=ON", ci_coverage)
+        self.assertIn("-DLUA_CPP_BUILD_DEBUGGER=ON", nightly_fuzz)
+        self.assertEqual(ci_benchmark.count("-DLUA_CPP_BUILD_DEBUGGER=OFF"), 2)
+        self.assertEqual(release.count("-DLUA_CPP_BUILD_DEBUGGER=OFF"), 2)
+
+    def test_fuzz_target_policy_matches_workflows_cmake_and_release_verifier(self) -> None:
+        repository = Path(__file__).resolve().parents[1]
+        expected = evidence.LONG_FUZZ_TARGETS
+        self.assertEqual(expected, release_evidence.EXPECTED_FUZZ_TARGETS)
+
+        cmake = (repository / "CMakeLists.txt").read_text(encoding="utf-8")
+        cmake_base = re.search(r"set\(LUA_FUZZ_TARGETS ([^)]+)\)", cmake)
+        cmake_debugger = re.search(r"list\(APPEND LUA_FUZZ_TARGETS ([^)]+)\)", cmake)
+        self.assertIsNotNone(cmake_base)
+        self.assertIsNotNone(cmake_debugger)
+        cmake_targets = tuple(cmake_base.group(1).split()) + tuple(cmake_debugger.group(1).split())
+        self.assertEqual(cmake_targets, expected)
+
+        for relative_path in (".github/workflows/ci.yml", ".github/workflows/nightly.yml"):
+            workflow = (repository / relative_path).read_text(encoding="utf-8")
+            shell_match = re.search(r"targets=\(([^)]+)\)", workflow)
+            self.assertIsNotNone(shell_match, relative_path)
+            self.assertEqual(tuple(shell_match.group(1).split()), expected, relative_path)
+            for target in expected:
+                self.assertIn(f"fuzz_{target}", workflow, relative_path)
+
+        nightly = (repository / ".github/workflows/nightly.yml").read_text(encoding="utf-8")
+        metadata_match = re.search(r"--parameter 'fuzz_targets=(\[[^']+\])'", nightly)
+        self.assertIsNotNone(metadata_match)
+        self.assertEqual(tuple(json.loads(metadata_match.group(1))), expected)
+
+        checklist = (repository / "docs/release/release-checklist.md").read_text(encoding="utf-8")
+        for target in expected:
+            self.assertIn(f"`{target}`", checklist)
+
     def test_builds_exact_sha_payload(self) -> None:
         payload = evidence.build_evidence(
             "runtime-soak-evidence",
@@ -69,7 +118,8 @@ class WorkflowEvidenceTests(unittest.TestCase):
         parameters = evidence.parse_parameters(
             [
                 "fuzz_seconds_per_target=600",
-                'fuzz_targets=["undump","bytecode_verifier","parser","stdlib_numeric_arguments"]',
+                'fuzz_targets=["undump","bytecode_verifier","parser","stdlib_numeric_arguments",'
+                '"remote_protocol","debugger_expression"]',
             ]
         )
         self.assertEqual(parameters["fuzz_seconds_per_target"], 600)
@@ -194,7 +244,7 @@ class WorkflowEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(payload["parameters"], valid)
 
-    def test_long_fuzz_requires_duration_and_exact_four_targets(self) -> None:
+    def test_long_fuzz_requires_duration_and_exact_targets(self) -> None:
         valid = {
             "fuzz_seconds_per_target": 600,
             "fuzz_targets": list(evidence.LONG_FUZZ_TARGETS),
@@ -211,7 +261,7 @@ class WorkflowEvidenceTests(unittest.TestCase):
             },
             {
                 "fuzz_seconds_per_target": 600,
-                "fuzz_targets": ["undump"] * 4,
+                "fuzz_targets": ["undump"] * len(evidence.LONG_FUZZ_TARGETS),
             },
             {
                 "fuzz_seconds_per_target": 600,
@@ -372,7 +422,7 @@ class WorkflowEvidenceTests(unittest.TestCase):
                         "fuzz_seconds_per_target=600",
                         "--parameter",
                         'fuzz_targets=["undump","bytecode_verifier","parser",'
-                        '"stdlib_numeric_arguments"]',
+                        '"stdlib_numeric_arguments","remote_protocol","debugger_expression"]',
                     ],
                     environment=github_environment("long-fuzz-evidence"),
                 )

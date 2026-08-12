@@ -12,6 +12,7 @@
  */
 
 #include "vm/vm.hpp"
+#include "common/features.hpp"
 #include "common/lua_error.hpp"
 #include "vm/vm_constants.hpp"
 #include "vm/vm_dispatch.hpp"
@@ -30,7 +31,9 @@
 #include "vm/state/global_state.hpp"
 #include "runtime/runtime_services.hpp"
 #include "compiler/opcode.hpp"
+#if LUA_CPP_ENABLE_DEBUGGER
 #include "debugger/debug_runtime.hpp"
+#endif
 
 #include <cassert>
 
@@ -83,9 +86,11 @@ ExecResult executeProtoUnchecked(RuntimeServices& services, LuaState* L, Proto* 
     if (nexeccalls >= MAX_CALLS)
         throw StackOverflowError("VM: stack overflow (too many nested calls)");
 
+#if LUA_CPP_ENABLE_DEBUGGER
     if (services.debugger != nullptr) [[unlikely]] {
         services.debugger->registerProto(*proto);
     }
+#endif
 
     VMContext context{services, L, proto, nexeccalls};
     DispatchStrategy& strategy =
@@ -104,6 +109,7 @@ ExecResult executeProto(LuaState* L, Proto* proto, i32 nexeccalls) {
 }
 
 ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
+#if LUA_CPP_ENABLE_DEBUGGER
     try {
         return executeProtoUnchecked(services, L, proto, nexeccalls);
     } catch (const MemoryError& error) {
@@ -147,8 +153,7 @@ ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i3
         throw;
     } catch (const std::exception& error) {
         if (services.debugger != nullptr &&
-            services.debugger->exceptionSafepoint(*L, Debugger::DebugExceptionCategory::RuntimeError,
-                                                  error.what()) ==
+            services.debugger->exceptionSafepoint(*L, Debugger::DebugExceptionCategory::RuntimeError, error.what()) ==
                 Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
             throw RuntimeError("debugger requested execution termination");
         }
@@ -162,6 +167,9 @@ ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i3
         }
         throw;
     }
+#else
+    return executeProtoUnchecked(services, L, proto, nexeccalls);
+#endif
 }
 
 std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls) {
@@ -216,7 +224,9 @@ ExecResult runDispatchBackend(VMContext& context, DispatchBackend backend) {
     Function* func = nullptr;
     Value* base = nullptr;
     usize pc = 0;
+#if LUA_CPP_ENABLE_DEBUGGER
     Debugger::DebugController* const debugger = services.debugger;
+#endif
 
 reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
 {
@@ -273,6 +283,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
             CallInfo& currentCI = L->getCurrentCallInfo();
             currentCI.savedpc = code.data() + pc;
 
+#if LUA_CPP_ENABLE_DEBUGGER
             if (debugger != nullptr && debugger->requiresInstructionSafepoint()) [[unlikely]] {
                 const Debugger::DebugSafepointResult debugResult =
                     debugger->instructionSafepoint(*L, *proto, instructionPc);
@@ -280,6 +291,7 @@ reentry: // ⭐ 重入点：从 CallInfo 恢复所有执行状态
                     throw RuntimeError("debugger requested execution termination");
                 }
             }
+#endif
 
             VM::detail::dispatchCountHook(L);
             base = refreshBase(L);

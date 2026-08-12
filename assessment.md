@@ -1,11 +1,11 @@
 ---
 status: current
-as_of: 2026-07-26
-baseline_sha: 87c15e69ceb94eb74e28226ccbefb7e196635711
-last_pushed_checkpoint_sha: 426c4a0a63910508e4ad0fa42dcf798550f48ab5
+as_of: 2026-08-12
+baseline_sha: 76c5eb4d6fcbe5f2122339b5fc920bd2cfe95e32
+last_pushed_checkpoint_sha: 76c5eb4d6fcbe5f2122339b5fc920bd2cfe95e32
 candidate_sha: pending
 release_target: 0.1.0
-release_state: pre-rc-blocked
+release_state: pre-rc-red
 ---
 
 # 推荐开发路线图：pre-RC → `v0.1.0` → `v0.2`
@@ -15,8 +15,8 @@ release_state: pre-rc-blocked
 本文件不再使用主观完成百分比描述项目状态，而是作为当前版本的执行路线图。每项工作都要有
 明确的目标、动作、依赖、验收标准和退出条件。
 
-本路线图以 `87c15e69ceb94eb74e28226ccbefb7e196635711` 的审计结果为基线，但该提交不是可发布
-候选：它的 GitHub Actions 仍有失败项。任何实现变更都会产生新的候选 SHA，CI、nightly、
+本路线图当前以 `76c5eb4d6fcbe5f2122339b5fc920bd2cfe95e32` 的审计结果为基线，但该提交不是可发布
+候选：它没有关联 PR 或 GitHub check run，且本地复验发现发布门禁不一致。任何实现变更都会产生新的候选 SHA，CI、nightly、
 coverage、benchmark、soak 和制品证据必须全部重新绑定到最终候选 SHA，不能沿用其他提交的
 绿色结果。
 
@@ -32,6 +32,44 @@ coverage、benchmark、soak 和制品证据必须全部重新绑定到最终候�
 ## 二、当前基线
 
 ### 2.1 状态快照
+
+| 维度 | 2026-08-12 当前事实 | 结论 |
+|---|---|---|
+| Git | `origin/main` 为 `76c5eb4`；两个调试器提交直接进入 `main`，没有关联 PR/check；恢复工作位于 `codex/restore-main-release-gates` | 当前 `main` 不能作为候选，修复必须经 PR 和完整 checks |
+| 本地实现 | 恢复分支的 Windows debugger ON Release 为 47/47 CTest、830 tests / 7051 results，OFF 为 46/46 CTest、791 tests / 6804 results；Linux GCC 为 41/41 CTest；六目标 Clang 19 sanitizer fuzz 烟测通过 | 已修复审计时的 3 项主失败及后续暴露的跨平台/基线漂移，本地达到提交审查条件；远端门禁仍待新 SHA |
+| 调试器范围 | 新增约 1.1 万行实现/测试，却未进入 0.1 路线、CHANGELOG、独立覆盖率或发布边界 | 调试器归入 `v0.2`；0.1 正式包必须关闭，开发/CI 可独立开启 |
+| Fuzz 证据 | CI/Nightly 已运行六目标，旧写入器和 verifier 只接受四目标 | 当前分支统一六目标并增加跨文件防漂移合同 |
+| Coverage | 原政策只有六组件，不包含 `src/debugger/` | 当前分支新增第七组件 `debugger_core`，真实百分比必须由新 SHA 的 Linux coverage artifact 给出 |
+| CI | 最新 `76c5eb4` 为 0 checks；最近可见的 17/17 绿色属于历史 SHA `712ada2` | 没有可继承的 current-SHA CI 证据 |
+| Nightly | workflow 在 GitHub 为 `disabled_manually`，没有当前 SHA 的 soak/fuzz artifact | 发布证据链中断；修复 SHA 合并后必须恢复手动与 scheduled 两类运行 |
+| 仓库治理 | 私有仓库当前套餐仍不能启用 branch protection/ruleset；[#6](https://github.com/YanqingXu/lua/issues/6) 开放 | 升级/公开，或为单次 RC 使用最长 30 天、带独立审查的结构化豁免 |
+| 内存合同 | [#5](https://github.com/YanqingXu/lua/issues/5) 仍开放；callback allocator 不是全运行时 hard heap limit | 0.1 只承诺已文档化的进程边界与有限 allocator 计量，不扩大声明 |
+| 发布 | 无 tag、无 GitHub Release、无 current-SHA 三平台制品 | 状态是 `pre-rc-red`，不是 RC |
+
+### 2.2 当前恢复批次
+
+`codex/restore-main-release-gates` 只做主线恢复和范围收口，不继续扩展调试器功能：
+
+1. 修复调试器 benchmark 对 `[array]`/`[hash]` 分组变量模型的旧假设，并用默认分页参数验证 100 项硬上限。
+2. 把 CI、Nightly、CMake、证据写入器、发布 verifier 和发布说明统一为六个 fuzz 目标；合同测试直接读取这些文件，防止再次漂移。
+3. 新增 `LUA_CPP_BUILD_DEBUGGER`：开发态可开启完整实现/测试/fuzz/benchmark，正式 0.1.x release workflow 固定关闭并实际从目标源集中排除。
+4. 覆盖率策略新增 `debugger_core` 独立阈值与最小 scope，不能靠原六组件绿色掩盖调试器覆盖不足。
+5. 修正 LuaDebugger 仓库链接、CHANGELOG、README、基准说明、CMake vendor 版本解析、脚本 policy、Windows Ninja 开发环境、I/O 测试临时文件和新增 fixture whitespace。
+
+debugger ON/OFF 两种 Release 配置、CTest、证据负向合同、格式、C-style 位置基线、YAML 与文档
+漂移检查均已通过，本批次已达到提交审查条件。当前文档不预填未来 commit SHA 或远端运行结果；
+CI 固定版本的 clang-tidy 仍由新 SHA 的远端 lint job 给出权威结论。
+
+### 2.3 接续顺序
+
+1. 完成本分支的双配置验证并通过 PR 合并；若产生修复提交，所有候选证据绑定新 SHA。
+2. 恢复 GitHub Actions 调度和 Nightly workflow，在同一 `main` SHA 上取得 17/17 CI、一次 `workflow_dispatch` Nightly 和至少一次 scheduled Nightly。
+3. 下载并由 verifier 复验七组件 coverage、runtime benchmark、runtime/native-module soak 和六目标 fuzz artifact。
+4. 对 #5 记录 0.1 “有限 allocator + 进程隔离”、0.2 再评估完整 hard heap limit 的书面决策；对 #6 完成 ruleset 或单次 RC 豁免。
+5. 运行 manual release 生成 candidate-only 三平台包；证据齐全后才创建不可变 `v0.1.0-rc.1` annotated tag。
+6. RC 后执行 7 天观察、至少三次连续 scheduled Nightly、24–72 小时业务 soak、shadow/canary 和实际回滚演练。
+
+#### 2026-07-26 历史快照（已失效，仅保留审计轨迹）
 
 | 维度 | 当前事实 | 结论 |
 |---|---|---|
@@ -49,7 +87,7 @@ coverage、benchmark、soak 和制品证据必须全部重新绑定到最终候�
 | 内存边界 | callback allocator 只覆盖已迁移切片；进程边界提供最终兜底 | 不得宣称全运行时 allocator hard limit |
 | MinGW | 0.1.x 平台策略已在 CMake configure 阶段明确拒绝 MinGW | 当前正式 Windows 包只支持 x64 MSVC ABI，不再允许配置成功后才链接失败 |
 
-### 2.2 执行进展（本轮实现检查点）
+#### 2026-07-26 执行进展（已被后续调试器提交取代）
 
 以下实现与本文档在本轮收敛后一起提交并推送。下一次继续时先用 `git rev-parse origin/main`
 取得精确检查点；这里不把提交 SHA 写回提交自身。`candidate_sha: pending` 表示该检查点尚未取得
@@ -89,7 +127,7 @@ reconfigure 并复验：
 因此当前状态仍是 `pre-rc-blocked`。本轮推送只形成实现检查点；只有它取得完整 CI、nightly、
 coverage、benchmark、制品和治理证据后，才能更新 `candidate_sha` 或判定 P0 退出。
 
-### 2.3 下一次接续点
+#### 2026-07-26 接续点（已被上方当前顺序取代）
 
 下一次不要继续增加功能，按以下顺序恢复：
 
@@ -122,9 +160,11 @@ soak、shadow/canary、实际回滚和书面 go/no-go，这些也不得被本地
 | opcode handlers | 86.47% | 84% | +2.47 |
 | parser/codegen | 91.88% | 90% | +1.88 |
 | sandbox denied paths | 78.60% | 76% | +2.60 |
+| debugger core | 待候选 SHA 实测 | 75% | 待候选 SHA 实测 |
 
-阈值已经具备阻断能力，但安全相关模块的余量较小。新增代码必须同步补测试，不能通过下调阈值
-消化覆盖率下降。
+前六项是 2026-07-26 历史 artifact 的实测值；调试器本轮才进入独立 coverage scope，不能伪填
+旧数据。阈值已经具备阻断能力，但安全相关模块的余量较小。新增代码必须同步补测试，不能通过
+下调阈值消化覆盖率下降。
 
 ### 2.5 当前支持边界
 
@@ -328,7 +368,7 @@ soak、shadow/canary、实际回滚和书面 go/no-go，这些也不得被本地
    - SHA 是批准的 `main` 提交；
    - 当前 SHA 的完整 CI check suite 全部成功；
    - lint 中 clang-format 与 clang-tidy 均实际执行；
-   - coverage artifact 含原始 LLVM export 与固定阈值，verifier 从原始文件复算六组件结果并
+   - coverage artifact 含原始 LLVM export 与固定阈值，verifier 从原始文件复算七组件结果并
      拒绝覆盖范围坍缩；
    - benchmark artifact 含逐次原始采样，verifier 复算 median、paired regression、GC P99/
      max，要求 base 是 head 的严格祖先、权威 Git tree 与运行时输入声明一致，并逐次满足固定
@@ -712,8 +752,8 @@ game-server preset 已禁止脚本侧 binary chunk；可信宿主入口仍可加
 
 **具体动作**
 
-1. 将六个组件阈值逐步 ratchet 到当前稳定整数下界：
-   `86/85/88/86/91/78`，每次只在历史趋势稳定后提升。
+1. 将原六个组件阈值逐步 ratchet 到当前稳定整数下界：
+   `86/85/88/86/91/78`；`debugger_core` 先保持 75%，取得连续候选证据后再评估提升。
 2. 在行覆盖率之外，为 verifier、C API 错误路径、GC 和 sandbox deny paths 引入 branch coverage。
 3. 将 production worker 测试拆成“OS 进程限制”和“运行时/allocator 限制”，让后者可在
    ASan/TSan 下运行。
@@ -723,7 +763,7 @@ game-server preset 已禁止脚本侧 binary chunk；可信宿主入口仍可加
 
 **验收标准**
 
-- exact-SHA 六组件持续通过新阈值；
+- exact-SHA 七组件持续通过批准阈值；
 - 安全拒绝分支至少有正常、拒绝和资源耗尽用例；
 - ASan、UBSan、TSan 对适用的 runtime failure path 全绿；
 - fuzz crash 可自动最小化并转成回归测试；
@@ -890,7 +930,7 @@ P0-03 本地证据 ──────┘          │
 | 测试 | failures / unexpected skips | 0 / 0 |
 | 兼容 | official C API | 123/123 PASS |
 | 兼容 | strict/TestC/slow | 0 XFAIL，0 未归因 deviation |
-| 覆盖 | 六组件 line/branch | 不低于当前批准阈值 |
+| 覆盖 | 七组件 line/branch | 不低于当前批准阈值 |
 | Sanitizer | ASan/UBSan/TSan | 0 report |
 | Nightly | runtime/native-module/fuzz | 同 SHA 完整成功 |
 | 资源 | allocator close | live bytes = 0 |

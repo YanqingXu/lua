@@ -82,6 +82,44 @@ function Get-SupportedRuntimeIdentifier {
     return $null
 }
 
+function Import-VisualStudioDeveloperEnvironment {
+    param([Parameter(Mandatory = $true)][string]$CMakeExecutable)
+
+    if ($env:OS -ne "Windows_NT" -or $null -ne (Get-Command cl -ErrorAction SilentlyContinue)) {
+        return
+    }
+
+    $normalizedCMake = [IO.Path]::GetFullPath($CMakeExecutable)
+    $common7Marker = [IO.Path]::DirectorySeparatorChar + "Common7" + [IO.Path]::DirectorySeparatorChar
+    $markerIndex = $normalizedCMake.IndexOf($common7Marker, [StringComparison]::OrdinalIgnoreCase)
+    if ($markerIndex -lt 0) {
+        throw "Cannot locate the Visual Studio root from CMake: $normalizedCMake"
+    }
+    $visualStudio = $normalizedCMake.Substring(0, $markerIndex)
+    $developerCommand = Join-Path $visualStudio "Common7/Tools/VsDevCmd.bat"
+    if (-not (Test-Path -LiteralPath $developerCommand -PathType Leaf)) {
+        throw "Visual Studio developer environment script is missing: $developerCommand"
+    }
+
+    $command = "call `"$developerCommand`" -no_logo -arch=x64 -host_arch=x64 >nul && set"
+    $environmentLines = @(& $env:ComSpec /d /s /c $command)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Visual Studio developer environment setup failed with exit code $LASTEXITCODE"
+    }
+    foreach ($line in $environmentLines) {
+        $separator = $line.IndexOf('=')
+        if ($separator -le 0) {
+            continue
+        }
+        $name = $line.Substring(0, $separator)
+        $value = $line.Substring($separator + 1)
+        [Environment]::SetEnvironmentVariable($name, $value, "Process")
+    }
+    if ($null -eq (Get-Command cl -ErrorAction SilentlyContinue)) {
+        throw "Visual Studio developer environment did not expose cl.exe"
+    }
+}
+
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) `
     ("lua_cpp_build_provenance_" + [guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $temporaryRoot | Out-Null
@@ -302,6 +340,7 @@ install(FILES "`${CMAKE_CURRENT_BINARY_DIR}/built-revision.txt" DESTINATION shar
     } else {
         $ninja.FullName
     }
+    Import-VisualStudioDeveloperEnvironment -CMakeExecutable $cmakeExecutable
     $singleBuild = Join-Path $temporaryRoot "single-config-build"
     Invoke-Checked $cmakeExecutable @(
         "-S", $source,

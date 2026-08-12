@@ -181,7 +181,12 @@ Sample runSample(Profile profile, usize iterations) {
                     const DebugVariable* values = namedVariable(*localVariables, "values");
                     require(values != nullptr && values->variablesReference.valid(),
                             "benchmark expandable table local is missing");
-                    auto page = controller->variables(values->variablesReference, 0, 100);
+                    auto tableOverview = controller->variables(values->variablesReference, 0, 100);
+                    const DebugVariable* arraySection =
+                        tableOverview ? namedVariable(*tableOverview, "[array]") : nullptr;
+                    require(arraySection != nullptr && arraySection->variablesReference.valid(),
+                            "benchmark table array section is missing");
+                    auto page = controller->variables(arraySection->variablesReference, 0, 0);
                     const auto inspectEnd = Clock::now();
                     require(page && page->size() == 100, "benchmark variable page did not honor the default limit");
                     sample.variablesReturned = page->size();

@@ -24,6 +24,7 @@ def main() -> int:
         coverage_file("/repo/src/gc/gc_mark.cpp", 90, 100),
         coverage_file("/repo/src/api/lapi.cpp", 90, 100),
         coverage_file("/repo/src/runtime/bytecode_verifier.cpp", 90, 100),
+        coverage_file("/repo/src/debugger/debug_runtime.cpp", 90, 100),
         coverage_file("/repo/src/runtime/sandbox_policy.hpp", 90, 100),
     ]
     report = summarize(files)

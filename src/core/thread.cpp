@@ -4,6 +4,7 @@
  */
 
 #include "core/thread.hpp"
+#include "common/features.hpp"
 #include "vm/state/lua_state.hpp"
 #include "vm/vm.hpp"
 #include "vm/vm_internal.hpp"
@@ -16,7 +17,9 @@
 #include "runtime/runtime_services.hpp"
 #include "gc/garbage_collector.hpp"
 #include "common/lua_error.hpp"
+#if LUA_CPP_ENABLE_DEBUGGER
 #include "debugger/debug_runtime.hpp"
+#endif
 #include <algorithm>
 #include <utility>
 
@@ -378,12 +381,14 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         yieldPermissionAdded = true;
         globalState.setRunningThread(this);
 
+#if LUA_CPP_ENABLE_DEBUGGER
         if (Debugger::DebugController* debugger = globalState.getDebugController();
             debugger != nullptr &&
             debugger->semanticSafepoint(*state_, Debugger::DebugSemanticEvent::CoroutineResume) ==
                 Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
             throw RuntimeError("debugger requested execution termination");
         }
+#endif
 
         RuntimeServices services(state_->getGlobalState());
         const ExecResult result = VM::executeProto(services, state_.get(), proto, savedNexeccalls_);
@@ -393,12 +398,14 @@ bool Thread::resume(LuaState* callerL, i32 nargs) {
         usize resultStart = 0;
         usize resultCount = 0;
         if (result == ExecResult::Yielded) {
+#if LUA_CPP_ENABLE_DEBUGGER
             if (Debugger::DebugController* debugger = globalState.getDebugController();
                 debugger != nullptr &&
                 debugger->semanticSafepoint(*state_, Debugger::DebugSemanticEvent::CoroutineYield) ==
                     Debugger::DebugSafepointResult::TerminateExecution) [[unlikely]] {
                 throw RuntimeError("debugger requested execution termination");
             }
+#endif
             savedNexeccalls_ = state_->getSavedNexeccalls();
             coStatus_ = CoroutineStatus::Suspended;
             const i32 yieldResults = state_->getYieldResults();
