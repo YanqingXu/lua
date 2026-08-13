@@ -1,14 +1,14 @@
 ---
 status: active
 created_at: 2026-08-13
-updated_at: 2026-08-13T19:22:00+08:00
+updated_at: 2026-08-13T20:38:00+08:00
 release_target: 0.1.0
 next_release: 0.1.0-rc.1
 candidate_sha: pending
 candidate_tree: pending
 evidence_baseline_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
 evidence_baseline_tree: d1d5603c53dd22604cddc16afa4f4364a27a27ac
-candidate_state: pr-ci-rerun-pending
+candidate_state: pr-ci-second-followup-validated-awaiting-commit
 production_state: pre-rc
 ---
 
@@ -53,12 +53,12 @@ production_state: pre-rc
 
 ## 2. 当前基线
 
-截至 2026-08-13 18:36（Asia/Shanghai），已确认：
+截至 2026-08-13 20:38（Asia/Shanghai），已确认：
 
 - 远端 `main` 为 `f04c890d80a89739eb8dc28ddaeb1ae5e5993273`，tree 为
-  `d1d5603c53dd22604cddc16afa4f4364a27a27ac`；严格门禁修复已形成提交
-  `014c69bb61a22cb523abfa01a3d04c1391436c89`，推送到 `codex/v0.1.0-rc1-quality-gate`，并创建
-  draft PR #21；
+  `d1d5603c53dd22604cddc16afa4f4364a27a27ac`；严格门禁修复及首轮 CI follow-up 已形成提交
+  `014c69bb61a22cb523abfa01a3d04c1391436c89`、`44d7891504eb938474ace32f9c99d67455522511`，
+  推送到 `codex/v0.1.0-rc1-quality-gate`，draft PR #21 保持开放；
 - Phase A 修复已通过 PR #20 合并；merge SHA 为 `f04c890d...`，PR head 与 merge commit 的
   tree 相同；
 - 该 SHA 的 push CI run `31661881457`、attempt 1 为精确 17/17 jobs 成功；clang-format、
@@ -74,9 +74,9 @@ production_state: pre-rc
   `.clang-tidy` 与 compile-database lint 均显式排除项目不采用的 LLVM 22 新增
   `portability-avoid-pragma-once`，standalone smoke 以 `__FILE__` 为 `LUA_TEST_BUILD_GIT_SHA`
   提供无 shell 引号歧义的字符串占位，并新增参数捕获契约；
-- 修复工作树已用原生 LLVM 22.1.3 执行完整 strict changed-scope 门禁并以 exit 0 通过；MSBuild、
-  二进制 SHA 检查和完整 832 tests / 7140 results 均通过。该结果只证明修复有效，因为工作树尚未
-  提交且不干净；形成新提交后必须把新 SHA 作为候选，重新执行 B1/B2 与 Nightly；
+- 初始修复工作树已用原生 LLVM 22.1.3 执行完整 strict changed-scope 门禁并以 exit 0 通过；
+  MSBuild、二进制 SHA 检查和完整 832 tests / 7140 results 均通过。该结果只证明对应修复有效；
+  PR 通过并合并后仍须把最终 `main` SHA 作为候选，重新执行 B1/B2 与 Nightly；
 - Lua 5.1 公开 C API 为 123/123 PASS，0 XFAIL，0 UNSUPPORTED；版本为 `0.1.0`，
   shared-library ABI 为 `0`；
 - Nightly workflow 已恢复为 `active`。同 SHA 的手动 Nightly run `31663816824`、attempt 1
@@ -101,6 +101,14 @@ production_state: pre-rc
 - 本地后续修复已把该合同脚本恢复为纯 ASCII，用等价 ASCII marker/regex 检查中文状态文档；
   Windows PowerShell 5.1 与 PowerShell 7 两条合同测试路径均 exit 0。follow-up 修复与本台账由
   同一提交承载；精确提交 SHA 和新 CI run 由 PR 外部证据记录，避免提交自引用；
+- PR #21 第二轮 CI run `31697950031` 精确绑定 `44d7891504eb938474ace32f9c99d67455522511`，
+  再次为 15/17 jobs 成功；Windows Debug/Release 均执行到质量门合同的状态文档 whole-file 断言后失败。
+  远端 head 与 merge ref 的 `assessment.md` 均含目标 Nightly 行；失败来自 Windows checkout 的 CRLF
+  与以 `|$` 收尾、仅在 LF 工作树验证过的正则组合，其余 15 jobs 继续成功；
+- 第二轮本地 follow-up 已在 whole-file 断言入口统一把 CRLF、CR 正规化为 LF，并让自检复用同一函数；
+  脚本保持纯 ASCII，Windows PowerShell 5.1、PowerShell 7 与文档漂移检查均 exit 0；原生 LLVM
+  22.1.3 完整 strict changed-scope 复验也以 exit 0 通过，MSBuild、二进制 SHA 与 832/7140 全绿。
+  形成新提交前不能把该结果当作精确 SHA 的 PR CI 证据；
 - 尚无目标环境故障注入、治理批准、业务 soak、shadow、canary 或实际回滚证据。
 
 `f04c890d...` 现在是严格门禁修复前的证据基线，不代表已经授权发布，也不应再冻结为最终候选。
@@ -239,11 +247,15 @@ Working tree: validation checkout 的最终 git status 为空；主工作树已�
 - 一次完整门禁被 60 秒外层命令超时中断，遗留 MSBuild/CL 继续运行；立即重跑时因两个进程争用
   `lua_app\\x64\\Debug\\vc145.pdb` 触发 C1041。等待遗留进程自然结束并确认没有仓库构建进程后，
   串行重跑以 exit 0 完成；该失败标记为 `superseded-by-serialized-rerun`。
+- 第二轮 CI follow-up 的首次 strict 启动因新 PowerShell 进程未继承 VS LLVM 目录，在 clang-format
+  前置检查立即停止，未执行代码检查。显式把 `D:\VS2026\VC\Tools\Llvm\x64\bin`
+  固定到 PATH 后以同一命令串行重跑并通过；该调用环境失败标记为
+  `superseded-by-pinned-llvm-rerun`。
 
 修复工作树验证（不能替代新候选 SHA 的干净验证）：
 
 ```text
-Branch: codex/v0.1.0-rc1-quality-gate（base f04c890d...；head 014c69bb... 已推送）
+Branch: codex/v0.1.0-rc1-quality-gate（base f04c890d...；head 44d78915... 已推送）
 Draft PR: https://github.com/YanqingXu/lua/pull/21
 Changed implementation/contracts: .clang-tidy；tools/run_clang_tidy.py；tools/run_quality_gate.ps1；tools/test_quality_gate.ps1
 Changed status docs: README.md；assessment.md；docs/release/rc-notes-0.1.0.md；task.md
@@ -254,10 +266,14 @@ Strict result: exit 0；clang-tidy / MSBuild / source guards / binary SHA / full
 Unit result: 832 registered / 7140 results / 0 failures / 0 expected skips / 0 unexpected skips
 Validated at: 2026-08-13T18:36:00+08:00
 Initial PR CI: run 31692577961，15/17；Windows Debug/Release PowerShell 5.1 parser failure
-Local follow-up: tools/test_quality_gate.ps1 纯 ASCII；Windows PowerShell 5.1 / PowerShell 7 均 exit 0
-Follow-up strict: exit 0；LLVM 22 / MSBuild / doc drift / binary SHA / 832/7140 全部通过
-Follow-up validated at: 2026-08-13T19:22:00+08:00
-Next required action: 观察新 head SHA 的完整 PR CI；失败则归因，成功后等待独立审查与合并授权
+First local follow-up: tools/test_quality_gate.ps1 纯 ASCII；Windows PowerShell 5.1 / PowerShell 7 均 exit 0
+First follow-up strict: exit 0；LLVM 22 / MSBuild / doc drift / binary SHA / 832/7140 全部通过
+First follow-up commit: 44d7891504eb938474ace32f9c99d67455522511；validated at 2026-08-13T19:22:00+08:00
+Second PR CI: run 31697950031，15/17；Windows Debug/Release whole-file regex 不兼容 CRLF checkout
+Second local follow-up: 断言入口统一正规化 CRLF/CR 为 LF；同函数混合换行自检；脚本纯 ASCII；PS 5.1 / PS 7 / doc drift 均 exit 0
+Second follow-up strict: exit 0；LLVM 22.1.3 / MSBuild / doc drift / binary SHA / 832/7140 全部通过
+Second follow-up validated at: 2026-08-13T20:38:00+08:00
+Next required action: 获得明确授权后提交并推送 task.md、tools/test_quality_gate.ps1，再观察 PR CI
 ```
 
 参考命令：
@@ -711,7 +727,9 @@ Decision time:
 | B：状态文档同步 | `f04c890d...` + working tree | local branch | doc drift + stale-status contracts | passed-working-tree | Codex | 2026-08-13 | README/assessment/RC notes 已同步 17/17 CI、manual Nightly success、scheduled=0 与修复待提交；完整 strict 重跑 exit 0 |
 | B：修复提交与 PR | `014c69bb...` | https://github.com/YanqingXu/lua/pull/21 | commit pushed | draft-open | Codex | 2026-08-13 | 8 个审计文件已提交并推送；base main；head/base merge state 创建时为 CLEAN |
 | B：PR CI 初跑 | `014c69bb...` | https://github.com/YanqingXu/lua/actions/runs/31692577961 | 15/17 jobs | failed-attributed | Codex | 2026-08-13 | Windows Debug/Release 在质量门合同解析失败；UTF-8 无 BOM 中文字面量不兼容 Windows PowerShell 5.1；其余 15 jobs 成功 |
-| B：PR CI follow-up | `014c69bb...` + follow-up | local branch | PS 5.1 + PS 7 contracts；strict 832/7140 | passed-local / CI-pending | Codex | 2026-08-13 | 合同脚本恢复纯 ASCII；两宿主和完整 strict 均 exit 0；精确 follow-up SHA 与新 CI run 由 PR 外部证据补充 |
+| B：首轮 CI follow-up | `44d78915...` | local + pushed commit | PS 5.1 + PS 7 contracts；strict 832/7140 | passed-local / pushed | Codex | 2026-08-13 | 合同脚本恢复纯 ASCII；两宿主和完整 strict 均 exit 0；修复提交已推送到现有 draft PR |
+| B：PR CI 第二轮 | `44d78915...` | https://github.com/YanqingXu/lua/actions/runs/31697950031 | 15/17 jobs | failed-attributed | Codex | 2026-08-13 | Windows Debug/Release whole-file regex 在 CRLF checkout 失败；远端文件内容存在；其余 15 jobs 成功 |
+| B：第二轮 CI follow-up | `44d78915...` + working tree | local branch | newline normalization；PS 5.1 + PS 7 contracts；strict 832/7140 | passed-local / awaiting-commit | Codex | 2026-08-13 | whole-file 断言入口与混合换行自检共用 CRLF/CR 到 LF 正规化；LLVM 22.1.3 完整 strict exit 0；首次启动缺 LLVM PATH 已由固定工具链重跑取代；待授权提交 |
 | B：CI | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31661881457 | coverage 9166598709；benchmark 9166514754 | passed 17/17 | Codex evidence review | 2026-08-13 | exact-SHA push CI；lint/sanitizers/portability/differentials/coverage/benchmark 全绿 |
 | C：Manual Nightly | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31663816824 | runtime 9168015582；fuzz 9168319854；workers 9167268555/9167214215 | passed | Codex evidence review | 2026-08-13 | attempt 1；45m/1000/6x600s；4 artifacts 未过期且 SHA 一致 |
 | C：Scheduled Nightly | `f04c890d...` | pending | pending | pending | pending | pending | 首次预期 schedule 窗口 2026-08-14 02:31 Asia/Shanghai；期间冻结 main |

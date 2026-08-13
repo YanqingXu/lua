@@ -138,6 +138,12 @@ function Assert-FileNotContains {
     }
 }
 
+function ConvertTo-LfNewlines {
+    param([string]$Text)
+
+    return $Text.Replace("`r`n", "`n").Replace("`r", "`n")
+}
+
 function Assert-FileTextMatches {
     param(
         [string]$RelativePath,
@@ -149,7 +155,10 @@ function Assert-FileTextMatches {
         throw "Missing required quality gate file: $RelativePath"
     }
 
+    # Git may materialize CRLF on Windows runners. Normalize before applying
+    # whole-file regex contracts so their behavior is checkout-independent.
     $text = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8)
+    $text = ConvertTo-LfNewlines $text
     foreach ($pattern in $Patterns) {
         if (-not [regex]::IsMatch($text, $pattern)) {
             throw "$RelativePath is missing required whole-file pattern: $pattern"
@@ -497,6 +506,12 @@ function Invoke-ClangTidyCompileDefinitionSmokeTest {
             Remove-Item -LiteralPath $tempRoot -Recurse -Force
         }
     }
+}
+
+$lineEndingProbe = "alpha`r`nbeta`rgamma`n"
+$normalizedLineEndingProbe = ConvertTo-LfNewlines $lineEndingProbe
+if ($normalizedLineEndingProbe -ne "alpha`nbeta`ngamma`n") {
+    throw "Whole-file contract newline normalization is not stable"
 }
 
 Invoke-ClangTidyCompileDefinitionSmokeTest
