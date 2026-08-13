@@ -167,9 +167,15 @@ Assert-FileContains ".clang-tidy" @(
     "bugprone-\*",
     "performance-\*",
     "readability-\*",
+    "-portability-avoid-pragma-once",
     "WarningsAsErrors:",
     "bugprone-unused-return-value\.AllowCastToVoid",
     "value:\s*'true'"
+)
+
+Assert-FileTextMatches ".clang-tidy" @(
+    '(?ms)^Checks:\s*>.*?-portability-avoid-pragma-once,.*?^WarningsAsErrors:',
+    '(?m)^WarningsAsErrors:.*-portability-avoid-pragma-once'
 )
 
 Assert-FileContains "tools/run_quality_gate.ps1" @(
@@ -187,6 +193,7 @@ Assert-FileContains "tools/run_quality_gate.ps1" @(
     'tests/lua/official/',
     '"lua_test/"',
     "clang-tidy",
+    "LUA_TEST_BUILD_GIT_SHA=",
     "MSBuild",
     "failed with exit code",
     "Strict quality gate requires clang-format",
@@ -437,6 +444,62 @@ function Invoke-StrictMissingToolSmokeTest {
 }
 
 Invoke-StrictMissingToolSmokeTest
+
+function Invoke-ClangTidyCompileDefinitionSmokeTest {
+    $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+        "lua_quality_clang_tidy_definition_" + [guid]::NewGuid().ToString("N")
+    )
+    New-Item -ItemType Directory -Path $tempRoot | Out-Null
+    $capturePath = Join-Path $tempRoot "clang_tidy_arguments.txt"
+    $previousPath = $env:PATH
+    $previousCapturePath = $env:LUA_QUALITY_CLANG_TIDY_CAPTURE
+
+    try {
+        [System.IO.File]::WriteAllText(
+            (Join-Path $tempRoot "clang-format.ps1"),
+            "exit 0`n",
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        [System.IO.File]::WriteAllText(
+            (Join-Path $tempRoot "clang-tidy.ps1"),
+            "[System.IO.File]::WriteAllLines(`$env:LUA_QUALITY_CLANG_TIDY_CAPTURE, [string[]]`$args)`nexit 43`n",
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        $env:PATH = $tempRoot + [System.IO.Path]::PathSeparator + $previousPath
+        $env:LUA_QUALITY_CLANG_TIDY_CAPTURE = $capturePath
+
+        $failureMessage = $null
+        try {
+            & (Join-RepoPath "tools/run_quality_gate.ps1") -Strict -SkipBuild -FormatScope All
+        } catch {
+            $failureMessage = $_.Exception.Message
+        }
+
+        if ($failureMessage -notmatch "clang-tidy failed.*exit code 43") {
+            throw "clang-tidy compile-definition fixture did not reach the capture command: $failureMessage"
+        }
+        if (-not (Test-Path -LiteralPath $capturePath -PathType Leaf)) {
+            throw "clang-tidy compile-definition fixture did not capture command arguments"
+        }
+
+        $capturedArguments = [System.IO.File]::ReadAllText($capturePath, [System.Text.Encoding]::UTF8)
+        if ($capturedArguments -notmatch 'LUA_TEST_BUILD_GIT_SHA=__FILE__') {
+            throw "clang-tidy smoke is missing the LUA_TEST_BUILD_GIT_SHA definition: $capturedArguments"
+        }
+    } finally {
+        $env:PATH = $previousPath
+        if ($null -eq $previousCapturePath) {
+            Remove-Item Env:LUA_QUALITY_CLANG_TIDY_CAPTURE -ErrorAction SilentlyContinue
+        } else {
+            $env:LUA_QUALITY_CLANG_TIDY_CAPTURE = $previousCapturePath
+        }
+        if (Test-Path -LiteralPath $tempRoot) {
+            Remove-Item -LiteralPath $tempRoot -Recurse -Force
+        }
+    }
+}
+
+Invoke-ClangTidyCompileDefinitionSmokeTest
 
 function Invoke-StrictEmptyChangedScopeSmokeTest {
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("lua_quality_empty_changed_" + [guid]::NewGuid().ToString("N"))
@@ -943,6 +1006,7 @@ Assert-FileContains "tools/run_clang_tidy.py" @(
     "bugprone-implicit-widening-of-multiplication-result",
     "bugprone-suspicious-stringview-data-usage",
     "portability-\*",
+    "-portability-avoid-pragma-once",
     "warnings-as-errors=\*"
 )
 
@@ -1749,7 +1813,49 @@ Assert-FileContains "README.md" @(
     "clang-format",
     "clang-tidy",
     "GitHub Actions",
-    "tools/run_quality_gate\.ps1"
+    "tools/run_quality_gate\.ps1",
+    "f04c890d80a89739eb8dc28ddaeb1ae5e5993273",
+    "actions/runs/31661881457",
+    "actions/runs/31663816824"
+)
+
+Assert-FileNotContains "README.md" @(
+    "d8fff0165d46cbf1bcaab692d9fe2b16b4de68f8",
+    "actions/runs/31605865677"
+)
+
+Assert-FileTextMatches "assessment.md" @(
+    '(?m)^baseline_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273\r?$',
+    '(?m)^last_pushed_checkpoint_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273\r?$',
+    '(?m)^candidate_sha: pending\r?$'
+)
+
+Assert-FileTextMatches "task.md" @(
+    '(?m)^candidate_sha: pending\r?$',
+    '(?m)^candidate_tree: pending\r?$',
+    '(?m)^evidence_baseline_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273\r?$'
+)
+
+Assert-FileContains "assessment.md" @(
+    "actions/runs/31661881457",
+    "actions/runs/31663816824",
+    "codex/v0\.1\.0-rc1-quality-gate",
+    "scheduled run 仍为 0"
+)
+
+Assert-FileNotContains "assessment.md" @(
+    'workflow 在 GitHub 为 `disabled_manually`'
+)
+
+Assert-FileContains "docs/release/rc-notes-0.1.0.md" @(
+    "一次手动 Nightly 已通过",
+    "scheduled Nightly 仍未产生",
+    "严格门禁兼容修复",
+    "尚未形成新的候选 SHA"
+)
+
+Assert-FileNotContains "docs/release/rc-notes-0.1.0.md" @(
+    'Nightly 仍为 `disabled_manually`'
 )
 
 Write-Host "[OK] quality gate configuration tests passed"

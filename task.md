@@ -1,9 +1,14 @@
 ---
 status: active
 created_at: 2026-08-13
+updated_at: 2026-08-13T18:38:00+08:00
 release_target: 0.1.0
 next_release: 0.1.0-rc.1
 candidate_sha: pending
+candidate_tree: pending
+evidence_baseline_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
+evidence_baseline_tree: d1d5603c53dd22604cddc16afa4f4364a27a27ac
+candidate_state: repair-validated-awaiting-commit
 production_state: pre-rc
 ---
 
@@ -48,23 +53,52 @@ production_state: pre-rc
 
 ## 2. 当前基线
 
-截至 2026-08-13，已确认：
+截至 2026-08-13 18:36（Asia/Shanghai），已确认：
 
-- 远端 `main` 为 `d8fff0165d46cbf1bcaab692d9fe2b16b4de68f8`；
-- 该 SHA 的 push CI run `31605865677` 为 17/17 jobs 成功；
-- 七个 coverage 组件均达到当前阈值；
-- `d8fff016...` 本机基线为 debugger ON 47/47、OFF 46/46 CTest；Phase A 新增 1 个 VS 环境发现合同后，本地实测为 ON 48/48、OFF 47/47；
-- 本机单元测试计数保持 debugger ON 832 tests / 7140 results、正式包边界（`LUA_CPP_BUILD_DEBUGGER=OFF`）791 tests / 6804 results；
-- 两种配置均为 0 failures、0 expected skips、0 unexpected skips；
-- Lua 5.1 公开 C API 为 123/123 PASS，0 XFAIL，0 UNSUPPORTED；
-- 版本为 `0.1.0`，shared-library ABI 为 `0`；
-- Nightly workflow 仍为 `disabled_manually`，当前 SHA 没有 Nightly run；
+- 远端 `main` 为 `f04c890d80a89739eb8dc28ddaeb1ae5e5993273`，tree 为
+  `d1d5603c53dd22604cddc16afa4f4364a27a27ac`，没有开放 PR；本地已从该提交创建
+  `codex/v0.1.0-rc1-quality-gate` 修复分支，工作树包含本台账和严格门禁修复，尚未提交或推送；
+- Phase A 修复已通过 PR #20 合并；merge SHA 为 `f04c890d...`，PR head 与 merge commit 的
+  tree 相同；
+- 该 SHA 的 push CI run `31661881457`、attempt 1 为精确 17/17 jobs 成功；clang-format、
+  clang-tidy、ASan、UBSan、TSan、allocator、两类 ARM64 portability、official strict、
+  Lua differential、C API differential、coverage 与 benchmark 均成功；
+- `component-coverage` 与 `runtime-benchmark-evidence` artifact 均存在、未过期、带 SHA-256
+  digest，且绑定 `f04c890d...`；
+- 已在独立干净 checkout 对最终 merge SHA 完成 B1 fresh configure/build：debugger ON/OFF 均以
+  Visual Studio 18 2026、MSVC 19.51.36252.0 构建成功；按清单默认参数（benchmark OFF）顺序
+  CTest 均为 46/46，通过完整单元测试分别为 832 tests / 7140 results 与 791 tests / 6804
+  results，全部 0 failures、0 expected skips、0 unexpected skips；
+- B1 source-readiness 已通过并生成 SHA 一致的规范化证据；对严格质量门的两个阻塞已完成最小修复：
+  `.clang-tidy` 与 compile-database lint 均显式排除项目不采用的 LLVM 22 新增
+  `portability-avoid-pragma-once`，standalone smoke 以 `__FILE__` 为 `LUA_TEST_BUILD_GIT_SHA`
+  提供无 shell 引号歧义的字符串占位，并新增参数捕获契约；
+- 修复工作树已用原生 LLVM 22.1.3 执行完整 strict changed-scope 门禁并以 exit 0 通过；MSBuild、
+  二进制 SHA 检查和完整 832 tests / 7140 results 均通过。该结果只证明修复有效，因为工作树尚未
+  提交且不干净；形成新提交后必须把新 SHA 作为候选，重新执行 B1/B2 与 Nightly；
+- Lua 5.1 公开 C API 为 123/123 PASS，0 XFAIL，0 UNSUPPORTED；版本为 `0.1.0`，
+  shared-library ABI 为 `0`；
+- Nightly workflow 已恢复为 `active`。同 SHA 的手动 Nightly run `31663816824`、attempt 1
+  已成功，参数为 45 分钟 runtime soak、1000 次 native-module lifecycle、六个 fuzz 目标各
+  600 秒，runtime、long-fuzz 与 Windows/Linux worker fault artifact 均存在且未过期；
+- scheduled Nightly 尚未运行；18:36 复核远端 schedule event 列表仍为 0。当前 cron 为每天
+  `18:31 UTC`（Asia/Shanghai 次日 02:31），当前基线的首次预期 schedule 窗口为
+  2026-08-14 02:31；
 - Release workflow 尚无真实运行，没有 tag、GitHub Release 或三平台候选包；
-- `main` 未启用 branch protection/ruleset；
-- GitHub issue #5（完整 allocator hard limit）和 #6（main 治理）仍开放；
-- PR #19 合并后仍有 2 个中等级、1 个低等级审查线程未解决。
+- `main` 的远端状态为 `protected: false`。私有仓库当前套餐查询 branch protection/ruleset 返回
+  HTTP 403，仓库 Actions variables 为 0；GitHub issue #6 仍开放；
+- GitHub issue #5（完整 allocator hard limit）仍开放；PR #19 的 2 个中等级、1 个低等级线程
+  仍未在 GitHub 标记 resolved。PR #20 没有 review thread，但只有 `augmentcode` 的
+  `COMMENTED` review，没有独立批准记录；
+- `README.md`、`assessment.md` 与 RC notes 已在本地修复分支同步到 `f04c890d...` 的 17/17 CI、
+  手动 Nightly 成功、scheduled 尚无运行和严格门禁修复待提交状态；质量门新增防陈旧合同，禁止
+  回退到旧 SHA/run 或 `disabled_manually` 描述。这些文档尚未提交，会与修复一起产生新 SHA；
+- 尚无目标环境故障注入、治理批准、业务 soak、shadow、canary 或实际回滚证据。
 
-基线只能用于规划，不能直接授权发布。下一次源文件修复会产生新的候选 SHA，所有远端证据必须绑定该新 SHA。
+`f04c890d...` 现在是严格门禁修复前的证据基线，不代表已经授权发布，也不应再冻结为最终候选。
+当前修复一旦提交，现有 push CI 与手动 Nightly 只能保留为历史证据，必须对新 SHA 重跑阶段 B/C。
+候选 SHA 无法在其自身提交内容中自引用，最终 SHA、run URL 与审批记录应同时保存到不改变候选
+commit 的外部审计位置。
 
 ## 3. 全局不可跳过规则
 
@@ -104,10 +138,12 @@ production_state: pre-rc
 - [x] 为“standalone CMake + cl 不在 PATH + 已安装 Visual Studio”增加正向合同测试。
 - [x] 为“找不到 VS/VsDevCmd”保留明确、失败关闭的错误。
 - [x] 在本地 standalone CMake 形态路径复验真实 `vswhere` / `VsDevCmd.bat` 导入。
-- [ ] 在新 SHA 的 GitHub Windows runner 复验。
+- [x] 在新 SHA 的 GitHub Windows runner 复验。
 
-本地证据：2026-08-13 在 `cl.exe` 初始不在 PATH 时，以 standalone CMake 形态路径调用真实
-`vswhere`/`VsDevCmd.bat`，成功导入 `D:\VS2026\...\cl.exe`；GitHub Windows runner 待新 SHA CI。
+证据：2026-08-13 在 `cl.exe` 初始不在 PATH 时，以 standalone CMake 形态路径调用真实
+`vswhere`/`VsDevCmd.bat`，成功导入 `D:\VS2026\...\cl.exe`；新 SHA 的 push CI run
+`31661881457` 中 Windows Debug/Release jobs 均通过包含
+`visual_studio_environment_contract` 的合同测试。
 
 验收：standalone CMake 场景能加载正确的 `VsDevCmd.bat` 并执行 single-config Ninja provenance 合同；错误 VS 路径不会被静默接受。
 
@@ -122,25 +158,34 @@ production_state: pre-rc
 本地实测：debugger ON 为 48/48 CTest、832/7140 单元结果；debugger OFF 为 47/47 CTest、
 791/6804 单元结果，全部 0 failures、0 expected skips、0 unexpected skips。
 
+状态复核：以上勾选项记录 Phase A 合并输入在当时的文档一致性。当前修复分支已进一步同步
+`README.md`、`assessment.md` 与 RC notes 到 `f04c890d...` 的 CI/Nightly 和严格门禁修复状态，
+并增加防陈旧合同；文档漂移、质量门合同与完整 strict 门禁均通过。提交后产生的新 SHA 必须作为
+新候选并重跑阶段 B/C。
+
 验收：所有“当前、已通过、候选”声明都有新 SHA 的源码或远端证据；不再引用已失效的合并前状态。
 
 ### A4. 提交与审查
 
 - [x] 从最新远端 `main` 创建仅包含 A1–A3 的修复分支 `codex/v0.1.0-rc1-readiness`。
 - [x] 本地 diff 审计确认只包含 A1–A3、契约接线与 `task.md` 台账，无运行时功能扩展或无关格式化。
-- [ ] 创建 PR，等待完整 CI。
+- [x] 创建 PR，等待完整 CI。
 - [ ] 至少一名独立审查者检查 Nightly 时间模型、Windows 工具发现和文档一致性。
 - [ ] 所有中/高风险 review thread 必须在合并前解决。
-- [ ] 合并后记录新的 `main` SHA，作为候选冻结输入。
+- [x] 合并后记录新的 `main` SHA，作为候选冻结输入。
 
-记录：
+Phase A 历史记录：
 
 ```text
-PR URL:
-Reviewer:
-Merge SHA:
-Merged at:
+PR URL: https://github.com/YanqingXu/lua/pull/20
+Reviewer: augmentcode COMMENTED（无 suggestions；不是独立批准）
+Merge SHA: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
+Merged at: 2026-08-13T02:47:04Z
 ```
+
+审查缺口：PR #19 的三个历史线程虽已由 PR #20 的实现覆盖，但仍未在 GitHub 标记 resolved；
+PR #20 合并前没有可审计的独立批准。进入 RC 前需要独立审查者对当前候选形成书面结论，并明确
+记录历史线程的处置方式。
 
 ## 5. 阶段 B：冻结最终候选 SHA 并取得完整 CI
 
@@ -154,6 +199,53 @@ Merged at:
 - [ ] 运行严格 changed-scope 质量门；clang-format、clang-tidy 不得因缺工具而被误写为成功。
 - [ ] 运行 source-readiness 检查。
 - [ ] 确认最终 `git status --short` 为空。
+
+修复前证据基线记录（不满足下一候选的复选框）：
+
+```text
+Evidence baseline SHA: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
+Evidence baseline tree: d1d5603c53dd22604cddc16afa4f4364a27a27ac
+Validation checkout: G:\github\lua\build\codex-b1-f04c890d（独立 clone，detached HEAD）
+Toolchains: CMake/CTest 4.3.1-msvc1；Visual Studio 18 2026 18.8.2；MSVC 19.51.36252.0；Windows SDK 10.0.26100.0；PowerShell 7.6.4；Python 3.14.4；Git 2.54.0.windows.1
+Fresh build: ON/OFF 均 clean-first Release build 成功；默认 LUA_CPP_BUILD_BENCHMARKS=OFF
+Sequential CTest: ON 46/46；OFF 46/46
+Full unit results: ON 832/7140；OFF 791/6804；均为 0 failures / 0 expected skips / 0 unexpected skips
+Source readiness: passed；evidence SHA-256 48ebbeefcb25fe3ddce50bebf7699a012a6d9a4d0a923aa553dc8413ae1777e0；generated_at 2026-08-13T09:53:20Z
+Validation time: 2026-08-13T18:10:00+08:00
+Working tree: validation checkout 的最终 git status 为空；主工作树已切到 codex/v0.1.0-rc1-quality-gate，并含 8 个未提交文件
+```
+
+失败与归因记录：
+
+- 首次并行执行两套 CTest 时，ON 的 `lua_test` 因共享临时文件
+  `lua_cpp_trace_diff_golden_test.jsonl` 被另一进程占用而失败；OFF 的 `official_smoke` 因共享
+  `uld8.0` 临时目录发生 `attrib.lua:63` 失败。改为顺序隔离执行后两套均为 46/46，失败标记为
+  `superseded-by-sequential-isolated-rerun`；以后不得并行运行这两套本机 CTest。
+- LLVM 22.1.3 的原始严格质量门在 clang-tidy step 失败；LLVM 18.1.8 Windows 工具又与
+  VS 2026 STL 明确要求 Clang 20+ 不兼容。另行确认 smoke 对 `test_runner.cpp` 缺少
+  `LUA_TEST_BUILD_GIT_SHA` 编译定义。使用 `-SkipClangTidy` 的诊断运行只证明其余门禁通过，
+  不能勾选严格质量门；权威远端 LLVM 18 lint 已成功。
+- 修复分支第一次以带引号的 `quality-gate` 宏值运行原生 LLVM 22 时，Windows 原生命令行剥离了
+  引号，`test_runner.cpp:108` 以 `expected expression` 失败；改用标准字符串宏 `__FILE__` 后
+  clang-tidy 全部通过。契约测试会捕获并断言该参数，避免以后再次遗漏。
+- 一次完整门禁被 60 秒外层命令超时中断，遗留 MSBuild/CL 继续运行；立即重跑时因两个进程争用
+  `lua_app\\x64\\Debug\\vc145.pdb` 触发 C1041。等待遗留进程自然结束并确认没有仓库构建进程后，
+  串行重跑以 exit 0 完成；该失败标记为 `superseded-by-serialized-rerun`。
+
+修复工作树验证（不能替代新候选 SHA 的干净验证）：
+
+```text
+Branch: codex/v0.1.0-rc1-quality-gate（base f04c890d...，未提交、未推送）
+Changed implementation/contracts: .clang-tidy；tools/run_clang_tidy.py；tools/run_quality_gate.ps1；tools/test_quality_gate.ps1
+Changed status docs: README.md；assessment.md；docs/release/rc-notes-0.1.0.md；task.md
+Contracts: tools/check_doc_drift.ps1 exit 0；tools/test_quality_gate.ps1 exit 0
+Strict command: tools/run_quality_gate.ps1 -Strict -FormatScope Changed -FormatBase f04c890d...
+Strict tool: D:\VS2026\VC\Tools\Llvm\x64\bin\clang-tidy.exe，LLVM 22.1.3，未使用临时包装器
+Strict result: exit 0；clang-tidy / MSBuild / source guards / binary SHA / full unit tests 全部通过
+Unit result: 832 registered / 7140 results / 0 failures / 0 expected skips / 0 unexpected skips
+Validated at: 2026-08-13T18:36:00+08:00
+Next required action: 经授权提交并推送修复，取得新 main SHA 后从 B1 起点重新留证
+```
 
 参考命令：
 
@@ -190,17 +282,17 @@ ctest --test-dir build/rc-debugger-off -C Release --output-on-failure
 - [ ] 七组件 coverage 都不低于批准阈值，且 scope/file/coverable-line 最小值没有收缩。
 - [ ] benchmark 同时通过相对回归策略与 10 项绝对 SLO。
 
-记录：
+修复前 CI 证据基线记录（不满足下一候选的复选框）：
 
 ```text
-Candidate SHA:
-Tree SHA:
-CI run URL:
-CI run ID / attempt:
-Coverage artifact ID / digest / expiry:
-Benchmark artifact ID / digest / expiry:
-Validated by:
-Validated at:
+Evidence baseline SHA: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
+Evidence baseline tree: d1d5603c53dd22604cddc16afa4f4364a27a27ac
+CI run URL: https://github.com/YanqingXu/lua/actions/runs/31661881457
+CI run ID / attempt: 31661881457 / 1
+Coverage artifact ID / digest / expiry: 9166598709 / sha256:78d6ad70be42e273c4f083513829834622a761d0fcbd2c6f974709cc9046508a / 2026-11-11T02:47:07Z
+Benchmark artifact ID / digest / expiry: 9166514754 / sha256:203ed769a5e4d01208a08c9ab18361ff8e03c960a66e135dc69a6057cd83e9ef / 2026-11-11T02:47:07Z
+Validated by: Codex remote evidence review
+Validated at: 2026-08-13T16:46:00+08:00
 ```
 
 退出条件：候选 SHA 已冻结，B1/B2 全部通过。冻结后如有任何源文件修改，回到阶段 B 起点。
@@ -211,10 +303,10 @@ Validated at:
 
 ### C1. 恢复 workflow
 
-- [ ] 确认 GitHub Actions billing、spending limit 和 runner 启动能力正常。
-- [ ] 启用 `.github/workflows/nightly.yml`。
-- [ ] 确认 schedule 仍为预期时区/UTC 时间，且不会与发布窗口冲突。
-- [ ] 确认 `workflow_dispatch` 与 `schedule` 使用不同 concurrency group，不会互相取消。
+- [x] 确认 GitHub Actions billing、spending limit 和 runner 启动能力正常。
+- [x] 启用 `.github/workflows/nightly.yml`。
+- [x] 确认 schedule 仍为预期时区/UTC 时间，且不会与发布窗口冲突。
+- [x] 确认 `workflow_dispatch` 与 `schedule` 使用不同 concurrency group，不会互相取消。
 
 可选命令（需要仓库管理权限）：
 
@@ -254,15 +346,15 @@ gh workflow run nightly.yml --repo YanqingXu/lua --ref main `
 - [ ] `runtime-soak-evidence` 与 `long-fuzz-evidence` 可下载、未过期、digest 有效、内部 SHA/run/event 参数一致。
 - [ ] Windows/Linux worker fault matrix 的 OS-limit 证据已保存。
 
-记录：
+修复前 Nightly 证据基线记录（不满足下一候选的复选框）：
 
 ```text
-Manual Nightly run URL / ID / attempt:
-Scheduled Nightly run URL / ID / attempt:
-Runtime-soak artifact ID / digest / expiry:
-Long-fuzz artifact ID / digest / expiry:
-Worker-fault artifacts:
-Reviewed by:
+Manual Nightly run URL / ID / attempt: https://github.com/YanqingXu/lua/actions/runs/31663816824 / 31663816824 / 1
+Scheduled Nightly run URL / ID / attempt: pending；首次预期窗口 2026-08-14 02:31 Asia/Shanghai
+Runtime-soak artifact ID / digest / expiry: 9168015582 / sha256:0bda44d37e9d54231ab506996537ab6e34293e1044bb4ec0308f3d12953ab9ab / 2026-09-12T04:11:37Z
+Long-fuzz artifact ID / digest / expiry: 9168319854 / sha256:bdf0715d33b53691fdf49d09efe31aba95eb7e35f5287c48d224e652d2686f50 / 2026-09-12T04:28:01Z
+Worker-fault artifacts: windows-x64 9167268555 / sha256:6e05ac996b18b0a15b827ce0592ad56e604e6f6dc1f0ba1c2ffd91d6da53598c；linux-x64 9167214215 / sha256:a583a405c695f8937736f29d63b68a8fd69032248762a15921b66a30b51b4bfc；均于 2026-09-12 到期
+Reviewed by: Codex remote evidence review（manual only；scheduled pending）
 ```
 
 退出条件：同一候选 SHA 同时拥有合格的 manual 与 scheduled Nightly 证据。
@@ -276,6 +368,10 @@ Reviewed by:
 - [ ] 首选：升级套餐或公开仓库，启用 protected ruleset。
 - [ ] 备选：仅为当前 RC 签署最长 30 天的结构化、限时豁免。
 - [ ] 决策必须有责任人、日期、风险接受、补偿控制和撤销条件。
+
+当前状态：`main` 为 `protected: false`；私有仓库当前套餐读取 branch protection 与 ruleset 均
+返回 HTTP 403（需要升级套餐或公开仓库）；Actions repository variables 为 0，issue #6 仍开放。
+尚未选择 ruleset 或限时豁免路径。
 
 ### D2. 必需控制
 
@@ -313,6 +409,9 @@ Repository variable updated at:
 ## 8. 阶段 E：生成并验证 candidate-only 三平台包
 
 目标：在创建 tag 前证明候选 SHA 能从固定 runner 生成可安装、可消费、可审计的正式包。
+
+当前状态：Release workflow 为 `active`，但截至 2026-08-13T16:46:00+08:00 没有真实 run、
+candidate artifact、tag 或 GitHub Release。
 
 ### E1. 手动 candidate-only release
 
@@ -360,6 +459,9 @@ Consumer verification jobs:
 ## 9. 阶段 F：目标环境故障注入与上线前验证
 
 目标：在真实生产镜像、目标硬件、监督器和网络/存储边界下验证仓库测试无法证明的行为。
+
+当前状态：`task.md` 和仓库中没有可审计的目标环境报告、镜像 digest、SLO 记录或 go/no-go
+结论；外部若已执行，仍需按本阶段合同补充证据。
 
 ### F1. 冻结部署合同
 
@@ -584,12 +686,20 @@ Decision time:
 | 阶段 | SHA/版本 | Run/记录 URL | Artifact/digest | 结果 | 审查人 | 时间 | 备注 |
 |---|---|---|---|---|---|---|---|
 | A：本地合同初跑 | `d8fff016...` + working tree | local | CTest | resolved | Codex | 2026-08-13 | RC notes 含固定 SHA/run URL，2 个发布正文稳定性合同失败；移除动态字段后复验通过 |
-| A：本地全量验证 | `d8fff016...` + working tree | local | ON 48/48；OFF 47/47；unit 832/7140、791/6804 | passed | Codex | 2026-08-13 | 文档漂移、质量门合同、YAML 解析、PS AST、diff check 通过；actionlint 本机未安装 |
-| A：严格静态分析 | `d8fff016...` + working tree | local | LLVM 22.1.3 clang-tidy smoke | pending CI | Codex | 2026-08-13 | 新版工具对未改动历史头文件启用 `portability-avoid-pragma-once` 等新增检查；不混入范围外清理，以新 SHA 的固定 CI lint 为权威证据 |
-| B：CI | pending | pending | pending | pending | pending | pending | 17/17 |
-| C：Manual Nightly | pending | pending | pending | pending | pending | pending | 45m/1000/6x600s |
-| C：Scheduled Nightly | pending | pending | pending | pending | pending | pending | schedule event |
-| D：Governance | pending | pending | pending | pending | pending | pending | ruleset/waiver |
+| A：本地全量验证 | `f04c890d...` tree-equivalent pre-merge tree | local | ON 48/48；OFF 47/47；unit 832/7140、791/6804 | passed-tree / exact-SHA B1 pending | Codex | 2026-08-13 | 文档漂移、质量门合同、YAML 解析、PS AST、diff check 通过；最终 merge SHA 的 fresh-build 留证待补 |
+| A：严格静态分析 | `d8fff016...` + working tree | local | LLVM 22.1.3 clang-tidy smoke | superseded-by-exact-SHA-CI | Codex | 2026-08-13 | 历史工具对未改动头文件启用新增 portability 检查；未做范围外清理；`f04c890d...` 固定 CI lint 已全绿 |
+| A：PR 与合并 | `f04c890d...` | https://github.com/YanqingXu/lua/pull/20 | PR CI 31659922541 | merged-with-review-gap | augmentcode COMMENTED | 2026-08-13 | PR head 与 merge tree 相同；无独立批准；PR #19 三个历史线程仍未标记 resolved |
+| B：本地并行 CTest 初跑 | `f04c890d...` | local isolated checkout | ON lua_test；OFF official_smoke | superseded | Codex | 2026-08-13 | 两配置并行争用系统临时文件；ON trace JSONL 被占用，OFF `uld8.0`/attrib 失败；改为顺序重跑 |
+| B：本地 fresh build/CTest | `f04c890d...` | local isolated checkout | ON/OFF 46/46；unit 832/7140、791/6804 | passed | Codex | 2026-08-13 | VS 18.8.2 / MSVC 19.51.36252.0；默认 benchmark OFF；顺序执行；最终 checkout 干净 |
+| B：source readiness | `f04c890d...` / `0.1.0-rc.1` | local isolated checkout | sha256:48ebbeefcb25fe3ddce50bebf7699a012a6d9a4d0a923aa553dc8413ae1777e0 | passed | Codex | 2026-08-13 | public C API 123/123；project 0.1.0；ABI 0；规范化 evidence 绑定仓库与候选 SHA |
+| B：本地严格质量门初跑 | `f04c890d...` | local isolated checkout | LLVM 22.1.3 strict；其余门禁诊断 | superseded-by-local-repair | Codex | 2026-08-13 | 原始 strict 因新增 pragma-once 检查及 smoke 缺少 `LUA_TEST_BUILD_GIT_SHA` 失败；显式 skip-tidy 后其余步骤全绿 |
+| B：严格门禁修复迭代 | `f04c890d...` + working tree | local branch | quoted macro / MSBuild C1041 | superseded | Codex | 2026-08-13 | 首次宏值被 Windows 引号规则破坏；一次外层超时遗留编译进程并导致并行重跑 PDB 争用；均已归因并由串行重跑取代 |
+| B：严格门禁修复验证 | `f04c890d...` + working tree | local branch | LLVM 22.1.3 strict；832/7140 | passed-working-tree / candidate-pending | Codex | 2026-08-13 | 原生 clang-tidy、MSBuild、SHA 和全量单测 exit 0；质量门合同 exit 0；修复未提交，不能作为 exact-SHA 候选证据 |
+| B：状态文档同步 | `f04c890d...` + working tree | local branch | doc drift + stale-status contracts | passed-working-tree | Codex | 2026-08-13 | README/assessment/RC notes 已同步 17/17 CI、manual Nightly success、scheduled=0 与修复待提交；完整 strict 重跑 exit 0 |
+| B：CI | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31661881457 | coverage 9166598709；benchmark 9166514754 | passed 17/17 | Codex evidence review | 2026-08-13 | exact-SHA push CI；lint/sanitizers/portability/differentials/coverage/benchmark 全绿 |
+| C：Manual Nightly | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31663816824 | runtime 9168015582；fuzz 9168319854；workers 9167268555/9167214215 | passed | Codex evidence review | 2026-08-13 | attempt 1；45m/1000/6x600s；4 artifacts 未过期且 SHA 一致 |
+| C：Scheduled Nightly | `f04c890d...` | pending | pending | pending | pending | pending | 首次预期 schedule 窗口 2026-08-14 02:31 Asia/Shanghai；期间冻结 main |
+| D：Governance | `f04c890d...` | https://github.com/YanqingXu/lua/issues/6 | repository variables: 0 | blocked-decision | pending | 2026-08-13 | main unprotected；私有仓库当前套餐 protection/ruleset API 返回 403；需 ruleset 或限时 waiver |
 | E：Candidate packages | pending | pending | pending | pending | pending | pending | 3 RIDs |
 | F：Fault injection | pending | pending | pending | pending | pending | pending | target environment |
 | G：RC release | pending | pending | pending | pending | pending | pending | v0.1.0-rc.1 |

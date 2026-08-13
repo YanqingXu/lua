@@ -35,10 +35,11 @@ applies_to: 0.1.x release candidates and releases
 
 ## 验证
 
-截至 2026-08-13，已推送基线的常规 CI、七组件 coverage 和 runtime benchmark 已通过；其后
-的 Phase A 修复尚未形成候选 SHA。Nightly 仍为 `disabled_manually`，治理、三平台候选包、
-tag 和 GitHub Release 仍未完成；因此本文件描述门禁合同，不构成 RC 已获批准的声明。精确
-SHA、run URL 和 artifact 标识只由发布工作流从候选证据动态生成，不写入可复用的 RC 正文。
+截至 2026-08-13，最新已推送基线的 17-job 常规 CI、七组件 coverage、runtime benchmark 和
+一次手动 Nightly 已通过；scheduled Nightly 仍未产生。独立 B1 验证发现的严格门禁兼容修复已
+在本地通过原生 LLVM 22、MSBuild、SHA 校验和全量单测，但尚未形成新的候选 SHA。治理、三平台
+候选包、tag 和 GitHub Release 仍未完成；因此本文件描述门禁合同，不构成 RC 已获批准的声明。
+精确 SHA、run URL 和 artifact 标识只由发布工作流从候选证据动态生成，不写入可复用的 RC 正文。
 
 发布门禁把以下远端证据绑定到同一个不可变提交：
 

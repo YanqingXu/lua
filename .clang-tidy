@@ -4,11 +4,12 @@ Checks: >
   performance-*,
   portability-*,
   readability-*,
+  -portability-avoid-pragma-once,
   -readability-function-cognitive-complexity,
   -readability-identifier-length,
   -readability-magic-numbers,
   -readability-named-parameter
-WarningsAsErrors: 'bugprone-implicit-widening-of-multiplication-result,bugprone-suspicious-stringview-data-usage,bugprone-unused-return-value,portability-*,-portability-template-virtual-member-function'
+WarningsAsErrors: 'bugprone-implicit-widening-of-multiplication-result,bugprone-suspicious-stringview-data-usage,bugprone-unused-return-value,portability-*,-portability-template-virtual-member-function,-portability-avoid-pragma-once'
 HeaderFilterRegex: '(^|.*[/\\])(src|tests|benchmarks|examples)[/\\].*'
 FormatStyle: file
 CheckOptions:

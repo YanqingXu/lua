@@ -1,8 +1,8 @@
 ---
 status: current
 as_of: 2026-08-13
-baseline_sha: d8fff0165d46cbf1bcaab692d9fe2b16b4de68f8
-last_pushed_checkpoint_sha: d8fff0165d46cbf1bcaab692d9fe2b16b4de68f8
+baseline_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
+last_pushed_checkpoint_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
 candidate_sha: pending
 release_target: 0.1.0
 release_state: pre-rc-blocked
@@ -15,11 +15,12 @@ release_state: pre-rc-blocked
 本文件不再使用主观完成百分比描述项目状态，而是作为当前版本的执行路线图。每项工作都要有
 明确的目标、动作、依赖、验收标准和退出条件。
 
-本路线图当前以 `d8fff0165d46cbf1bcaab692d9fe2b16b4de68f8` 为已推送基线。它已通过 PR #19
-并取得 17/17 push CI，但合并后审查仍发现 Nightly 最坏时长和 Windows 工具发现两项中风险问题，
-且 Nightly、治理和三平台候选包尚未闭环，因此不是可发布候选。任何实现变更都会产生新的候选
-SHA；CI、nightly、coverage、benchmark、soak 和制品证据必须全部重新绑定到最终候选 SHA，
-不能沿用其他提交的绿色结果。
+本路线图当前以 `f04c890d80a89739eb8dc28ddaeb1ae5e5993273` 为已推送基线。PR #20 已合并，
+该 SHA 取得 17/17 push CI 和一次成功的手动 Nightly；合并后独立 B1 验证又发现本地严格门禁在
+LLVM 22 上存在版本漂移与缺失编译定义。最小修复已在本地完整 strict 门禁中通过，但尚未提交，
+scheduled Nightly、治理和三平台候选包也尚未闭环，因此 `f04c890d...` 不是可发布候选。修复会
+产生新的 SHA；CI、nightly、coverage、benchmark、soak 和制品证据必须全部重新绑定到最终
+候选 SHA，不能沿用其他提交的绿色结果。
 
 当前最准确的项目定位是：
 
@@ -36,36 +37,37 @@ SHA；CI、nightly、coverage、benchmark、soak 和制品证据必须全部重�
 
 | 维度 | 2026-08-13 当前事实 | 结论 |
 |---|---|---|
-| Git | `origin/main` 为 `d8fff016...`，PR #19 已合并；Phase A 修复位于本地 `codex/v0.1.0-rc1-readiness` | 修复必须形成新 PR，并在合并后冻结新的 `main` SHA |
-| 本地实现 | Phase A Windows debugger ON Release 为 48/48 CTest、832 tests / 7140 results，OFF 为 47/47 CTest、791 tests / 6804 results；相对 `d8fff016...` 各增加 1 个 VS 发现合同 | 双配置 CTest/units 本地全绿；本机 LLVM 22 对历史头文件启用新增 portability 检查，权威 lint 与 GitHub Windows 仍须由新 SHA CI 复验 |
+| Git | `origin/main` 为 `f04c890d...`，PR #20 已合并；严格门禁修复位于本地 `codex/v0.1.0-rc1-quality-gate` | 修复需经审查、提交和合并；新 `main` SHA 才能成为下一候选输入 |
+| 本地实现 | 对 `f04c890d...` 的独立默认配置 clean checkout 为 ON/OFF 46/46 CTest、832/7140 与 791/6804；修复工作树的原生 LLVM 22 strict 门禁、MSBuild、SHA 和 832/7140 全绿 | 修复尚未提交，工作树结果不能替代新 SHA 的独立 B1 验证与远端 lint |
 | 调试器范围 | 调试器已纳入路线、CHANGELOG 和独立 coverage，但属于 `v0.2` 能力线 | 0.1 正式包固定关闭，开发/CI 可独立开启 |
-| Fuzz 证据 | 六目标策略已统一；合法最大输入为六目标各 1200 秒，即 120 分钟顺序 campaign | Phase A 将 job timeout 调为 160 分钟并用合同保留至少 30 分钟额外预算 |
-| Coverage | `d8fff016...` 的七个组件均超过批准阈值，且原始 artifact 可复验 | 新修复 SHA 必须重新生成 coverage，旧 artifact 不能继承 |
-| CI | [`d8fff016...` 的 run 31605865677](https://github.com/YanqingXu/lua/actions/runs/31605865677) 为 17/17 成功，coverage 与 benchmark artifact 未过期 | 证明已推送基线健康；Phase A 新 SHA 仍需重新取得 17/17 |
-| Nightly | workflow 在 GitHub 为 `disabled_manually`，没有当前 SHA 的 soak/fuzz artifact | 发布证据链中断；修复 SHA 合并后必须恢复手动与 scheduled 两类运行 |
+| Fuzz 证据 | 六目标策略已统一，job timeout 为 160 分钟；`f04c890d...` 的手动 Nightly 已完成六目标各 600 秒 | 合法最大输入仍为各 1200 秒；最终候选还需手动与 scheduled 两类同 SHA 证据 |
+| Coverage | `f04c890d...` 的七个组件均超过批准阈值，原始 artifact `9166598709` 未过期且可复验 | 新修复 SHA 必须重新生成 coverage，旧 artifact 不能继承 |
+| CI | [`f04c890d...` 的 run 31661881457](https://github.com/YanqingXu/lua/actions/runs/31661881457) 为 17/17 成功，coverage 与 benchmark artifact 未过期 | 证明修复前基线健康；修复后的新 SHA 仍需重新取得 17/17 |
+| Nightly | workflow 为 active；[`f04c890d...` 的手动 run 31663816824](https://github.com/YanqingXu/lua/actions/runs/31663816824) 成功并产出 runtime/fuzz/worker artifacts；scheduled run 仍为 0 | 手动结果是修复前基线证据；最终候选必须重新取得手动和 scheduled 两类运行 |
 | 仓库治理 | 私有仓库当前套餐仍不能启用 branch protection/ruleset；[#6](https://github.com/YanqingXu/lua/issues/6) 开放 | 升级/公开，或为单次 RC 使用最长 30 天、带独立审查的结构化豁免 |
 | 内存合同 | [#5](https://github.com/YanqingXu/lua/issues/5) 仍开放；callback allocator 不是全运行时 hard heap limit | 0.1 只承诺已文档化的进程边界与有限 allocator 计量，不扩大声明 |
 | 发布 | release workflow 无真实运行；无 tag、GitHub Release 或 current-SHA 三平台候选包 | 状态是 `pre-rc-blocked`，不是 RC |
 
 ### 2.2 当前恢复批次
 
-PR #19 已完成主线恢复和调试器范围收口。当前 `codex/v0.1.0-rc1-readiness` 只处理三项
-合并后遗留问题，不扩展运行时或调试器能力：
+PR #20 已完成 Phase A 三项合并后遗留修复。当前 `codex/v0.1.0-rc1-quality-gate` 只处理
+独立 B1 暴露的严格门禁问题和状态文档同步，不扩展运行时或调试器能力：
 
-1. 保留 Nightly 六目标各 600–1200 秒输入范围，把长 fuzz job timeout 调整为 160 分钟，并以
-   合同验证最大 120 分钟 campaign 之外仍有至少 30 分钟安装、构建和上传余量。
-2. 把 Visual Studio 环境发现抽成失败关闭模块：优先 `vswhere`，仅对真实位于 `Common7` 下的
-   bundled CMake 回退路径推导，并覆盖 standalone CMake 正向和无 VS 负向合同。
-3. 校正 README、路线图、RC 说明和任务台账，使所有“当前”结论区分已推送基线与未提交修复。
+1. 在 `.clang-tidy` 和 compile-database lint 中显式排除项目不采用、且 LLVM 22 才新增的
+   `portability-avoid-pragma-once`，保持 LLVM 18/22 检查策略一致。
+2. 为 standalone clang-tidy smoke 补齐 `LUA_TEST_BUILD_GIT_SHA` 字符串定义，并用参数捕获
+   契约防止 `test_runner.cpp` 再次因缺少目标编译定义而无法解析。
+3. 校正 README、路线图、RC 说明和任务台账，使所有“当前”结论区分已推送基线、修复工作树
+   和尚未形成的最终候选 SHA。
 
 当前文档不预填未来 commit SHA 或远端运行结果；本地验证完成后仍须经 PR 审查，CI 固定版本的
 clang-tidy 和 GitHub Windows runner 由新 SHA 的远端 jobs 给出权威结论。
 
 ### 2.3 接续顺序
 
-1. 完成 Phase A 双配置验证、PR 审查与合并，记录新的 `main` SHA。
-2. 在该 SHA 上取得 17/17 CI，并下载复验七组件 coverage 与 runtime benchmark artifact。
-3. 启用 Nightly，在同一 `main` SHA 上取得一次 `workflow_dispatch` 和至少一次 scheduled run，
+1. 审查并合并严格门禁修复，记录新的 `main` SHA；在独立干净 checkout 重新执行 B1。
+2. 在新 SHA 上取得 17/17 CI，并下载复验七组件 coverage 与 runtime benchmark artifact。
+3. 在同一新 SHA 上取得一次 `workflow_dispatch` 和至少一次 scheduled Nightly，
    复验 runtime/native-module soak、worker fault 与六目标 fuzz artifact。
 4. 对 #5 记录 0.1 “有限 allocator + 进程隔离”、0.2 再评估完整 hard heap limit 的书面决策；
    对 #6 完成 ruleset 或单次 RC 豁免。
@@ -165,11 +167,11 @@ soak、shadow/canary、实际回滚和书面 go/no-go，这些也不得被本地
 | opcode handlers | 85.14% | 84% | +1.14 |
 | parser/codegen | 91.90% | 90% | +1.90 |
 | sandbox denied paths | 78.86% | 76% | +2.86 |
-| debugger core | 79.26% | 75% | +4.26 |
+| debugger core | 79.29% | 75% | +4.29 |
 
-以上是 `d8fff016...` 的 run `31605865677` 原始 coverage artifact 实测值。阈值已经具备阻断
+以上是 `f04c890d...` 的 run `31661881457` 原始 coverage artifact 实测值。阈值已经具备阻断
 能力，但 opcode handlers 仅余 1.14 个百分点。新增代码必须同步补测试，不能通过下调阈值
-消化覆盖率下降；Phase A 新 SHA 必须重新生成并复验该 artifact。
+消化覆盖率下降；严格门禁修复的新 SHA 必须重新生成并复验该 artifact。
 
 ### 2.5 当前支持边界
 

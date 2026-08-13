@@ -153,15 +153,18 @@ bin\lua_test.exe --report=junit
 的调试器开启 Release 基线为 **832 registered tests, 7140 assertion results, 0 failures,
 0 expected skips, 0 unexpected skips**；调试器关闭的正式包边界为 791 registered tests、6804
 assertion results，同样 0 failures/skips。其中 `Lua C API` suite 为 61 个测试、2910 个断言、
-0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。包含 benchmark 和质量合同的本地
-Release CTest 基线分别为 debugger ON 48/48、OFF 47/47；两者之差仅为 debugger benchmark。
-当前远端 `main`
-`d8fff0165d46cbf1bcaab692d9fe2b16b4de68f8` 已通过
-[`Actions run 31605865677`](https://github.com/YanqingXu/lua/actions/runs/31605865677) 的 17/17 jobs，
+0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。独立 clean checkout 按默认
+benchmark OFF 配置验证 debugger ON/OFF 均为 46/46 CTest；启用 benchmark 的 Phase A 基线
+分别为 48/48、47/47。
+
+当前远端 `main` `f04c890d80a89739eb8dc28ddaeb1ae5e5993273` 已通过
+[`Actions run 31661881457`](https://github.com/YanqingXu/lua/actions/runs/31661881457) 的 17/17 jobs，
 覆盖构建、兼容性、sanitizer、fuzz、七组件 coverage、allocator、ARM64、macOS、benchmark
-和 lint。该结论只绑定 `d8fff016...`；本地修复产生新 SHA 后必须重跑。Nightly endurance、
-RC 治理与跨平台候选包仍须按 [发布检查清单](docs/release/release-checklist.md) 独立完成，
-不能由常规 CI 全绿替代。
+和 lint；同 SHA 的
+[`manual Nightly 31663816824`](https://github.com/YanqingXu/lua/actions/runs/31663816824) 也已完成
+45 分钟 runtime soak、1000 次 native-module lifecycle 与六目标各 600 秒 fuzz。scheduled Nightly、
+RC 治理和跨平台候选包仍未完成；本地严格门禁兼容修复也会产生新 SHA，因此现有远端结果只能作为
+修复前证据基线，新候选必须按 [发布检查清单](docs/release/release-checklist.md) 重新取得同 SHA 证据。
 
 ### CMake / CTest 与 SDK 安装
 

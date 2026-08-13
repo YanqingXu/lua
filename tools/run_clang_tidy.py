@@ -18,6 +18,7 @@ HIGH_SIGNAL_CHECKS = (
     "bugprone-unused-return-value",
     "portability-*",
     "-portability-template-virtual-member-function",
+    "-portability-avoid-pragma-once",
 )
 
 
