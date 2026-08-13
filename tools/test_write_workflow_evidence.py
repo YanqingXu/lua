@@ -85,6 +85,44 @@ class WorkflowEvidenceTests(unittest.TestCase):
         for target in expected:
             self.assertIn(f"`{target}`", checklist)
 
+    def test_nightly_long_fuzz_timeout_covers_the_maximum_campaign(self) -> None:
+        repository = Path(__file__).resolve().parents[1]
+        nightly = (repository / ".github/workflows/nightly.yml").read_text(encoding="utf-8")
+        long_fuzz = nightly[nightly.index("  long-fuzz:") :]
+
+        timeout_match = re.search(r"^    timeout-minutes: (\d+)$", long_fuzz, re.MULTILINE)
+        maximum_match = re.search(
+            r"FUZZ_SECONDS_PER_TARGET <= (\d+)", long_fuzz
+        )
+        targets_match = re.search(r"targets=\(([^)]+)\)", long_fuzz)
+        input_block = nightly[
+            nightly.index("      fuzz_seconds_per_target:") :
+            nightly.index("      native_module_iterations:")
+        ]
+        default_match = re.search(r'^        default: "(\d+)"$', input_block, re.MULTILINE)
+
+        self.assertIsNotNone(timeout_match)
+        self.assertIsNotNone(maximum_match)
+        self.assertIsNotNone(targets_match)
+        self.assertIsNotNone(default_match)
+
+        timeout_seconds = int(timeout_match.group(1)) * 60
+        maximum_seconds_per_target = int(maximum_match.group(1))
+        targets = tuple(targets_match.group(1).split())
+        setup_and_upload_budget_seconds = 30 * 60
+
+        self.assertEqual(int(default_match.group(1)), 600)
+        self.assertEqual(maximum_seconds_per_target, 1200)
+        self.assertEqual(targets, evidence.LONG_FUZZ_TARGETS)
+        self.assertGreater(
+            timeout_seconds,
+            len(targets) * maximum_seconds_per_target + setup_and_upload_budget_seconds,
+        )
+        self.assertEqual(
+            release_evidence.TIMED_JOB_STEPS["Long sanitizer fuzz"][1],
+            len(targets) * 600,
+        )
+
     def test_builds_exact_sha_payload(self) -> None:
         payload = evidence.build_evidence(
             "runtime-soak-evidence",

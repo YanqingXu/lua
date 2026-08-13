@@ -1013,6 +1013,17 @@ if(BUILD_TESTING AND LUA_CPP_BUILD_TESTS)
         )
 
         add_test(
+            NAME visual_studio_environment_contract
+            COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
+                ${LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS}
+                -File ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_visual_studio_environment.ps1
+        )
+        set_tests_properties(visual_studio_environment_contract PROPERTIES
+            LABELS quality-contract
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+
+        add_test(
             NAME package_build_provenance_contract
             COMMAND ${LUA_CPP_POWERSHELL_EXECUTABLE}
                 ${LUA_CPP_POWERSHELL_CONTRACT_ARGUMENTS}

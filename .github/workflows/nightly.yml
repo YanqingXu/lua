@@ -171,7 +171,7 @@ jobs:
   long-fuzz:
     name: Long sanitizer fuzz
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 160
     env:
       CC: clang-19
       CXX: clang++-19

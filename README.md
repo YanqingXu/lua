@@ -149,17 +149,19 @@ bin\lua_test.exe --report=junit
 显式 `--filter` / `--exclude-filter` 若最终选中 0 个已注册测试，会以退出码 2 失败，不能把空选择
 报告为测试通过。
 
-测试运行器会在输出中报告实时测试数量、断言结果以及 expected/unexpected skip。2026-08-12
+测试运行器会在输出中报告实时测试数量、断言结果以及 expected/unexpected skip。2026-08-13
 的调试器开启 Release 基线为 **832 registered tests, 7140 assertion results, 0 failures,
 0 expected skips, 0 unexpected skips**；调试器关闭的正式包边界为 791 registered tests、6804
 assertion results，同样 0 failures/skips。其中 `Lua C API` suite 为 61 个测试、2910 个断言、
-0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。生产配置扩展的合并提交
-`079b16c` 已在 [`main` 的 Actions run 30079569799](https://github.com/YanqingXu/lua/actions/runs/30079569799)
-取得 17/17 jobs 全绿，覆盖构建、兼容性、sanitizer、fuzz、coverage、allocator、ARM64、
-macOS、benchmark 和 lint。该历史运行不是当前工作树的候选证据；Nightly endurance、RC
-治理与跨平台制品验证仍须按 [发布检查清单](docs/release/release-checklist.md) 独立完成，
-不能由历史常规 CI 全绿替代。最新远端检查点 `76c5eb4` 没有关联 PR 或 check run，因此当前
-`main` 不能继承上述历史绿色结论。
+0 failures，原始 `api.lua with T module` 也完整运行到 `OK`。包含 benchmark 和质量合同的本地
+Release CTest 基线分别为 debugger ON 48/48、OFF 47/47；两者之差仅为 debugger benchmark。
+当前远端 `main`
+`d8fff0165d46cbf1bcaab692d9fe2b16b4de68f8` 已通过
+[`Actions run 31605865677`](https://github.com/YanqingXu/lua/actions/runs/31605865677) 的 17/17 jobs，
+覆盖构建、兼容性、sanitizer、fuzz、七组件 coverage、allocator、ARM64、macOS、benchmark
+和 lint。该结论只绑定 `d8fff016...`；本地修复产生新 SHA 后必须重跑。Nightly endurance、
+RC 治理与跨平台候选包仍须按 [发布检查清单](docs/release/release-checklist.md) 独立完成，
+不能由常规 CI 全绿替代。
 
 ### CMake / CTest 与 SDK 安装
 
