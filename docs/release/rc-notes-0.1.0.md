@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: CMakeLists.txt; src/lua_cpp_version.h; src/lua_runtime.h; CHANGELOG.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; docs/release/platform-support.md; docs/release/platform-baseline.json; cmake/LuaCppPlatformBaseline.cmake; tools/verify_platform_baseline.py; tools/write_workflow_evidence.py; tools/verify_release_evidence.py; tools/verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/verify_release_tag.py; tools/build_release_body.py; tools/validate_release_artifacts.py; tools/release_identity.psm1; cmake/WriteBuildProvenance.cmake; tools/package_release.ps1; docs/release/release-checklist.md; docs/operations/production-deployment.md; docs/quality/endurance.md
-last_checked: 2026-07-26
+last_checked: 2026-08-13
 applies_to: 0.1.x release candidates and releases
 ---
 
@@ -34,6 +34,11 @@ applies_to: 0.1.x release candidates and releases
   ARM64 仅为 CI portability 目标。
 
 ## 验证
+
+截至 2026-08-13，已推送基线的常规 CI、七组件 coverage 和 runtime benchmark 已通过；其后
+的 Phase A 修复尚未形成候选 SHA。Nightly 仍为 `disabled_manually`，治理、三平台候选包、
+tag 和 GitHub Release 仍未完成；因此本文件描述门禁合同，不构成 RC 已获批准的声明。精确
+SHA、run URL 和 artifact 标识只由发布工作流从候选证据动态生成，不写入可复用的 RC 正文。
 
 发布门禁把以下远端证据绑定到同一个不可变提交：
 

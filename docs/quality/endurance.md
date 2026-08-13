@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: tests/soak/runtime_soak.cpp; tests/compatibility/public_native_module_host.cpp; tests/fuzz/; tests/fuzz/corpus/; CMakeLists.txt; .github/workflows/ci.yml; .github/workflows/nightly.yml
-last_checked: 2026-07-24
+last_checked: 2026-08-13
 applies_to: runtime soak, cancellation latency, native-module lifecycle, bounded PR fuzzing, and scheduled long fuzzing
 ---
 
@@ -49,7 +49,12 @@ JSON 证据包含迭代数、State 创建/关闭数、coroutine、weak value、f
 
 PR/push 的 `linux-fuzzers` 对 undump、bytecode verifier、parser 和标准库数值参数目标各运行 30 秒，并在 ASan+UBSan 下拒绝 crash、timeout、OOM 与 sanitizer 报告。该门禁适合快速回归，不构成长期稳定性证明。
 
-`.github/workflows/nightly.yml` 默认对每个目标运行 600 秒，使用独立可增长 corpus，保留 final stats、完整日志、扩展 corpus 和 crash artifact 30 天。`workflow_dispatch` 可提高单目标秒数；发布候选应至少完成一次与候选 SHA 对应的 campaign，不得用其他提交的 artifact 替代。
+`.github/workflows/nightly.yml` 默认对六个目标各运行 600 秒，`workflow_dispatch` 最多可提高到
+每目标 1200 秒。六目标顺序执行的最大 campaign 为 120 分钟；job timeout 为 160 分钟，另留
+40 分钟用于依赖安装、configure/build、证据写入、上传和 runner 抖动，合同测试要求额外预算
+不得低于 30 分钟。每个目标使用独立可增长 corpus，并保留 final stats、完整日志、扩展 corpus
+和 crash artifact 30 天。发布候选应至少完成一次与候选 SHA 对应的 campaign，不得用其他提交
+的 artifact 替代；release verifier 仍要求每目标至少 600 秒，未因 timeout 调整而放松。
 
 ## Sanitizer 与进程边界
 

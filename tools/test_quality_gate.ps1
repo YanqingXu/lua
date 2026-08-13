@@ -1120,6 +1120,7 @@ Assert-FileContains ".github/workflows/nightly.yml" @(
     "SOAK_MINUTES <= 80",
     "NATIVE_MODULE_ITERATIONS >= 1000",
     "long-fuzz",
+    "timeout-minutes: 160",
     "Validate fuzz input",
     "FUZZ_SECONDS_PER_TARGET >= 600",
     "FUZZ_SECONDS_PER_TARGET <= 1200",
@@ -1313,6 +1314,8 @@ Assert-FileNotContains "tools/package_release.ps1" @(
 )
 
 Assert-FileContains "tools/test_package_build_provenance.ps1" @(
+    "visual_studio_environment\.psm1",
+    "Import-LuaCppVisualStudioDeveloperEnvironment",
     "Visual Studio explicit x64 provenance",
     "Linux RID impersonating a Windows target",
     "macOS RID impersonating a Windows target",
@@ -1321,6 +1324,21 @@ Assert-FileContains "tools/test_package_build_provenance.ps1" @(
     "missing target identity field",
     "forged pointer-size type",
     "legacy v1 provenance shape"
+)
+
+Assert-FileContains "tools/visual_studio_environment.psm1" @(
+    "Find-LuaCppVisualStudioInstallation",
+    "Import-LuaCppVisualStudioDeveloperEnvironment",
+    "Microsoft\.VisualStudio\.Component\.VC\.Tools\.x86\.x64",
+    "Common7/Tools/VsDevCmd\.bat",
+    "CMake is not bundled under a Visual Studio Common7 directory"
+)
+
+Assert-FileContains "tools/test_visual_studio_environment.ps1" @(
+    "standalone CMake with a vswhere-discovered Visual Studio",
+    "vswhere priority over bundled CMake inference",
+    "bundled CMake fallback",
+    "standalone CMake without vswhere"
 )
 
 Assert-FileContains "tools/build_release_body.py" @(

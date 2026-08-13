@@ -3,8 +3,10 @@ Set-StrictMode -Version Latest
 
 $repositoryRoot = (Resolve-Path -LiteralPath (Split-Path -Parent $PSScriptRoot)).Path
 $modulePath = Join-Path $PSScriptRoot "build_provenance.psm1"
+$visualStudioModulePath = Join-Path $PSScriptRoot "visual_studio_environment.psm1"
 $cmakeModulePath = (Join-Path $repositoryRoot "cmake/WriteBuildProvenance.cmake").Replace('\', '/')
 Import-Module $modulePath -Force
+Import-Module $visualStudioModulePath -Force
 
 function Invoke-Checked {
     param(
@@ -80,44 +82,6 @@ function Get-SupportedRuntimeIdentifier {
         return "macos-arm64"
     }
     return $null
-}
-
-function Import-VisualStudioDeveloperEnvironment {
-    param([Parameter(Mandatory = $true)][string]$CMakeExecutable)
-
-    if ($env:OS -ne "Windows_NT" -or $null -ne (Get-Command cl -ErrorAction SilentlyContinue)) {
-        return
-    }
-
-    $normalizedCMake = [IO.Path]::GetFullPath($CMakeExecutable)
-    $common7Marker = [IO.Path]::DirectorySeparatorChar + "Common7" + [IO.Path]::DirectorySeparatorChar
-    $markerIndex = $normalizedCMake.IndexOf($common7Marker, [StringComparison]::OrdinalIgnoreCase)
-    if ($markerIndex -lt 0) {
-        throw "Cannot locate the Visual Studio root from CMake: $normalizedCMake"
-    }
-    $visualStudio = $normalizedCMake.Substring(0, $markerIndex)
-    $developerCommand = Join-Path $visualStudio "Common7/Tools/VsDevCmd.bat"
-    if (-not (Test-Path -LiteralPath $developerCommand -PathType Leaf)) {
-        throw "Visual Studio developer environment script is missing: $developerCommand"
-    }
-
-    $command = "call `"$developerCommand`" -no_logo -arch=x64 -host_arch=x64 >nul && set"
-    $environmentLines = @(& $env:ComSpec /d /s /c $command)
-    if ($LASTEXITCODE -ne 0) {
-        throw "Visual Studio developer environment setup failed with exit code $LASTEXITCODE"
-    }
-    foreach ($line in $environmentLines) {
-        $separator = $line.IndexOf('=')
-        if ($separator -le 0) {
-            continue
-        }
-        $name = $line.Substring(0, $separator)
-        $value = $line.Substring($separator + 1)
-        [Environment]::SetEnvironmentVariable($name, $value, "Process")
-    }
-    if ($null -eq (Get-Command cl -ErrorAction SilentlyContinue)) {
-        throw "Visual Studio developer environment did not expose cl.exe"
-    }
 }
 
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) `
@@ -325,17 +289,12 @@ install(FILES "`${CMAKE_CURRENT_BINARY_DIR}/built-revision.txt" DESTINATION shar
         }
     }
     if ($null -eq $ninja -and $env:OS -eq "Windows_NT") {
-        $vswhere = Join-Path ${env:ProgramFiles(x86)} `
-            "Microsoft Visual Studio/Installer/vswhere.exe"
-        if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
-            $visualStudio = (& $vswhere -latest -property installationPath).Trim()
-            if (-not [string]::IsNullOrWhiteSpace($visualStudio)) {
-                $bundledNinja = Join-Path $visualStudio `
-                    "Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
-                if (Test-Path -LiteralPath $bundledNinja -PathType Leaf) {
-                    $ninja = Get-Item -LiteralPath $bundledNinja
-                }
-            }
+        $visualStudio = Find-LuaCppVisualStudioInstallation `
+            -CMakeExecutable $cmakeExecutable
+        $bundledNinja = Join-Path $visualStudio `
+            "Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe"
+        if (Test-Path -LiteralPath $bundledNinja -PathType Leaf) {
+            $ninja = Get-Item -LiteralPath $bundledNinja
         }
     }
     if ($null -eq $ninja) {
@@ -346,7 +305,7 @@ install(FILES "`${CMAKE_CURRENT_BINARY_DIR}/built-revision.txt" DESTINATION shar
     } else {
         $ninja.FullName
     }
-    Import-VisualStudioDeveloperEnvironment -CMakeExecutable $cmakeExecutable
+    Import-LuaCppVisualStudioDeveloperEnvironment -CMakeExecutable $cmakeExecutable
     $singleBuild = Join-Path $temporaryRoot "single-config-build"
     Invoke-Checked $cmakeExecutable @(
         "-S", $source,
