@@ -1,14 +1,14 @@
 ---
 status: active
 created_at: 2026-08-13
-updated_at: 2026-08-13T18:38:00+08:00
+updated_at: 2026-08-13T19:22:00+08:00
 release_target: 0.1.0
 next_release: 0.1.0-rc.1
 candidate_sha: pending
 candidate_tree: pending
 evidence_baseline_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
 evidence_baseline_tree: d1d5603c53dd22604cddc16afa4f4364a27a27ac
-candidate_state: repair-validated-awaiting-commit
+candidate_state: pr-ci-rerun-pending
 production_state: pre-rc
 ---
 
@@ -56,8 +56,9 @@ production_state: pre-rc
 截至 2026-08-13 18:36（Asia/Shanghai），已确认：
 
 - 远端 `main` 为 `f04c890d80a89739eb8dc28ddaeb1ae5e5993273`，tree 为
-  `d1d5603c53dd22604cddc16afa4f4364a27a27ac`，没有开放 PR；本地已从该提交创建
-  `codex/v0.1.0-rc1-quality-gate` 修复分支，工作树包含本台账和严格门禁修复，尚未提交或推送；
+  `d1d5603c53dd22604cddc16afa4f4364a27a27ac`；严格门禁修复已形成提交
+  `014c69bb61a22cb523abfa01a3d04c1391436c89`，推送到 `codex/v0.1.0-rc1-quality-gate`，并创建
+  draft PR #21；
 - Phase A 修复已通过 PR #20 合并；merge SHA 为 `f04c890d...`，PR head 与 merge commit 的
   tree 相同；
 - 该 SHA 的 push CI run `31661881457`、attempt 1 为精确 17/17 jobs 成功；clang-format、
@@ -90,9 +91,16 @@ production_state: pre-rc
 - GitHub issue #5（完整 allocator hard limit）仍开放；PR #19 的 2 个中等级、1 个低等级线程
   仍未在 GitHub 标记 resolved。PR #20 没有 review thread，但只有 `augmentcode` 的
   `COMMENTED` review，没有独立批准记录；
-- `README.md`、`assessment.md` 与 RC notes 已在本地修复分支同步到 `f04c890d...` 的 17/17 CI、
-  手动 Nightly 成功、scheduled 尚无运行和严格门禁修复待提交状态；质量门新增防陈旧合同，禁止
-  回退到旧 SHA/run 或 `disabled_manually` 描述。这些文档尚未提交，会与修复一起产生新 SHA；
+- `README.md`、`assessment.md` 与 RC notes 已在提交 `014c69bb...` 同步到 `f04c890d...` 的
+  17/17 CI、手动 Nightly 成功、scheduled 尚无运行和严格门禁修复状态；质量门新增防陈旧合同，
+  禁止回退到旧 SHA/run 或 `disabled_manually` 描述；
+- PR #21 首轮 CI run `31692577961` 精确绑定 `014c69bb...`，15/17 jobs 成功；Windows Debug 与
+  Release 均在 `Quality gate contract tests` 失败。日志证明新增中文匹配字面量位于 UTF-8 无 BOM
+  `.ps1` 中，被 Windows PowerShell 5.1 按本地代码页读取后产生 parser error；其余 15 jobs，
+  包括 clang-tidy、sanitizer、coverage、benchmark、allocator 与 portability，均成功；
+- 本地后续修复已把该合同脚本恢复为纯 ASCII，用等价 ASCII marker/regex 检查中文状态文档；
+  Windows PowerShell 5.1 与 PowerShell 7 两条合同测试路径均 exit 0。follow-up 修复与本台账由
+  同一提交承载；精确提交 SHA 和新 CI run 由 PR 外部证据记录，避免提交自引用；
 - 尚无目标环境故障注入、治理批准、业务 soak、shadow、canary 或实际回滚证据。
 
 `f04c890d...` 现在是严格门禁修复前的证据基线，不代表已经授权发布，也不应再冻结为最终候选。
@@ -235,7 +243,8 @@ Working tree: validation checkout 的最终 git status 为空；主工作树已�
 修复工作树验证（不能替代新候选 SHA 的干净验证）：
 
 ```text
-Branch: codex/v0.1.0-rc1-quality-gate（base f04c890d...，未提交、未推送）
+Branch: codex/v0.1.0-rc1-quality-gate（base f04c890d...；head 014c69bb... 已推送）
+Draft PR: https://github.com/YanqingXu/lua/pull/21
 Changed implementation/contracts: .clang-tidy；tools/run_clang_tidy.py；tools/run_quality_gate.ps1；tools/test_quality_gate.ps1
 Changed status docs: README.md；assessment.md；docs/release/rc-notes-0.1.0.md；task.md
 Contracts: tools/check_doc_drift.ps1 exit 0；tools/test_quality_gate.ps1 exit 0
@@ -244,7 +253,11 @@ Strict tool: D:\VS2026\VC\Tools\Llvm\x64\bin\clang-tidy.exe，LLVM 22.1.3，未�
 Strict result: exit 0；clang-tidy / MSBuild / source guards / binary SHA / full unit tests 全部通过
 Unit result: 832 registered / 7140 results / 0 failures / 0 expected skips / 0 unexpected skips
 Validated at: 2026-08-13T18:36:00+08:00
-Next required action: 经授权提交并推送修复，取得新 main SHA 后从 B1 起点重新留证
+Initial PR CI: run 31692577961，15/17；Windows Debug/Release PowerShell 5.1 parser failure
+Local follow-up: tools/test_quality_gate.ps1 纯 ASCII；Windows PowerShell 5.1 / PowerShell 7 均 exit 0
+Follow-up strict: exit 0；LLVM 22 / MSBuild / doc drift / binary SHA / 832/7140 全部通过
+Follow-up validated at: 2026-08-13T19:22:00+08:00
+Next required action: 观察新 head SHA 的完整 PR CI；失败则归因，成功后等待独立审查与合并授权
 ```
 
 参考命令：
@@ -696,6 +709,9 @@ Decision time:
 | B：严格门禁修复迭代 | `f04c890d...` + working tree | local branch | quoted macro / MSBuild C1041 | superseded | Codex | 2026-08-13 | 首次宏值被 Windows 引号规则破坏；一次外层超时遗留编译进程并导致并行重跑 PDB 争用；均已归因并由串行重跑取代 |
 | B：严格门禁修复验证 | `f04c890d...` + working tree | local branch | LLVM 22.1.3 strict；832/7140 | passed-working-tree / candidate-pending | Codex | 2026-08-13 | 原生 clang-tidy、MSBuild、SHA 和全量单测 exit 0；质量门合同 exit 0；修复未提交，不能作为 exact-SHA 候选证据 |
 | B：状态文档同步 | `f04c890d...` + working tree | local branch | doc drift + stale-status contracts | passed-working-tree | Codex | 2026-08-13 | README/assessment/RC notes 已同步 17/17 CI、manual Nightly success、scheduled=0 与修复待提交；完整 strict 重跑 exit 0 |
+| B：修复提交与 PR | `014c69bb...` | https://github.com/YanqingXu/lua/pull/21 | commit pushed | draft-open | Codex | 2026-08-13 | 8 个审计文件已提交并推送；base main；head/base merge state 创建时为 CLEAN |
+| B：PR CI 初跑 | `014c69bb...` | https://github.com/YanqingXu/lua/actions/runs/31692577961 | 15/17 jobs | failed-attributed | Codex | 2026-08-13 | Windows Debug/Release 在质量门合同解析失败；UTF-8 无 BOM 中文字面量不兼容 Windows PowerShell 5.1；其余 15 jobs 成功 |
+| B：PR CI follow-up | `014c69bb...` + follow-up | local branch | PS 5.1 + PS 7 contracts；strict 832/7140 | passed-local / CI-pending | Codex | 2026-08-13 | 合同脚本恢复纯 ASCII；两宿主和完整 strict 均 exit 0；精确 follow-up SHA 与新 CI run 由 PR 外部证据补充 |
 | B：CI | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31661881457 | coverage 9166598709；benchmark 9166514754 | passed 17/17 | Codex evidence review | 2026-08-13 | exact-SHA push CI；lint/sanitizers/portability/differentials/coverage/benchmark 全绿 |
 | C：Manual Nightly | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31663816824 | runtime 9168015582；fuzz 9168319854；workers 9167268555/9167214215 | passed | Codex evidence review | 2026-08-13 | attempt 1；45m/1000/6x600s；4 artifacts 未过期且 SHA 一致 |
 | C：Scheduled Nightly | `f04c890d...` | pending | pending | pending | pending | pending | 首次预期 schedule 窗口 2026-08-14 02:31 Asia/Shanghai；期间冻结 main |

@@ -1839,23 +1839,23 @@ Assert-FileTextMatches "task.md" @(
 Assert-FileContains "assessment.md" @(
     "actions/runs/31661881457",
     "actions/runs/31663816824",
-    "codex/v0\.1\.0-rc1-quality-gate",
-    "scheduled run 仍为 0"
+    "codex/v0\.1\.0-rc1-quality-gate"
+)
+
+Assert-FileTextMatches "assessment.md" @(
+    '(?m)^\| Nightly \|.*scheduled run.*0.*\|$'
 )
 
 Assert-FileNotContains "assessment.md" @(
-    'workflow 在 GitHub 为 `disabled_manually`'
+    "disabled_manually"
 )
 
-Assert-FileContains "docs/release/rc-notes-0.1.0.md" @(
-    "一次手动 Nightly 已通过",
-    "scheduled Nightly 仍未产生",
-    "严格门禁兼容修复",
-    "尚未形成新的候选 SHA"
+Assert-FileTextMatches "docs/release/rc-notes-0.1.0.md" @(
+    '(?s)17-job.*?scheduled Nightly.*?LLVM 22.*?GitHub Release'
 )
 
 Assert-FileNotContains "docs/release/rc-notes-0.1.0.md" @(
-    'Nightly 仍为 `disabled_manually`'
+    "disabled_manually"
 )
 
 Write-Host "[OK] quality gate configuration tests passed"
