@@ -1,14 +1,14 @@
 ---
 status: active
 created_at: 2026-08-13
-updated_at: 2026-08-13T20:38:00+08:00
+updated_at: 2026-08-14T08:29:00+08:00
 release_target: 0.1.0
 next_release: 0.1.0-rc.1
 candidate_sha: pending
 candidate_tree: pending
 evidence_baseline_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273
 evidence_baseline_tree: d1d5603c53dd22604cddc16afa4f4364a27a27ac
-candidate_state: pr-ci-second-followup-validated-awaiting-commit
+candidate_state: pr-review-followup-in-progress
 production_state: pre-rc
 ---
 
@@ -53,12 +53,12 @@ production_state: pre-rc
 
 ## 2. 当前基线
 
-截至 2026-08-13 20:38（Asia/Shanghai），已确认：
+截至 2026-08-14 08:29（Asia/Shanghai），已确认：
 
 - 远端 `main` 为 `f04c890d80a89739eb8dc28ddaeb1ae5e5993273`，tree 为
-  `d1d5603c53dd22604cddc16afa4f4364a27a27ac`；严格门禁修复及首轮 CI follow-up 已形成提交
-  `014c69bb61a22cb523abfa01a3d04c1391436c89`、`44d7891504eb938474ace32f9c99d67455522511`，
-  推送到 `codex/v0.1.0-rc1-quality-gate`，draft PR #21 保持开放；
+  `d1d5603c53dd22604cddc16afa4f4364a27a27ac`；严格门禁修复及两轮 CI follow-up 已形成提交
+  `014c69bb61a22cb523abfa01a3d04c1391436c89`、`44d7891504eb938474ace32f9c99d67455522511`、
+  `288e15fe4125925f2b861fb02181a6f1f0a1de82`，并推送到 `codex/v0.1.0-rc1-quality-gate`；
 - Phase A 修复已通过 PR #20 合并；merge SHA 为 `f04c890d...`，PR head 与 merge commit 的
   tree 相同；
 - 该 SHA 的 push CI run `31661881457`、attempt 1 为精确 17/17 jobs 成功；clang-format、
@@ -82,9 +82,11 @@ production_state: pre-rc
 - Nightly workflow 已恢复为 `active`。同 SHA 的手动 Nightly run `31663816824`、attempt 1
   已成功，参数为 45 分钟 runtime soak、1000 次 native-module lifecycle、六个 fuzz 目标各
   600 秒，runtime、long-fuzz 与 Windows/Linux worker fault artifact 均存在且未过期；
-- scheduled Nightly 尚未运行；18:36 复核远端 schedule event 列表仍为 0。当前 cron 为每天
-  `18:31 UTC`（Asia/Shanghai 次日 02:31），当前基线的首次预期 schedule 窗口为
-  2026-08-14 02:31；
+- 首次 scheduled Nightly run `31736288595`、attempt 1 已在 `f04c890d...` 上成功；cron 仍为每天
+  `18:31 UTC`（Asia/Shanghai 次日 02:31），GitHub 实际延迟约 60 分钟，于 03:31 创建、04:35 完成。
+  runtime soak 45 分钟、native-module lifecycle 1000 次、六个 fuzz 目标各 600 秒，以及 Windows/Linux
+  worker fault matrix 均成功；四个 artifact 均未过期，内部 metadata 精确绑定该 SHA、schedule event、
+  run ID/attempt 和参数。该结果补齐修复前基线的 scheduled 证据，但不能替代最终候选 SHA 的 C3/C4；
 - Release workflow 尚无真实运行，没有 tag、GitHub Release 或三平台候选包；
 - `main` 的远端状态为 `protected: false`。私有仓库当前套餐查询 branch protection/ruleset 返回
   HTTP 403，仓库 Actions variables 为 0；GitHub issue #6 仍开放；
@@ -108,11 +110,26 @@ production_state: pre-rc
 - 第二轮本地 follow-up 已在 whole-file 断言入口统一把 CRLF、CR 正规化为 LF，并让自检复用同一函数；
   脚本保持纯 ASCII，Windows PowerShell 5.1、PowerShell 7 与文档漂移检查均 exit 0；原生 LLVM
   22.1.3 完整 strict changed-scope 复验也以 exit 0 通过，MSBuild、二进制 SHA 与 832/7140 全绿。
-  形成新提交前不能把该结果当作精确 SHA 的 PR CI 证据；
+  修复已由提交 `288e15f...` 承载并推送；
+- PR #21 第三轮 CI run `31702136558` 精确绑定 `288e15fe4125925f2b861fb02181a6f1f0a1de82`，
+  17/17 jobs 全部成功；Windows Debug/Release 均通过文档漂移、quality gate smoke、quality gate
+  contract tests、二进制 SHA 校验和完整测试，证明 PowerShell 5.1 与 CRLF checkout 两个阻塞均已消除；
+- 该 run 的 `lua51-differential-evidence`、`official-strict-evidence`、`component-coverage` 与
+  `runtime-benchmark-evidence` 四个 artifact 均存在且未过期，artifact ID 分别为 `9181995241`、
+  `9181947344`、`9181925244`、`9181806474`，并带 SHA-256 digest；
+- PR #21 已在精确证据评论 `#issuecomment-5287859519` 写入 head SHA、CI 与 artifact digest，并由 draft
+  转为 Ready for review；当前为 `OPEN`、`MERGEABLE/CLEAN`，head 为 `288e15f...`。`augmentcode`
+  随后提交 `COMMENTED` review 和 1 个低严重度、未解决线程 `#discussion_r3780065693`，指出
+  `assessment.md` 仍把已提交修复描述为工作树变更；这不构成独立批准；
+- 本地审查 follow-up 已把 `assessment.md`、README、RC notes 和台账同步为已推送/已通过 CI 的 PR
+  checkpoint、successful scheduled Nightly 与 pending 最终候选，并更新状态合同；尚未提交、回复或
+  resolve。Windows PowerShell 5.1、PowerShell 7、文档漂移和原生 LLVM 22.1.3 完整 strict 门禁均
+  exit 0，MSBuild、二进制 SHA 与 832/7140 全绿；这些本地结果不是新 head 的 CI、线程解决或批准证据；
 - 尚无目标环境故障注入、治理批准、业务 soak、shadow、canary 或实际回滚证据。
 
 `f04c890d...` 现在是严格门禁修复前的证据基线，不代表已经授权发布，也不应再冻结为最终候选。
-当前修复一旦提交，现有 push CI 与手动 Nightly 只能保留为历史证据，必须对新 SHA 重跑阶段 B/C。
+当前修复一旦合并，现有 `f04c890d...` push CI 与手动 Nightly 只能保留为历史证据，必须对最终
+`main` SHA 重跑阶段 B/C；PR head 的 17/17 不能替代 merge 后 exact-SHA 候选证据。
 候选 SHA 无法在其自身提交内容中自引用，最终 SHA、run URL 与审批记录应同时保存到不改变候选
 commit 的外部审计位置。
 
@@ -255,7 +272,7 @@ Working tree: validation checkout 的最终 git status 为空；主工作树已�
 修复工作树验证（不能替代新候选 SHA 的干净验证）：
 
 ```text
-Branch: codex/v0.1.0-rc1-quality-gate（base f04c890d...；head 44d78915... 已推送）
+Branch: codex/v0.1.0-rc1-quality-gate（base f04c890d...；head 288e15fe... 已推送）
 Draft PR: https://github.com/YanqingXu/lua/pull/21
 Changed implementation/contracts: .clang-tidy；tools/run_clang_tidy.py；tools/run_quality_gate.ps1；tools/test_quality_gate.ps1
 Changed status docs: README.md；assessment.md；docs/release/rc-notes-0.1.0.md；task.md
@@ -273,7 +290,14 @@ Second PR CI: run 31697950031，15/17；Windows Debug/Release whole-file regex �
 Second local follow-up: 断言入口统一正规化 CRLF/CR 为 LF；同函数混合换行自检；脚本纯 ASCII；PS 5.1 / PS 7 / doc drift 均 exit 0
 Second follow-up strict: exit 0；LLVM 22.1.3 / MSBuild / doc drift / binary SHA / 832/7140 全部通过
 Second follow-up validated at: 2026-08-13T20:38:00+08:00
-Next required action: 获得明确授权后提交并推送 task.md、tools/test_quality_gate.ps1，再观察 PR CI
+Second follow-up commit: 288e15fe4125925f2b861fb02181a6f1f0a1de82
+Third PR CI: run 31702136558，17/17；head 288e15fe...；Windows 两配置合同、SHA 与完整测试全部通过
+PR evidence comment: https://github.com/YanqingXu/lua/pull/21#issuecomment-5287859519
+PR state: ready OPEN；MERGEABLE/CLEAN；augmentcode COMMENTED；1 low unresolved thread；approval=0
+Review thread: https://github.com/YanqingXu/lua/pull/21#discussion_r3780065693
+Local review follow-up: README.md；assessment.md；docs/release/rc-notes-0.1.0.md；task.md；tools/test_quality_gate.ps1
+Local follow-up validation: PS 5.1 / PS 7 contracts、doc drift、LLVM 22.1.3 strict、MSBuild、binary SHA、832/7140 均 exit 0；2026-08-14T08:28:00+08:00
+Review follow-up exit condition: 发布本地修复；新 head 17/17；线程回复并解决；取得独立批准与明确合并授权
 ```
 
 参考命令：
@@ -379,11 +403,13 @@ gh workflow run nightly.yml --repo YanqingXu/lua --ref main `
 
 ```text
 Manual Nightly run URL / ID / attempt: https://github.com/YanqingXu/lua/actions/runs/31663816824 / 31663816824 / 1
-Scheduled Nightly run URL / ID / attempt: pending；首次预期窗口 2026-08-14 02:31 Asia/Shanghai
+Scheduled Nightly run URL / ID / attempt: https://github.com/YanqingXu/lua/actions/runs/31736288595 / 31736288595 / 1
 Runtime-soak artifact ID / digest / expiry: 9168015582 / sha256:0bda44d37e9d54231ab506996537ab6e34293e1044bb4ec0308f3d12953ab9ab / 2026-09-12T04:11:37Z
 Long-fuzz artifact ID / digest / expiry: 9168319854 / sha256:bdf0715d33b53691fdf49d09efe31aba95eb7e35f5287c48d224e652d2686f50 / 2026-09-12T04:28:01Z
 Worker-fault artifacts: windows-x64 9167268555 / sha256:6e05ac996b18b0a15b827ce0592ad56e604e6f6dc1f0ba1c2ffd91d6da53598c；linux-x64 9167214215 / sha256:a583a405c695f8937736f29d63b68a8fd69032248762a15921b66a30b51b4bfc；均于 2026-09-12 到期
-Reviewed by: Codex remote evidence review（manual only；scheduled pending）
+Scheduled runtime/fuzz artifacts: 9196757535 / sha256:5ebc2901ca1692df763e2ba6ad39b8759eae53573919878f82faae712a9de4a6；9197298441 / sha256:445c772d6af990163804c37c3cbdcaf709e90296977e62242b9666292c175142；均于 2026-09-12 到期
+Scheduled worker artifacts: windows-x64 9195413841 / sha256:0b0e34765c701d2143d8e61e7ebf32a649a354629c12d211cc7ae2adf3c9ea46；linux-x64 9195294741 / sha256:92f32fd49b8971b0fb77b0ab0975e58808786fdf04765be57474d40d9eaa170e；均于 2026-09-12 到期
+Reviewed by: Codex remote evidence and downloaded metadata review；manual + scheduled baseline complete；next candidate pending
 ```
 
 退出条件：同一候选 SHA 同时拥有合格的 manual 与 scheduled Nightly 证据。
@@ -729,10 +755,12 @@ Decision time:
 | B：PR CI 初跑 | `014c69bb...` | https://github.com/YanqingXu/lua/actions/runs/31692577961 | 15/17 jobs | failed-attributed | Codex | 2026-08-13 | Windows Debug/Release 在质量门合同解析失败；UTF-8 无 BOM 中文字面量不兼容 Windows PowerShell 5.1；其余 15 jobs 成功 |
 | B：首轮 CI follow-up | `44d78915...` | local + pushed commit | PS 5.1 + PS 7 contracts；strict 832/7140 | passed-local / pushed | Codex | 2026-08-13 | 合同脚本恢复纯 ASCII；两宿主和完整 strict 均 exit 0；修复提交已推送到现有 draft PR |
 | B：PR CI 第二轮 | `44d78915...` | https://github.com/YanqingXu/lua/actions/runs/31697950031 | 15/17 jobs | failed-attributed | Codex | 2026-08-13 | Windows Debug/Release whole-file regex 在 CRLF checkout 失败；远端文件内容存在；其余 15 jobs 成功 |
-| B：第二轮 CI follow-up | `44d78915...` + working tree | local branch | newline normalization；PS 5.1 + PS 7 contracts；strict 832/7140 | passed-local / awaiting-commit | Codex | 2026-08-13 | whole-file 断言入口与混合换行自检共用 CRLF/CR 到 LF 正规化；LLVM 22.1.3 完整 strict exit 0；首次启动缺 LLVM PATH 已由固定工具链重跑取代；待授权提交 |
+| B：第二轮 CI follow-up | `288e15fe...` | local + pushed commit | newline normalization；PS 5.1 + PS 7 contracts；strict 832/7140 | passed-local / pushed | Codex | 2026-08-13 | whole-file 断言入口与混合换行自检共用 CRLF/CR 到 LF 正规化；LLVM 22.1.3 完整 strict exit 0；首次启动缺 LLVM PATH 已由固定工具链重跑取代 |
+| B：PR CI 第三轮 | `288e15fe...` | https://github.com/YanqingXu/lua/actions/runs/31702136558 | 17/17 jobs；artifacts 9181995241/9181947344/9181925244/9181806474 | passed-pr-head / review-comment | augmentcode COMMENTED | 2026-08-14 | 全矩阵绿；PR ready/CLEAN；证据评论已保存；一个低严重度状态文档线程待处理，不是批准 |
+| B：PR review follow-up | `288e15fe...` + working tree | https://github.com/YanqingXu/lua/pull/21#discussion_r3780065693 | 5 audit files；strict 832/7140 | passed-local / followup-in-progress | Codex | 2026-08-14 | 同步 PR checkpoint、第三轮 CI、scheduled Nightly 与 pending candidate；双 PS 合同、doc drift、LLVM 22.1.3 strict 全绿；新 head CI、回复与 resolve 待外部证据 |
 | B：CI | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31661881457 | coverage 9166598709；benchmark 9166514754 | passed 17/17 | Codex evidence review | 2026-08-13 | exact-SHA push CI；lint/sanitizers/portability/differentials/coverage/benchmark 全绿 |
 | C：Manual Nightly | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31663816824 | runtime 9168015582；fuzz 9168319854；workers 9167268555/9167214215 | passed | Codex evidence review | 2026-08-13 | attempt 1；45m/1000/6x600s；4 artifacts 未过期且 SHA 一致 |
-| C：Scheduled Nightly | `f04c890d...` | pending | pending | pending | pending | pending | 首次预期 schedule 窗口 2026-08-14 02:31 Asia/Shanghai；期间冻结 main |
+| C：Scheduled Nightly | `f04c890d...` | https://github.com/YanqingXu/lua/actions/runs/31736288595 | runtime 9196757535；fuzz 9197298441；workers 9195413841/9195294741 | passed-baseline / next-candidate-pending | Codex evidence review | 2026-08-14 | attempt 1；schedule event；45m/1000/6x600s；4 jobs 与 4 artifacts 全绿；内部 SHA/run/event/参数一致；GitHub 较 cron 延迟约 60 分钟 |
 | D：Governance | `f04c890d...` | https://github.com/YanqingXu/lua/issues/6 | repository variables: 0 | blocked-decision | pending | 2026-08-13 | main unprotected；私有仓库当前套餐 protection/ruleset API 返回 403；需 ruleset 或限时 waiver |
 | E：Candidate packages | pending | pending | pending | pending | pending | pending | 3 RIDs |
 | F：Fault injection | pending | pending | pending | pending | pending | pending | target environment |

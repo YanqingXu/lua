@@ -1831,7 +1831,9 @@ Assert-FileContains "README.md" @(
     "tools/run_quality_gate\.ps1",
     "f04c890d80a89739eb8dc28ddaeb1ae5e5993273",
     "actions/runs/31661881457",
-    "actions/runs/31663816824"
+    "actions/runs/31663816824",
+    "actions/runs/31702136558",
+    "actions/runs/31736288595"
 )
 
 Assert-FileNotContains "README.md" @(
@@ -1841,7 +1843,7 @@ Assert-FileNotContains "README.md" @(
 
 Assert-FileTextMatches "assessment.md" @(
     '(?m)^baseline_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273\r?$',
-    '(?m)^last_pushed_checkpoint_sha: f04c890d80a89739eb8dc28ddaeb1ae5e5993273\r?$',
+    '(?m)^last_pushed_checkpoint_sha: 288e15fe4125925f2b861fb02181a6f1f0a1de82\r?$',
     '(?m)^candidate_sha: pending\r?$'
 )
 
@@ -1854,15 +1856,18 @@ Assert-FileTextMatches "task.md" @(
 Assert-FileContains "assessment.md" @(
     "actions/runs/31661881457",
     "actions/runs/31663816824",
+    "actions/runs/31702136558",
+    "actions/runs/31736288595",
     "codex/v0\.1\.0-rc1-quality-gate"
 )
 
 Assert-FileTextMatches "assessment.md" @(
-    '(?m)^\| Nightly \|.*scheduled run.*0.*\|$'
+    '(?m)^\| Nightly \|.*31736288595.*\|$'
 )
 
 Assert-FileNotContains "assessment.md" @(
-    "disabled_manually"
+    "disabled_manually",
+    "scheduled run.*0"
 )
 
 Assert-FileTextMatches "docs/release/rc-notes-0.1.0.md" @(

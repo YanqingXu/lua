@@ -162,9 +162,12 @@ benchmark OFF 配置验证 debugger ON/OFF 均为 46/46 CTest；启用 benchmark
 覆盖构建、兼容性、sanitizer、fuzz、七组件 coverage、allocator、ARM64、macOS、benchmark
 和 lint；同 SHA 的
 [`manual Nightly 31663816824`](https://github.com/YanqingXu/lua/actions/runs/31663816824) 也已完成
-45 分钟 runtime soak、1000 次 native-module lifecycle 与六目标各 600 秒 fuzz。scheduled Nightly、
-RC 治理和跨平台候选包仍未完成；本地严格门禁兼容修复也会产生新 SHA，因此现有远端结果只能作为
-修复前证据基线，新候选必须按 [发布检查清单](docs/release/release-checklist.md) 重新取得同 SHA 证据。
+45 分钟 runtime soak、1000 次 native-module lifecycle 与六目标各 600 秒 fuzz；同 SHA 的
+[`scheduled Nightly 31736288595`](https://github.com/YanqingXu/lua/actions/runs/31736288595) 也已成功。
+严格门禁兼容修复 checkpoint `288e15f...` 的
+[`PR CI 31702136558`](https://github.com/YanqingXu/lua/actions/runs/31702136558) 为 17/17；PR #21 已 Ready，
+但状态文档审查修复、独立批准、RC 治理和跨平台候选包仍未完成。因此现有结果只能作为历史基线或
+PR checkpoint 证据，最终候选必须按 [发布检查清单](docs/release/release-checklist.md) 重新取得同 SHA 证据。
 
 ### CMake / CTest 与 SDK 安装
 
