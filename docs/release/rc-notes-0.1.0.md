@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: CMakeLists.txt; src/lua_cpp_version.h; src/lua_runtime.h; CHANGELOG.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; docs/release/platform-support.md; docs/release/platform-baseline.json; cmake/LuaCppPlatformBaseline.cmake; tools/verify_platform_baseline.py; tools/write_workflow_evidence.py; tools/verify_release_evidence.py; tools/verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/verify_release_tag.py; tools/build_release_body.py; tools/validate_release_artifacts.py; tools/release_identity.psm1; cmake/WriteBuildProvenance.cmake; tools/package_release.ps1; docs/release/release-checklist.md; docs/operations/production-deployment.md; docs/quality/endurance.md
-last_checked: 2026-08-13
+last_checked: 2026-08-14
 applies_to: 0.1.x release candidates and releases
 ---
 
@@ -35,10 +35,12 @@ applies_to: 0.1.x release candidates and releases
 
 ## 验证
 
-截至 2026-08-13，已推送基线的常规 CI、七组件 coverage 和 runtime benchmark 已通过；其后
-的 Phase A 修复尚未形成候选 SHA。Nightly 仍为 `disabled_manually`，治理、三平台候选包、
-tag 和 GitHub Release 仍未完成；因此本文件描述门禁合同，不构成 RC 已获批准的声明。精确
-SHA、run URL 和 artifact 标识只由发布工作流从候选证据动态生成，不写入可复用的 RC 正文。
+截至 2026-08-14，`main` 基线的 17-job 常规 CI、七组件 coverage、runtime benchmark、手动和
+scheduled Nightly 均已通过。独立 B1 发现的严格门禁兼容修复已进入 Ready PR #21；已推送
+checkpoint `288e15f...` 的 17-job PR CI 通过，原生 LLVM 22、MSBuild、SHA 校验和全量单测也全绿。
+当前状态文档审查修复会形成后续 SHA；治理、三平台候选包、tag 和 GitHub Release 仍未完成，
+因此本文件描述门禁合同，不构成 RC 已获批准的声明。
+精确 SHA、run URL 和 artifact 标识只由发布工作流从候选证据动态生成，不写入可复用的 RC 正文。
 
 发布门禁把以下远端证据绑定到同一个不可变提交：
 

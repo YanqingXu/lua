@@ -367,8 +367,12 @@ try {
         $sourceInclude = Join-Path $root "src"
         $frameworkInclude = Join-Path $root "tests/unit/framework"
         $testInclude = Join-Path $root "lua_test/include"
+        # The standalone smoke does not inherit target compile definitions. A predefined
+        # string macro keeps test_runner.cpp parseable without native-shell quote rules.
+        $testBuildGitShaDefinition = "-DLUA_TEST_BUILD_GIT_SHA=__FILE__"
         foreach ($file in $files) {
-            & $clangTidy.Source $file.FullName -- -std=c++20 "-I$sourceInclude" "-I$frameworkInclude" "-I$testInclude"
+            & $clangTidy.Source $file.FullName -- -std=c++20 $testBuildGitShaDefinition `
+                "-I$sourceInclude" "-I$frameworkInclude" "-I$testInclude"
             if ($LASTEXITCODE -ne 0) {
                 throw "clang-tidy failed for $($file.FullName) with exit code $LASTEXITCODE"
             }
