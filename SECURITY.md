@@ -11,7 +11,7 @@
 
 ## 私密报告
 
-优先使用仓库的 GitHub private vulnerability reporting / Security Advisory。若该入口不可用，请通过仓库维护者已公开的私密联系方式报告；不要在公开 issue 中提交可利用样例。
+优先使用仓库的 [GitHub private vulnerability reporting](https://github.com/YanqingXu/lua/security/advisories/new)。如果该入口暂时不可用，可以创建一个不包含漏洞细节的普通 Issue，请求维护者建立私密沟通渠道；不要在公开 Issue、Pull Request、讨论或日志中提交利用样例、凭据或未修补细节。
 
 报告应包含：
 

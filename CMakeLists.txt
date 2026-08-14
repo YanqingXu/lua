@@ -408,7 +408,7 @@ install(FILES
     src/lua_cpp_version.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-install(FILES LICENSE DESTINATION ${CMAKE_INSTALL_DATADIR}/lua_cpp)
+install(FILES LICENSE THIRD_PARTY_NOTICES.md DESTINATION ${CMAKE_INSTALL_DATADIR}/lua_cpp)
 
 configure_package_config_file(
     cmake/LuaCppConfig.cmake.in

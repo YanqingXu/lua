@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/architecture/overview.md; docs/architecture/execution-pipeline/overview.md; docs/compiler/lexer.md; docs/compiler/parser.md; docs/compiler/bytecode-generation.md; docs/vm/runtime/overview.md; docs/runtime/value/overview.md; docs/runtime/table/overview.md; docs/runtime/functions/overview.md; docs/runtime/services.md; docs/runtime/execution-policy.md; docs/runtime/sandbox-policy.md; docs/runtime/memory-contract.md; docs/gc/implementation.md; docs/knowledge/source-document-map.md; src/compiler/; src/vm/; src/core/; src/gc/; tests/lua/official/
-last_checked: 2026-08-12
+verified_against: docs/architecture/overview.md; docs/architecture/execution-pipeline/overview.md; docs/compiler/lexer.md; docs/compiler/parser.md; docs/compiler/bytecode-generation.md; docs/vm/runtime/overview.md; docs/runtime/value/overview.md; docs/runtime/table/overview.md; docs/runtime/functions/overview.md; docs/runtime/services.md; docs/runtime/execution-policy.md; docs/runtime/sandbox-policy.md; docs/runtime/memory-contract.md; docs/gc/implementation.md; docs/knowledge/source-document-map.md; docs/release/open-source-readiness.md; src/compiler/; src/vm/; src/core/; src/gc/; tests/lua/official/
+last_checked: 2026-08-14
 applies_to: technical documentation entry point
 ---
 
@@ -19,7 +19,7 @@ applies_to: technical documentation entry point
 | Runtime | Value、Table、Metatable、Function、Closure、Upvalue、RuntimeServices、公开生产配置、执行治理、脚本能力与内存合同 | [Value](runtime/value/overview.md)、[Table](runtime/table/overview.md)、[Function](runtime/functions/overview.md)、[Services](runtime/services.md)、[生产运行时 C API](runtime/public-runtime-api.md)、[ExecutionPolicy](runtime/execution-policy.md)、[SandboxPolicy](runtime/sandbox-policy.md)、[内存合同](runtime/memory-contract.md) |
 | Operations | 不可信脚本 worker 的 allocator/进程隔离、结构化结果、容量与回滚 | [生产部署合同](operations/production-deployment.md) |
 | Quality | PR 快速门禁与 scheduled runtime/native-module soak、长 fuzz 分层 | [长稳与 Fuzz 合同](quality/endurance.md) |
-| Release | RC/正式版本的同 SHA 证据、仓库治理、SBOM、校验和与回滚 | [发布门禁](release/release-checklist.md) |
+| Release | 首次公开、RC/正式版本的同 SHA 证据、仓库治理、SBOM、校验和与回滚 | [开源就绪清单](release/open-source-readiness.md)、[发布门禁](release/release-checklist.md) |
 | GC | root/object graph、mark/sweep、barrier、weak table、finalizer 和 StringPool | [GC 总览](gc/overview.md)、[GC 实现](gc/implementation.md)、[周期 walkthrough](gc/cycle-walkthrough.md) |
 | Standard Library | native function 注册、公共栈协议和 Lua 5.1 库语义 | [注册架构](stdlib/overview.md)、[库实现边界](stdlib/library-reference/overview.md) |
 | Compatibility | Lua 5.1 支持面、实现自由度、高风险差异和验证门槛 | [兼容性边界](compatibility/lua51/overview.md) |

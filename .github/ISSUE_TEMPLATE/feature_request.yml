@@ -1,0 +1,44 @@
+name: 功能建议
+description: 提议兼容性、教学、工具链或运行时改进
+title: "[Feature]: "
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issue 和路线图，未找到相同建议。
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 请从用户或维护者需求出发描述问题，而不只是指定实现。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 说明期望行为、API 或工作流，以及为何适合本项目范围。
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 主要范围
+      options:
+        - Lua 5.1 兼容性
+        - Compiler / VM / GC
+        - C API / Runtime / Sandbox
+        - 调试器或工具
+        - 构建、测试或发布
+        - 文档与教学
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: 兼容性与取舍
+      description: 说明 ABI、性能、平台、安全边界或迁移影响，以及考虑过的替代方案。
