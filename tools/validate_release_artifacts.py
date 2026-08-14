@@ -298,6 +298,7 @@ def validate_release_artifacts(
         "lib/cmake/LuaCpp/LuaCppConfigVersion.cmake",
         "lib/cmake/LuaCpp/LuaCppTargets.cmake",
         "share/lua_cpp/LICENSE",
+        "share/lua_cpp/THIRD_PARTY_NOTICES.md",
         "share/lua_cpp/release/rc-notes-0.1.0.md",
         "share/lua_cpp/release/release-checklist.md",
         "share/lua_cpp/sbom.spdx.json",

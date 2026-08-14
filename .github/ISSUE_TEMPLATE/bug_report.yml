@@ -1,0 +1,58 @@
+name: 缺陷报告
+description: 报告可复现的解释器、运行时、构建或兼容性问题
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。安全漏洞请不要填写此模板，请使用 Security Advisory 私密报告。
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issue，未找到相同问题。
+          required: true
+        - label: 这不是需要私密披露的安全漏洞。
+          required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: 问题描述
+      description: 请简明说明实际行为和影响。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 最小复现
+      description: 提供最小 Lua 脚本、C/C++ 宿主代码和完整命令；请删除凭据与真实业务数据。
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: 提交 SHA 或版本
+      placeholder: 40 位 commit SHA 或 v0.1.0-rc.N
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境
+      description: 操作系统、CPU、编译器及版本、CMake 生成器、Debug/Release、相关构建选项。
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 诊断信息
+      description: 可附精简后的错误、stack trace 或 sanitizer 输出；不要粘贴秘密、完整大型 trace 或可利用细节。
+      render: text

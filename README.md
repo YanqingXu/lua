@@ -1,7 +1,7 @@
 ---
 status: current
-verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; docs/release/platform-support.md; docs/release/platform-baseline.json; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; cmake/LuaCppPlatformBaseline.cmake; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; tests/unit/framework/test_runner.cpp; tests/quality/test_signal_allowlist.json; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/run_quality_gate.ps1; tools/test_quality_gate.ps1; tools/check_test_signal_integrity.ps1; tools/check_test_binary_sha.ps1; tools/check_release_readiness.ps1; tools/package_release.ps1; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/verify_release_package_consumer.py; tools/test_verify_release_package_consumer.py
-last_checked: 2026-08-12
+verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; docs/release/platform-support.md; docs/release/platform-baseline.json; docs/release/open-source-readiness.md; CONTRIBUTING.md; SECURITY.md; THIRD_PARTY_NOTICES.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; cmake/LuaCppPlatformBaseline.cmake; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; tests/unit/framework/test_runner.cpp; tests/quality/test_signal_allowlist.json; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/run_quality_gate.ps1; tools/test_quality_gate.ps1; tools/check_test_signal_integrity.ps1; tools/check_test_binary_sha.ps1; tools/check_release_readiness.ps1; tools/package_release.ps1; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/verify_release_package_consumer.py; tools/test_verify_release_package_consumer.py
+last_checked: 2026-08-14
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
@@ -23,6 +23,17 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - 基于现代 C++ 类型系统的运行时对象模型。
 - 标准库、REPL、脚本执行入口和字节码查看工具。
 - 面向 Lua 5.1 官方语义和复杂第三方 Lua 库的兼容性验证。
+
+## 项目成熟度与安全边界
+
+`0.1.x` 是 Runtime Preview，不是长期支持版本，也不代表已经适合在单一进程内直接执行恶意代码。
+
+- `0.1.x` 公开 C ABI 以 `LUA_CPP_ABI_VERSION` 和已安装的五个头文件为边界；开发中的调试器属于 `v0.2`，不在 `0.1.x` SDK/ABI 承诺内。
+- callback allocator 已覆盖文档列出的关键分配路径，但还不是全运行时 hard heap limit；宿主仍须施加进程级内存与 CPU 限制，详见[内存合同](docs/runtime/memory-contract.md)。
+- `SandboxPolicy` 约束脚本能力，不隔离恶意宿主、原生模块或实现缺陷；不可信工作负载应放入独立 worker 进程，详见[沙箱策略](docs/runtime/sandbox-policy.md)和[生产部署合同](docs/operations/production-deployment.md)。
+- 官方二进制只覆盖下文列出的 Windows x64、Linux x64 和 macOS ARM64 固定基线；其他平台即使可从源码构建，也不自动获得发布支持承诺。
+
+安全问题请按 [SECURITY.md](SECURITY.md) 私密报告；普通缺陷和改进建议请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 设计哲学
 
@@ -68,7 +79,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - 默认 unrestricted sandbox 保持 Lua 5.1 行为；game-server profile 仅开放安全库与 preload-only package，并在每次特权操作重新检查能力，防止已捕获函数绕过收紧后的策略。
 - REPL 支持元命令、历史记录、增量解析、Tab 补全、字节码查看、AST 查看和 GC 信息查询。
 - 兼容性验证包含 Lua 5.1 官方测试套件的 staged smoke、Release 原样 strict `all.lua`、TestC 脚本、项目内 Lua 回归脚本和 C++ 单元测试；当前 strict `all.lua`、`api.lua` 与经 SHA 锁定 Lua 5.1.5 `luac` oracle 校正的 `code.lua` 均为 required PASS，TestC 不保留已知 XFAIL。
-- 项目包含复杂第三方 Lua 库 `alien-signals-in-lua` 的运行验证，用于检验闭包、元表、协程、模块加载、debug 反射和嵌套表操作等组合场景。
+- 项目包含第三方 Lua 库 `alien-signals-in-lua` 的运行验证，用于检验闭包、元表、协程、模块加载、debug 反射和嵌套表操作等组合场景；来源、版本和许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ### 开发中的调试器核心
 
@@ -395,7 +406,7 @@ working 与 untracked 的并集可避免已提交改动逃过本地格式检查�
 expected skip 必须通过 inline helper `SKIP_EXPECTED` 登记，豁免只允许
 绑定路径、行号、SHA-256、理由和失效日期的编译期探针。测试框架区分 expected 与 unexpected
 skip：前者必须通过显式 API 给出理由，后者计入阻断结果，发布证据要求两者的数量均被明确报告。
-仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan/TSan、严格兼容性、fuzz、coverage、ARM64/macOS 和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，普通指标先计算每次独立运行的样本中位数，再计算每个相邻 base/head pair 的相对变化，并以配对变化的中位数判定；GC P99 池化各次运行的 pause 样本后使用最近秩。若 `CMakeLists.txt`、`cmake/` 与 `src/` 在 base/head 完全等价，比较仍保留全部样本和越线记录，但以 `equivalent-runtime-inputs` 给出确定性结论；若运行时输入确有变化且三对样本同时出现阈值内/阈值外结果，则自动增加两对确认采样，再以五对中位数作最终判定。现有 VM 指令吞吐、C++↔Lua、coroutine、closure/upvalue 与 GC P99 的版本化预算均未放宽，持续回归仍直接失败。私有仓库当前套餐无法启用 required-check 分支保护；branch-protection 与 rulesets API 均返回需升级 GitHub Pro 或公开仓库，该平台限制由 [#6](https://github.com/YanqingXu/lua/issues/6) 跟踪。
+仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan/TSan、严格兼容性、fuzz、coverage、ARM64/macOS 和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，普通指标先计算每次独立运行的样本中位数，再计算每个相邻 base/head pair 的相对变化，并以配对变化的中位数判定；GC P99 池化各次运行的 pause 样本后使用最近秩。若 `CMakeLists.txt`、`cmake/` 与 `src/` 在 base/head 完全等价，比较仍保留全部样本和越线记录，但以 `equivalent-runtime-inputs` 给出确定性结论；若运行时输入确有变化且三对样本同时出现阈值内/阈值外结果，则自动增加两对确认采样，再以五对中位数作最终判定。现有 VM 指令吞吐、C++↔Lua、coroutine、closure/upvalue 与 GC P99 的版本化预算均未放宽，持续回归仍直接失败。默认分支和版本 tag 的公开仓库治理要求见[开源就绪清单](docs/release/open-source-readiness.md)，发布证据仍按 [RC 门禁](docs/release/release-checklist.md)绑定到同一候选 SHA。
 [Actions run 30000455395](https://github.com/YanqingXu/lua/actions/runs/30000455395) 在提交 `94b694b` 上保留了运行时源码等价却发生 benchmark 非对称误报的失败/成功对照 artifact。随后提交 `6f571cc` 引入上述 schema v3 策略，并在 [Actions run 30004681771](https://github.com/YanqingXu/lua/actions/runs/30004681771) 首轮取得 17/17 jobs 全绿；benchmark artifact `8562573583` 明确记录 `equivalent-runtime-inputs`、空输入差异和三对样本。对应 [#15](https://github.com/YanqingXu/lua/issues/15) 已关闭。
 
 ```powershell
@@ -414,6 +425,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\add_source.ps1 `
 
 实现细节和模块边界见 [docs/index.md](docs/index.md)。
 
+## 参与贡献
+
+欢迎提交可复现的缺陷报告、设计讨论和聚焦的 Pull Request。开始前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，其中说明了构建、测试、兼容性、文档与第三方来源要求。安全漏洞不要提交公开 Issue，请使用 [SECURITY.md](SECURITY.md) 中的私密入口。
+
 ## 参考资源
 
 - [Lua 官方网站](https://www.lua.org/)
@@ -425,4 +440,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\add_source.ps1 `
 
 ## 许可证
 
-本项目采用 [MIT 许可证](LICENSE)。
+本项目自有代码采用 [MIT 许可证](LICENSE)。仓库中保留的 Lua 官方测试材料和 Alien Signals 测试材料适用各自的 MIT 版权声明，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

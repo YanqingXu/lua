@@ -45,6 +45,7 @@ def create_release_asset_set(
         "lib/liblua_core.a": "static\n",
         "lib/liblua_public_api.so": "shared\n",
         "share/lua_cpp/LICENSE": "MIT\n",
+        "share/lua_cpp/THIRD_PARTY_NOTICES.md": "notices\n",
         "share/lua_cpp/release/rc-notes-0.1.0.md": "notes\n",
         "share/lua_cpp/release/release-checklist.md": "checklist\n",
     }
