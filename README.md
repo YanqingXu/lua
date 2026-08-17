@@ -111,6 +111,8 @@ start lua.slnx
 ```
 
 在 Visual Studio 中可以直接构建解决方案，或选择单独构建核心库、解释器入口、测试入口和字节码工具。
+测试项目会自动从当前 Git `HEAD` 解析并嵌入 40 位提交 SHA；无 Git 的源码归档构建需通过
+`/p:LuaTestBuildGitSha=<40-hex-sha>` 显式传入该值。
 
 ### 使用批处理脚本构建
 
