@@ -1075,6 +1075,14 @@ Assert-FileContains "cmake/ResolveTestBuildGitSha.cmake" @(
     "message\(FATAL_ERROR"
 )
 
+Assert-FileContains "lua_test.vcxproj" @(
+    "PrepareLuaTestBuildGitSha",
+    'git -C &quot;\$\(MSBuildProjectDirectory\)&quot; rev-parse --verify HEAD',
+    'Condition="''\$\(LuaTestBuildGitSha\)''==''''"',
+    "LuaTestBuildGitSha must be exactly 40 hexadecimal characters",
+    'LUA_TEST_BUILD_GIT_SHA=&quot;\$\(LuaTestBuildGitSha\)&quot;'
+)
+
 Assert-FileContains "src/lua_cpp_version.h" @(
     'LUA_CPP_VERSION "0\.1\.0"',
     'LUA_CPP_ABI_VERSION 0'
