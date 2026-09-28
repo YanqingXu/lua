@@ -564,10 +564,18 @@ jobs:
 
   linux-lint:
     name: Linux clang-format / clang-tidy
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, X64, lua-ci]
 
     steps:
+      # A skipped required job counts as success. Fail before checkout so a
+      # fork PR cannot satisfy every required check without running tests.
+      - name: Require a trusted repository branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        shell: bash
+        run: |
+          echo 'External pull requests must be reviewed and copied to a trusted branch in this repository before CI can pass.' >&2
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
