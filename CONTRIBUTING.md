@@ -28,6 +28,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools/run_quality_gate.ps1 `
 
 如果环境无法运行某项检查，请在 Pull Request 中明确列出未运行项和原因，不要把缺少工具描述为通过。
 
+GitHub Actions 的完整测试矩阵由本机 self-hosted runner 执行；环境准备、标签和等待任务的处理见
+[本机 GitHub Actions runner](docs/quality/self-hosted-runners.md)。
+
 ## 改动要求
 
 - 保持改动聚焦；行为修复同时提供失败前可复现、修复后通过的测试。

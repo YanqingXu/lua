@@ -14,7 +14,8 @@ applies_to: runtime soak, cancellation latency, native-module lifecycle, bounded
 GitHub 继续负责 cron 调度、手动触发、日志和 artifact 存储；计算在本地自建 runner 上执行。
 cron `31 18 * * *` 为每天 UTC 18:31（北京时间次日 02:31），实际触发可能延迟。
 任务仅在 `YanqingXu/lua` 的 `main` 分支运行，手动触发也须选择 `main`。
-PR/push CI 和 release 工作流继续使用各自原有的 runner。
+PR/push CI 和 Release 也使用 self-hosted runner，完整标签、依赖和注册要求见
+[本机 GitHub Actions runner](self-hosted-runners.md)。
 
 所需的两个 runner 均注册到本仓库，添加自定义标签 `lua-nightly`：
 
