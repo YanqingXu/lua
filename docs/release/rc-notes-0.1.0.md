@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: CMakeLists.txt; src/lua_cpp_version.h; src/lua_runtime.h; CHANGELOG.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; docs/release/platform-support.md; docs/release/platform-baseline.json; cmake/LuaCppPlatformBaseline.cmake; tools/verify_platform_baseline.py; tools/write_workflow_evidence.py; tools/verify_release_evidence.py; tools/verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/verify_release_tag.py; tools/build_release_body.py; tools/validate_release_artifacts.py; tools/release_identity.psm1; cmake/WriteBuildProvenance.cmake; tools/package_release.ps1; docs/release/release-checklist.md; docs/operations/production-deployment.md; docs/quality/endurance.md
-last_checked: 2026-08-14
+last_checked: 2026-09-28
 applies_to: 0.1.x release candidates and releases
 ---
 
@@ -19,8 +19,8 @@ applies_to: 0.1.x release candidates and releases
 
 - SDK 版本：0.1.0。
 - shared-library ABI：0。
-- 发布 RID：Windows Server 2022 x64、Ubuntu 24.04/glibc 2.39 x64、macOS 14.0+
-  ARM64；对应动态 UCRT/MSVC v143、GCC 14/libstdc++ 与系统 libc++。
+- 自动发布 RID：Windows Server 2022 x64、Ubuntu 24.04/glibc 2.39 x64；对应动态
+  UCRT/MSVC v143、GCC 14/libstdc++。
 - 默认 `lua_open` / `luaL_newstate` 保持 unrestricted Lua 5.1 行为。
 - 有限行为必须通过 `luaL_newstate_configured` 显式选择。
 
@@ -29,22 +29,22 @@ applies_to: 0.1.x release candidates and releases
 - 项目仍是 Runtime Preview，不宣称全运行时 callback allocator hard limit。
 - 长时间不返回的原生 callback 必须主动调用 `lua_checkexecution`，或由宿主终止 worker。
 - sandbox 不约束恶意宿主或已加载原生代码。
-- macOS 进程硬内存边界需由部署环境提供。
-- MinGW、32 位、musl、macOS x64 和较旧运行库不在 0.1.x 官方二进制支持范围；Linux
-  ARM64 仅为 CI portability 目标。
+- macOS 本地构建的进程硬内存边界需由部署环境提供。
+- MinGW、32 位、musl、macOS x64 和较旧运行库不在 0.1.x 官方二进制支持范围。
+  Linux ARM64 与 macOS ARM64 已移出自动 CI 与发布矩阵；现有本地构建及基线校验能力仍保留。
 
 ## 验证
 
 截至 2026-08-14，`main` 基线的 17-job 常规 CI、七组件 coverage、runtime benchmark、手动和
 scheduled Nightly 均已通过。独立 B1 发现的严格门禁兼容修复已进入 Ready PR #21；已推送
 checkpoint `288e15f...` 的 17-job PR CI 通过，原生 LLVM 22、MSBuild、SHA 校验和全量单测也全绿。
-当前状态文档审查修复会形成后续 SHA；治理、三平台候选包、tag 和 GitHub Release 仍未完成，
+上述历史基线之后的候选须重新取得证据；治理、当前两平台候选包、tag 和 GitHub Release 仍需完成，
 因此本文件描述门禁合同，不构成 RC 已获批准的声明。
 精确 SHA、run URL 和 artifact 标识只由发布工作流从候选证据动态生成，不写入可复用的 RC 正文。
 
 发布门禁把以下远端证据绑定到同一个不可变提交：
 
-- 完整 CI push run 的 17 个 required jobs，包括真实执行并成功的 clang-format 与 clang-tidy；
+- 完整 CI push run 的 15 个 required jobs，包括真实执行并成功的 clang-format 与 clang-tidy；
 - `component-coverage` 覆盖率证据与 `runtime-benchmark-evidence` 性能证据；
 - 手动和 scheduled nightly 各自成功的 runtime/native-module soak 与长时 sanitizer fuzz；
 - `runtime-soak-evidence` 和 `long-fuzz-evidence` 两类 nightly artifact。
@@ -58,7 +58,8 @@ corpus 和 GitHub job step 时间重新判断结果。benchmark base 必须是�
 
 打包器以 build provenance 绑定 clean HEAD、源码/构建目录和 Release 配置，并在 install 前执行
 重新 configure 与 clean rebuild；provenance v2 同时绑定目标 OS、CPU、64 位指针宽度和精确
-RID，只接受 `windows-x64`、`linux-x64` 与 `macos-arm64`。三个 artifact 会下载到隔离目录，
+RID；本地打包器保留 `windows-x64`、`linux-x64` 与 `macos-arm64` 的验证能力，自动发布只使用
+`windows-x64` 与 `linux-x64`。这两个 artifact 会下载到隔离目录，
 每个平台只允许包、SBOM、manifest 和 checksum 四个规范文件；最终 consumer 会重新验证
 version、RID、commit、ZIP payload、单包 checksum 及内外 SBOM 一致性，再验证全局 checksum。
 

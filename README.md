@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: docs/index.md; docs/vm/instruction-set.md; docs/runtime/public-runtime-api.md; docs/runtime/memory-contract.md; docs/runtime/sandbox-policy.md; docs/compatibility/lua-c-api-coverage.md; docs/release/platform-support.md; docs/release/platform-baseline.json; docs/release/open-source-readiness.md; CONTRIBUTING.md; SECURITY.md; THIRD_PARTY_NOTICES.md; CMakeLists.txt; cmake/LuaCppConfig.cmake.in; cmake/LuaCppPlatformBaseline.cmake; src/lua_runtime.h; src/lua_cpp_version.h; tests/packaging/consumer/; tests/unit/framework/test_runner.cpp; tests/quality/test_signal_allowlist.json; lua.slnx; lua.vcxproj; lua_app.vcxproj; lua_test.vcxproj; lua_bytecode.vcxproj; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; tools/run_quality_gate.ps1; tools/test_quality_gate.ps1; tools/check_test_signal_integrity.ps1; tools/check_test_binary_sha.ps1; tools/check_release_readiness.ps1; tools/package_release.ps1; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/verify_release_package_consumer.py; tools/test_verify_release_package_consumer.py
-last_checked: 2026-08-14
+last_checked: 2026-09-28
 applies_to: 项目入口、稳定能力概览与文档导航
 ---
 
@@ -15,7 +15,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 
 ## 项目简介
 
-解释器以 Lua 5.1.5 的运行时语义和指令模型为主要兼容目标，使用 C++23，并同时维护 Visual Studio/MSBuild 与跨平台 CMake 构建路径；持续集成使用 MSVC、GCC、Clang 和 AppleClang 验证工程。项目同时承担现代 C++ 教学标杆的角色：通过清晰的模块边界、自解释的数据结构和可追踪的文档链路，帮助读者理解 Lua 从源码到执行再到内存管理的完整机制。核心实现包括：
+解释器以 Lua 5.1.5 的运行时语义和指令模型为主要兼容目标，使用 C++23，并同时维护 Visual Studio/MSBuild 与跨平台 CMake 构建路径；持续集成在 Windows/Linux x64 上使用 MSVC、GCC 和 Clang 验证工程，AppleClang 本地构建路径仍保留。项目同时承担现代 C++ 教学标杆的角色：通过清晰的模块边界、自解释的数据结构和可追踪的文档链路，帮助读者理解 Lua 从源码到执行再到内存管理的完整机制。核心实现包括：
 
 - 词法分析器、递归下降语法分析器和 AST 表示。
 - AST 到 Lua 5.1 风格 `Proto` / 字节码的编译管线。
@@ -31,7 +31,7 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - `0.1.x` 公开 C ABI 以 `LUA_CPP_ABI_VERSION` 和已安装的五个头文件为边界；开发中的调试器属于 `v0.2`，不在 `0.1.x` SDK/ABI 承诺内。
 - callback allocator 已覆盖文档列出的关键分配路径，但还不是全运行时 hard heap limit；宿主仍须施加进程级内存与 CPU 限制，详见[内存合同](docs/runtime/memory-contract.md)。
 - `SandboxPolicy` 约束脚本能力，不隔离恶意宿主、原生模块或实现缺陷；不可信工作负载应放入独立 worker 进程，详见[沙箱策略](docs/runtime/sandbox-policy.md)和[生产部署合同](docs/operations/production-deployment.md)。
-- 官方二进制只覆盖下文列出的 Windows x64、Linux x64 和 macOS ARM64 固定基线；其他平台即使可从源码构建，也不自动获得发布支持承诺。
+- 自动发布的官方二进制只覆盖下文列出的 Windows x64 和 Linux x64 固定基线；其他平台即使可从源码构建，也不自动获得发布支持承诺。
 
 安全问题请按 [SECURITY.md](SECURITY.md) 私密报告；普通缺陷和改进建议请先阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
@@ -96,10 +96,10 @@ applies_to: 项目入口、稳定能力概览与文档导航
 - CMake 3.20+ / CTest，用于跨平台构建、测试和 SDK 安装；Windows 同时保留 Visual Studio / MSBuild 构建路径。
 - Python 3，用于完整测试、质量门和发布工具链。
 
-0.1.x 官方二进制包只承诺三个固定基线：Windows Server 2022 x64 + 动态 UCRT/MSVC v143、
-Ubuntu 24.04 x64 + glibc 2.39/GCC 14，以及 deployment target 为 macOS 14.0 的 macOS
-ARM64 包。Linux ARM64 目前是 CI-only，较旧 OS、musl、macOS x64 和 32 位目标不属于发布
-承诺。编译器范围、动态依赖和机器门禁见
+0.1.x 自动发布的官方二进制包只覆盖两个固定基线：Windows Server 2022 x64 + 动态
+UCRT/MSVC v143，以及 Ubuntu 24.04 x64 + glibc 2.39/GCC 14。Linux ARM64 与 macOS ARM64
+已移出自动 CI 与发布矩阵；macOS 的本地构建及基线校验能力仍保留。较旧 OS、musl、
+macOS x64 和 32 位目标不属于发布承诺。编译器范围、动态依赖和机器门禁见
 [平台支持基线](docs/release/platform-support.md)。
 
 ### 使用 Visual Studio
@@ -408,7 +408,7 @@ working 与 untracked 的并集可避免已提交改动逃过本地格式检查�
 expected skip 必须通过 inline helper `SKIP_EXPECTED` 登记，豁免只允许
 绑定路径、行号、SHA-256、理由和失效日期的编译期探针。测试框架区分 expected 与 unexpected
 skip：前者必须通过显式 API 给出理由，后者计入阻断结果，发布证据要求两者的数量均被明确报告。
-仓库已定义 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan/TSan、严格兼容性、fuzz、coverage、ARM64/macOS 和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，普通指标先计算每次独立运行的样本中位数，再计算每个相邻 base/head pair 的相对变化，并以配对变化的中位数判定；GC P99 池化各次运行的 pause 样本后使用最近秩。若 `CMakeLists.txt`、`cmake/` 与 `src/` 在 base/head 完全等价，比较仍保留全部样本和越线记录，但以 `equivalent-runtime-inputs` 给出确定性结论；若运行时输入确有变化且三对样本同时出现阈值内/阈值外结果，则自动增加两对确认采样，再以五对中位数作最终判定。现有 VM 指令吞吐、C++↔Lua、coroutine、closure/upvalue 与 GC P99 的版本化预算均未放宽，持续回归仍直接失败。默认分支和版本 tag 的公开仓库治理要求见[开源就绪清单](docs/release/open-source-readiness.md)，发布证据仍按 [RC 门禁](docs/release/release-checklist.md)绑定到同一候选 SHA。
+仓库已定义 Windows/Linux x64 的 15 个 CI job，覆盖 Windows Debug/Release、Linux GCC/Clang Debug/Release、ASan/UBSan/TSan、严格兼容性、fuzz、coverage、allocator、lint 和 Release benchmark 检查。性能门在同一 runner 上按 `base/head`、`head/base`、`base/head` 交错执行，普通指标先计算每次独立运行的样本中位数，再计算每个相邻 base/head pair 的相对变化，并以配对变化的中位数判定；GC P99 池化各次运行的 pause 样本后使用最近秩。若 `CMakeLists.txt`、`cmake/` 与 `src/` 在 base/head 完全等价，比较仍保留全部样本和越线记录，但以 `equivalent-runtime-inputs` 给出确定性结论；若运行时输入确有变化且三对样本同时出现阈值内/阈值外结果，则自动增加两对确认采样，再以五对中位数作最终判定。现有 VM 指令吞吐、C++↔Lua、coroutine、closure/upvalue 与 GC P99 的版本化预算均未放宽，持续回归仍直接失败。默认分支和版本 tag 的公开仓库治理要求见[开源就绪清单](docs/release/open-source-readiness.md)，发布证据仍按 [RC 门禁](docs/release/release-checklist.md)绑定到同一候选 SHA。
 [Actions run 30000455395](https://github.com/YanqingXu/lua/actions/runs/30000455395) 在提交 `94b694b` 上保留了运行时源码等价却发生 benchmark 非对称误报的失败/成功对照 artifact。随后提交 `6f571cc` 引入上述 schema v3 策略，并在 [Actions run 30004681771](https://github.com/YanqingXu/lua/actions/runs/30004681771) 首轮取得 17/17 jobs 全绿；benchmark artifact `8562573583` 明确记录 `equivalent-runtime-inputs`、空输入差异和三对样本。对应 [#15](https://github.com/YanqingXu/lua/issues/15) 已关闭。
 
 ```powershell

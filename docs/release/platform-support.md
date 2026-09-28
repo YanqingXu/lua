@@ -1,14 +1,14 @@
 ---
 status: current
 verified_against: docs/release/platform-baseline.json; CMakeLists.txt; cmake/LuaCppPlatformBaseline.cmake; cmake/WriteBuildProvenance.cmake; .github/workflows/ci.yml; .github/workflows/release.yml; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/package_release.ps1; tests/packaging/consumer/
-last_checked: 2026-07-26
+last_checked: 2026-09-28
 applies_to: 0.1.x source builds, release packages, and installed SDK consumers
 ---
 
 # 0.1.x 平台、运行库与工具链基线
 
-本页区分“源码可构建”“CI 可移植性检查”和“发布包支持”三个不同承诺。只有
-[`platform-baseline.json`](platform-baseline.json) 中的三个 RID 会生成 0.1.x 官方候选包；
+本页区分“源码可构建”“CI 可移植性检查”和“发布包支持”三个不同承诺。自动发布工作流只为
+[`platform-baseline.json`](platform-baseline.json) 中的 `windows-x64` 与 `linux-x64` 生成 0.1.x 官方候选包；
 `latest` runner、未记录的本地编译器结果或只通过源码编译，都不能扩大正式支持范围。
 
 ## 官方发布包
@@ -17,18 +17,23 @@ applies_to: 0.1.x source builds, release packages, and installed SDK consumers
 |---|---|---|---|
 | `windows-x64` | Windows Server 2022 x64，版本 `10.0.20348` | `windows-2022`、Visual Studio 17 2022、MSVC 19.40–19.x | 动态 Universal CRT 与 MSVC v143；包的共享库不得导入 Debug CRT |
 | `linux-x64` | Ubuntu 24.04 LTS x64、glibc 2.39 | `ubuntu-24.04`、Ninja、GCC 14.x | 动态 glibc/libstdc++；最高允许 `GLIBC_2.39`、`GLIBCXX_3.4.33`、`CXXABI_1.3.15` |
-| `macos-arm64` | macOS 14.0 ARM64 | `macos-15` ARM64、Ninja、AppleClang 16.x–17.x | `CMAKE_OSX_DEPLOYMENT_TARGET=14.0`，仅依赖系统 libc++/libSystem |
 
 Windows 客户端版本、较旧 Linux 发行版/glibc、musl、macOS x64 和 32 位目标未进入本次
-发布矩阵，不能仅凭“可能可运行”写成受支持。Linux ARM64 目前只属于 CI portability 检查，
-不生成 0.1.x 包。
+发布矩阵，不能仅凭“可能可运行”写成受支持。Linux ARM64 和 macOS ARM64 均已移出自动
+CI 与发布矩阵，不再要求对应 runner 或生成对应官方包。
+
+平台策略文件与本地工具仍保留 `macos-arm64` 手动构建/验证基线：最低 macOS 14.0 ARM64，
+构建环境为 `macos-15` ARM64、Ninja、AppleClang 16.x–17.x，
+`CMAKE_OSX_DEPLOYMENT_TARGET=14.0`，只依赖系统 libc++/libSystem。策略文件的
+`ciOnlyTargets: [linux-arm64]` 同样是保留的目标分类，不代表当前工作流仍执行该平台。
+这些基线与本地验证能力不构成自动 CI 或自动发布承诺。
 
 ## 源码和 consumer
 
 - 工程本身要求 CMake 3.20+、C99 与 C++23。Windows 路径只支持 MSVC ABI；MinGW 会在
   configure 阶段直接失败，不再允许走到 `_dupenv_s` 链接失败。
-- CI 仍用 MSVC、GCC、Clang/LLVM libc++ 与 AppleClang 检查源码可移植性；这类检查不会自动
-  产生新的正式 RID。
+- CI 在 Windows/Linux x64 上使用 MSVC、GCC 与 Clang/LLVM libc++ 检查源码可移植性；
+  AppleClang 的本地构建路径仍保留。这些构建能力不会自动产生新的正式发布 RID。
 - 已安装 SDK 的公开头可由纯 C consumer 编译。`LuaCpp::Lua` 静态库内部由 C++ 实现，因此
   最终链接器和运行库必须与对应平台包兼容；`LuaCpp::Shared` 仍需要同 RID 的系统动态运行库。
 - 官方 ZIP 的 static/shared consumer 必须在同 RID 的全新目录中构建并运行，且不得回退到

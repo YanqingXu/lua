@@ -15,11 +15,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Local developer machines only accept PR code from this repository.
+  # See docs/quality/self-hosted-runners.md for labels and preinstalled tools.
   windows-msbuild:
     name: Windows MSBuild (${{ matrix.configuration }})
-    runs-on: windows-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Windows, X64, lua-ci]
     env:
       LUA_TEST_DISABLE_MEMORY_LIMIT: 1
+      # A runner started by pwsh can leak PowerShell 7 modules into PS 5.1.
+      # Let each shell resolve its own built-in modules (including Get-FileHash).
+      PSModulePath: ''
     strategy:
       fail-fast: false
       matrix:
@@ -96,7 +102,8 @@ jobs:
 
   linux-cmake:
     name: Linux ${{ matrix.compiler }} (${{ matrix.build_type }})
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     strategy:
       fail-fast: false
       matrix:
@@ -128,9 +135,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Clang C++ standard library
+      - name: Check preinstalled Clang C++ standard library
         if: matrix.compiler == 'Clang'
-        run: sudo apt-get update && sudo apt-get install --yes libc++-18-dev libc++abi-18-dev
+        run: |
+          clang-18 --version
+          clang++-18 --version
+          for package in libc++-18-dev libc++abi-18-dev; do
+            dpkg-query --show --showformat='${Status}\n' "$package" |
+              grep -Fx 'install ok installed'
+          done
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
@@ -141,9 +154,11 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure --timeout 300
 
-      - name: Install Lua 5.1 reference
+      - name: Check preinstalled Lua 5.1 reference
         if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
-        run: sudo apt-get update && sudo apt-get install --yes lua5.1 liblua5.1-0-dev
+        run: |
+          /usr/bin/lua5.1 -v
+          pkg-config --modversion lua5.1
 
       - name: Lua 5.1 differential evidence
         if: matrix.compiler == 'Clang' && matrix.build_type == 'Debug'
@@ -215,7 +230,8 @@ jobs:
 
   linux-sanitizers:
     name: Linux Clang (${{ matrix.sanitizer }})
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     strategy:
       fail-fast: false
       matrix:
@@ -235,8 +251,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Clang C++ standard library
-        run: sudo apt-get update && sudo apt-get install --yes libc++-18-dev libc++abi-18-dev
+      - name: Check preinstalled Clang C++ standard library
+        run: |
+          clang-18 --version
+          clang++-18 --version
+          for package in libc++-18-dev libc++abi-18-dev; do
+            dpkg-query --show --showformat='${Status}\n' "$package" |
+              grep -Fx 'install ok installed'
+          done
 
       - name: Configure sanitizer
         run: >-
@@ -264,11 +286,17 @@ jobs:
 
   allocator-failure-contract:
     name: Allocator failure contract (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Keep check names stable for the release evidence verifier.
+        include:
+          - os: ubuntu-latest
+            runner: [self-hosted, Linux, X64, lua-ci]
+          - os: windows-latest
+            runner: [self-hosted, Windows, X64, lua-ci]
 
     steps:
       - name: Checkout
@@ -300,7 +328,8 @@ jobs:
 
   linux-fuzzers:
     name: Linux libFuzzer security boundaries
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     timeout-minutes: 20
     env:
       CC: clang-19
@@ -312,10 +341,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Install Clang
-        run: >-
-          sudo apt-get update && sudo apt-get install --yes
-          clang-19 libfuzzer-19-dev
+      - name: Check preinstalled Clang
+        run: |
+          clang-19 --version
+          clang++-19 --version
+          dpkg-query --show --showformat='${Status}\n' libfuzzer-19-dev |
+            grep -Fx 'install ok installed'
 
       - name: Configure fuzzers
         run: >-
@@ -358,41 +389,10 @@ jobs:
           path: build/fuzz-artifacts/
           if-no-files-found: ignore
 
-  portability:
-    name: Portability (${{ matrix.name }})
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux ARM64
-            runner: ubuntu-24.04-arm
-            disable_memory_limit: 0
-          - name: macOS ARM64
-            runner: macos-15
-            disable_memory_limit: 1
-
-    env:
-      # Darwin does not implement RLIMIT_AS as a usable process cap. The
-      # allocator contract jobs retain the hard-cap evidence on Linux/Windows.
-      LUA_TEST_DISABLE_MEMORY_LIMIT: ${{ matrix.disable_memory_limit }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Configure
-        run: cmake -S . -B build/portability -DCMAKE_BUILD_TYPE=Debug
-
-      - name: Build
-        run: cmake --build build/portability --parallel 2
-
-      - name: Test
-        run: ctest --test-dir build/portability --output-on-failure --timeout 600
-
   linux-coverage:
     name: Linux component coverage
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     timeout-minutes: 30
     env:
       CC: clang-18
@@ -406,10 +406,16 @@ jobs:
       - name: Workflow evidence metadata contract tests
         run: python3 tools/test_write_workflow_evidence.py
 
-      - name: Install LLVM coverage tools
-        run: >-
-          sudo apt-get update && sudo apt-get install --yes
-          clang-18 llvm-18 libc++-18-dev libc++abi-18-dev
+      - name: Check preinstalled LLVM coverage tools
+        run: |
+          clang-18 --version
+          clang++-18 --version
+          llvm-profdata-18 --version
+          llvm-cov-18 --version
+          for package in libc++-18-dev libc++abi-18-dev; do
+            dpkg-query --show --showformat='${Status}\n' "$package" |
+              grep -Fx 'install ok installed'
+          done
 
       - name: Configure coverage
         run: >-
@@ -469,7 +475,8 @@ jobs:
 
   linux-runtime-benchmark:
     name: Linux runtime benchmark contract
-    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     timeout-minutes: 40
 
     steps:
@@ -492,6 +499,8 @@ jobs:
           git cat-file -e "$base_sha^{commit}"
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
           echo "head_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          # Checkout cleans the files; prune registrations left by earlier jobs.
+          git worktree prune
           git worktree add --detach build/benchmark-base-source "$base_sha"
           cp benchmarks/runtime_bench.cpp build/benchmark-base-source/benchmarks/runtime_bench.cpp
 
@@ -555,18 +564,33 @@ jobs:
 
   linux-lint:
     name: Linux clang-format / clang-tidy
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, lua-ci]
 
     steps:
+      # A skipped required job counts as success. Fail before checkout so a
+      # fork PR cannot satisfy every required check without running tests.
+      - name: Require a trusted repository branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        shell: bash
+        run: |
+          echo 'External pull requests must be reviewed and copied to a trusted branch in this repository before CI can pass.' >&2
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - name: Install LLVM tools
-        run: >-
-          sudo apt-get update && sudo apt-get install --yes
-          clang-format clang-tidy libc++-18-dev libc++abi-18-dev
+      - name: Check preinstalled LLVM tools
+        run: |
+          clang-18 --version
+          clang++-18 --version
+          clang-format --version
+          clang-tidy --version
+          for package in libc++-18-dev libc++abi-18-dev; do
+            dpkg-query --show --showformat='${Status}\n' "$package" |
+              grep -Fx 'install ok installed'
+          done
 
       - name: clang-format
         shell: bash

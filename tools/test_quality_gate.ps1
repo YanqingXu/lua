@@ -961,7 +961,7 @@ Assert-FileContains ".github/workflows/ci.yml" @(
     "Linux libFuzzer security boundaries",
     "Linux component coverage",
     "CXXFLAGS: -stdlib=libc\+\+",
-    "disable_memory_limit: 1",
+    "LUA_TEST_DISABLE_MEMORY_LIMIT: 1",
     "ASAN_OPTIONS: detect_leaks=1:halt_on_error=1",
     "UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1",
     "clang-format --dry-run --Werror",

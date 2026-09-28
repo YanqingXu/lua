@@ -19,7 +19,6 @@ from typing import Any
 
 from validate_release_artifacts import (
     ReleaseArtifactError,
-    SUPPORTED_RELEASE_RIDS,
     validate_release_artifacts,
 )
 from verify_release_evidence import (
@@ -55,6 +54,9 @@ from verify_source_readiness_evidence import (
 
 
 EXPECTED_VERIFIER_NAME = "tools/verify_release_evidence.py"
+# Automatic releases publish only the platforms executed by release.yml.
+# The package validator also supports manually produced macOS ARM64 packages.
+PUBLISHED_RELEASE_RIDS = ("windows-x64", "linux-x64")
 EXPECTED_MANIFEST_FIELDS = {
     "schema",
     "generated_at",
@@ -1025,7 +1027,7 @@ def validate_release_checksums(
     expected_sha = _sha(expected_sha, "expected package candidate SHA")
     expected_package_names = {
         f"lua-cpp-{expected_version}-{rid}{suffix}"
-        for rid in SUPPORTED_RELEASE_RIDS
+        for rid in PUBLISHED_RELEASE_RIDS
         for suffix in _PACKAGE_SUFFIXES
     }
     expected_files = expected_package_names | {"release-evidence.json"}
@@ -1063,7 +1065,7 @@ def validate_release_checksums(
         if digest != expected_digest:
             raise ReleaseBodyError(f"release asset checksum mismatch: {name}")
 
-    for rid in SUPPORTED_RELEASE_RIDS:
+    for rid in PUBLISHED_RELEASE_RIDS:
         stem = f"lua-cpp-{expected_version}-{rid}"
         try:
             validate_release_artifacts(

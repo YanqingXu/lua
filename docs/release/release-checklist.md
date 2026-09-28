@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: CMakeLists.txt; src/lua_cpp_version.h; CHANGELOG.md; SECURITY.md; THIRD_PARTY_NOTICES.md; docs/release/open-source-readiness.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; docs/release/platform-support.md; docs/release/platform-baseline.json; cmake/LuaCppPlatformBaseline.cmake; tools/verify_platform_baseline.py; tools/test_verify_platform_baseline.py; tools/check_release_readiness.ps1; tools/release_identity.psm1; tools/test_release_identity.ps1; tools/verify_source_readiness_evidence.py; tools/test_verify_source_readiness_evidence.py; tools/verify_release_governance.py; tools/test_verify_release_governance.py; tools/write_workflow_evidence.py; tools/test_write_workflow_evidence.py; tools/verify_release_evidence.py; tools/test_verify_release_evidence.py; tools/build_release_body.py; tools/test_build_release_body.py; tools/verify_release_tag.py; tools/test_verify_release_tag.py; cmake/WriteBuildProvenance.cmake; tools/build_provenance.psm1; tools/visual_studio_environment.psm1; tools/test_visual_studio_environment.ps1; tools/test_package_build_provenance.ps1; tools/package_release.ps1; tools/generate_sbom.py; tools/validate_release_artifacts.py; tools/verify_release_package_consumer.py; tools/test_verify_release_package_consumer.py; tests/packaging/consumer/CMakeLists.txt; tests/packaging/consumer/main.c
-last_checked: 2026-08-14
+last_checked: 2026-09-28
 applies_to: 0.1.x release candidates and releases
 ---
 
@@ -12,7 +12,7 @@ applies_to: 0.1.x release candidates and releases
 ## 进入候选前
 
 - `main` 工作树干净，版本在 CMake 与 `lua_cpp_version.h` 完全一致。
-- 当前 SHA 的 Windows/Linux/macOS/ARM64 构建、官方 strict、C API、安装消费者、sanitizer、allocator、coverage、benchmark 与 lint required checks 全绿。
+- 当前 SHA 的 Windows/Linux x64 构建、官方 strict、C API、安装消费者、sanitizer、allocator、coverage、benchmark 与 lint required checks 全绿。
 - 当前 SHA 的 nightly runtime/native-module soak 与长 fuzz 全绿；artifact 未被其他 SHA 替代。
 - coverage 每个组件达到 `tests/coverage/component-thresholds.json`。
 - head benchmark 同时满足相对回归策略和 `runtime-benchmark-absolute-policy.json`。
@@ -29,7 +29,7 @@ applies_to: 0.1.x release candidates and releases
 
 - 候选是 `main` 历史中的完整 40 位提交；
 - 同一 SHA、`main` 分支、push 事件的最新完整 CI run 成功；
-- CI 精确包含 17 个预期 job，全部为 completed/success，lint 中 clang-format 与
+- CI 精确包含 15 个预期 job，全部为 completed/success，lint 中 clang-format 与
   clang-tidy 两个步骤均真实执行并成功；
 - `component-coverage` 与 `runtime-benchmark-evidence` artifact 存在、未过期，属于该 run/SHA，
   且 GitHub 提供有效的 SHA-256 digest；
@@ -61,7 +61,7 @@ applies_to: 0.1.x release candidates and releases
 
 publish job 还要用 `tools/build_release_body.py` 对 verifier 的真实 manifest 输出做第二次完整
 schema/payload/run-set/timed-step 校验。它只接受
-`windows-x64`、`linux-x64`、`macos-arm64` 各一套四个规范资产与一份
+`windows-x64`、`linux-x64` 各一套四个规范资产与一份
 `release-evidence.json`，逐包重验 manifest 的 version/RID/commit、单包 checksum、ZIP 与包内/
 包外 SBOM，再校验全局 `SHA256SUMS` 精确覆盖该文件集。顶层字段或后缀数量浅检查不构成发布
 证据。
@@ -87,13 +87,12 @@ workflow dispatch 即使从 tag ref 启动也只能生成 `candidate-only` 证�
 
 ## 制品
 
-三个正式 RID 必须满足
+两个自动发布 RID 必须满足
 [`platform-baseline.json`](platform-baseline.json) 的固定合同：`windows-2022`/MSVC
-19.40–19.x/动态 UCRT v143，`ubuntu-24.04`/GCC 14.x/glibc 2.39，以及
-`macos-15`/AppleClang 16.x–17.x/`CMAKE_OSX_DEPLOYMENT_TARGET=14.0`。release configure
-必须传入精确 RID 与 runner，生成 platform evidence；构建后 verifier 再从 DLL/ELF/Mach-O
-检查 CRT、symbol-version 上限、`minos` 和动态依赖。任何 `latest` runner、MinGW、32 位、
-musl 或 CI-only Linux ARM64 都不能生成 0.1.x 官方包。
+19.40–19.x/动态 UCRT v143，以及 `ubuntu-24.04`/GCC 14.x/glibc 2.39。release configure
+必须传入精确 RID 与 runner，生成 platform evidence；构建后 verifier 再从 DLL/ELF
+检查 CRT、symbol-version 上限和动态依赖。任何 `latest` runner、MinGW、32 位、
+musl、Linux ARM64 或 macOS ARM64 都不在当前自动发布矩阵中。
 
 每个平台包必须包含：
 
@@ -104,7 +103,8 @@ musl 或 CI-only Linux ARM64 都不能生成 0.1.x 官方包。
 
 候选包由 `tools/package_release.ps1` 从 CMake install tree 生成。打包器先要求工作树干净且
 build provenance v2 的 HEAD、源码/构建目录、生成器、目标 OS/CPU、64 位指针和单/多配置类型
-与请求完全一致；RID 只允许 `windows-x64`、`linux-x64`、`macos-arm64`。随后从当前 clean
+与请求完全一致；本地打包器保留 `windows-x64`、`linux-x64`、`macos-arm64` 的验证能力，
+自动发布只使用前两个 RID。随后从当前 clean
 HEAD 重新 configure、`--clean-first` 构建并复查 provenance/工作树，防止旧 SHA、脏源码产物、
 Debug SDK、32 位目标或 RID 冒名被误标为 Release。之后调用
 `tools/validate_release_artifacts.py` 验证归档根路径、必需文件、manifest、外部/包内 SBOM
@@ -128,7 +128,7 @@ checksum 自引用。
 2. 创建 annotated `v0.1.0-rc.N` tag；tag 不移动、不复用。tag job 与最终发布命令紧邻前都要
    通过 GitHub Git refs API 验证：顶层对象必须是 annotated tag，递归 peel 后必须精确等于
    evidence-approved candidate；lightweight、错误提交、循环/过深对象链或 API 错误均拒绝。
-3. tag workflow 在相同 SHA 重跑 `verify_evidence`；三个 package job 必须等待它成功。
+3. tag workflow 在相同 SHA 重跑 `verify_evidence`；两个 package job 必须等待它成功。
 4. publish job 深度校验完整 manifest 与发布资产集合，把精确 run/payload 摘要和实际 package/
    SBOM/manifest SHA-256 追加到最终 Release body，再生成 prerelease。
 5. 在目标服务执行 shadow/canary，比较结果一致性、失败分类、p99、allocator peak、进程内存与取消延迟。

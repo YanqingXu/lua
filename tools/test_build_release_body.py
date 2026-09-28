@@ -342,7 +342,7 @@ def write_release_assets(root: Path, manifest: dict[str, object]) -> tuple[Path,
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    for rid in ("windows-x64", "linux-x64", "macos-arm64"):
+    for rid in ("windows-x64", "linux-x64"):
         with tempfile.TemporaryDirectory() as temporary:
             assets = package_fixture.create_release_asset_set(
                 Path(temporary),
@@ -652,10 +652,10 @@ class ReleaseBodyConsumerTests(unittest.TestCase):
                 )
 
             def non_zip(root: Path) -> None:
-                (root / f"lua-cpp-{VERSION}-macos-arm64.zip").write_bytes(
+                (root / f"lua-cpp-{VERSION}-linux-x64.zip").write_bytes(
                     b"not a zip"
                 )
-                rewrite_package_checksums(root, "macos-arm64")
+                rewrite_package_checksums(root, "linux-x64")
 
             def mismatched_sbom(root: Path) -> None:
                 path = root / f"lua-cpp-{VERSION}-windows-x64.spdx.json"
@@ -664,10 +664,21 @@ class ReleaseBodyConsumerTests(unittest.TestCase):
 
             def missing_rid(root: Path) -> None:
                 for suffix in (".zip", ".spdx.json", ".manifest.json", ".SHA256SUMS"):
-                    (root / f"lua-cpp-{VERSION}-macos-arm64{suffix}").unlink()
+                    (root / f"lua-cpp-{VERSION}-linux-x64{suffix}").unlink()
 
             def extra_file(root: Path) -> None:
                 (root / "lua-cpp-extra.zip").write_bytes(b"extra")
+
+            def unrequested_platform(root: Path) -> None:
+                with tempfile.TemporaryDirectory() as temporary:
+                    assets = package_fixture.create_release_asset_set(
+                        Path(temporary),
+                        version=VERSION,
+                        rid="macos-arm64",
+                        commit=CANDIDATE_SHA,
+                    )
+                    for key in ("archive", "sbom", "manifest", "checksums"):
+                        shutil.copy2(assets[key], root / assets[key].name)
 
             cases = {
                 "wrong version": wrong_version,
@@ -679,6 +690,7 @@ class ReleaseBodyConsumerTests(unittest.TestCase):
                 "internal/external SBOM mismatch": mismatched_sbom,
                 "missing RID": missing_rid,
                 "extra file": extra_file,
+                "unrequested platform": unrequested_platform,
             }
             for index, (label, mutate) in enumerate(cases.items()):
                 with self.subTest(label=label):

@@ -17,7 +17,7 @@ permissions:
 jobs:
   governance:
     name: Release governance
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     permissions:
       contents: read
     outputs:
@@ -90,7 +90,7 @@ jobs:
   verify_evidence:
     name: Verify exact-SHA release evidence
     needs: governance
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     permissions:
       actions: read
       contents: read
@@ -161,7 +161,7 @@ jobs:
     name: Verify annotated release tag identity
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs: verify_evidence
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     permissions:
       contents: read
     steps:
@@ -184,20 +184,22 @@ jobs:
   packages:
     name: SDK package (${{ matrix.rid }})
     needs: [governance, verify_evidence]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    env:
+      CMAKE_GENERATOR: ${{ matrix.generator }}
+      CMAKE_GENERATOR_PLATFORM: ${{ matrix.rid == 'windows-x64' && 'x64' || '' }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: windows-2022
+            runner: [self-hosted, Windows, X64, lua-release, windows-2022]
             rid: windows-x64
-            generator: ""
+            generator: Visual Studio 17 2022
           - os: ubuntu-24.04
+            runner: [self-hosted, Linux, X64, lua-release, ubuntu-24.04]
             rid: linux-x64
-            generator: Ninja
-          - os: macos-15
-            rid: macos-arm64
             generator: Ninja
 
     steps:
@@ -221,7 +223,7 @@ jobs:
             "-DLUA_CPP_RELEASE_RUNNER=${{ matrix.os }}"
           )
           if ($IsWindows) {
-            cmake -S . -B build/release -A x64 `
+            cmake -S . -B build/release -G '${{ matrix.generator }}' -A x64 `
               -DLUA_CPP_BUILD_BENCHMARKS=ON `
               -DLUA_CPP_BUILD_DEBUGGER=OFF `
               @baselineArguments
@@ -230,16 +232,11 @@ jobs:
               $env:CC = 'gcc-14'
               $env:CXX = 'g++-14'
             }
-            $platformArguments = @()
-            if ($IsMacOS) {
-              $platformArguments += '-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0'
-            }
             cmake -S . -B build/release -G '${{ matrix.generator }}' `
               -DCMAKE_BUILD_TYPE=Release `
               -DLUA_CPP_BUILD_BENCHMARKS=ON `
               -DLUA_CPP_BUILD_DEBUGGER=OFF `
-              @baselineArguments `
-              @platformArguments
+              @baselineArguments
           }
 
       - name: Build Release
@@ -261,9 +258,6 @@ jobs:
               }
               'linux-x64' {
                   'build/release/liblua_public_api.so.0.1.0'
-              }
-              'macos-arm64' {
-                  'build/release/liblua_public_api.0.1.0.dylib'
               }
               default {
                   throw 'Unsupported release RID'
@@ -303,8 +297,11 @@ jobs:
   consume_packages:
     name: Downloaded SDK consumer (${{ matrix.rid }})
     needs: [governance, verify_evidence, packages]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    env:
+      CMAKE_GENERATOR: ${{ matrix.generator }}
+      CMAKE_GENERATOR_PLATFORM: ${{ matrix.rid == 'windows-x64' && 'x64' || '' }}
     permissions:
       actions: read
       contents: read
@@ -313,11 +310,13 @@ jobs:
       matrix:
         include:
           - os: windows-2022
+            runner: [self-hosted, Windows, X64, lua-release, windows-2022]
             rid: windows-x64
+            generator: Visual Studio 17 2022
           - os: ubuntu-24.04
+            runner: [self-hosted, Linux, X64, lua-release, ubuntu-24.04]
             rid: linux-x64
-          - os: macos-15
-            rid: macos-arm64
+            generator: Ninja
 
     steps:
       - name: Checkout consumer verifier
@@ -417,7 +416,7 @@ jobs:
     name: Publish immutable candidate
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     needs: [governance, packages, consume_packages, verify_evidence, verify_tag]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, lua-ci]
     environment: release
     permissions:
       actions: read
@@ -436,7 +435,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir release-artifacts
-          for rid in windows-x64 linux-x64 macos-arm64; do
+          for rid in windows-x64 linux-x64; do
             artifact="lua-cpp-${RELEASE_VERSION}-${rid}"
             destination="release-artifacts/${artifact}"
             mkdir "$destination"
@@ -458,7 +457,7 @@ jobs:
           set -euo pipefail
           [[ ! -e release ]]
           mkdir release
-          for rid in windows-x64 linux-x64 macos-arm64; do
+          for rid in windows-x64 linux-x64; do
             stem="lua-cpp-${RELEASE_VERSION}-${rid}"
             source="release-artifacts/${stem}"
             mapfile -t source_entries < <(

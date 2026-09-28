@@ -1,7 +1,7 @@
 ---
 status: active
 verified_against: LICENSE; THIRD_PARTY_NOTICES.md; CONTRIBUTING.md; SECURITY.md; .gitignore; .github/ISSUE_TEMPLATE/; .github/PULL_REQUEST_TEMPLATE.md; .github/workflows/ci.yml; .github/workflows/nightly.yml; .github/workflows/release.yml; docs/release/release-checklist.md; tools/check_release_readiness.ps1; tools/verify_release_governance.py; tools/test_verify_release_governance.py
-last_checked: 2026-08-14
+last_checked: 2026-09-28
 applies_to: 首次将 YanqingXu/lua 从私有仓库公开并进入 v0.1.0-rc.1 前
 ---
 
@@ -48,7 +48,7 @@ applies_to: 首次将 YanqingXu/lua 从私有仓库公开并进入 v0.1.0-rc.1 �
 
 - 只能通过 Pull Request 合并。当前单维护者阶段先把 required approvals 设为 0，避免完全锁死维护路径；独立审查者加入后立即提升为至少 1 名非作者批准，并要求最后一次可审查 push 获得批准。
 - 要求分支在合并前更新到最新 `main`，要求所有 review conversation 已解决。
-- 要求最近一次 CI 中的全部 17 个 job：Windows MSBuild Debug/Release、Linux GCC Debug/Release、Linux Clang Debug/Release/address/undefined/thread、Windows/Linux allocator contract、Linux format/tidy、component coverage、runtime benchmark、libFuzzer，以及 Linux ARM64、macOS ARM64 portability。
+- 要求最近一次 CI 中的全部 15 个 job：Windows MSBuild Debug/Release、Linux GCC Debug/Release、Linux Clang Debug/Release/address/undefined/thread、Windows/Linux allocator contract、Linux format/tidy、component coverage、runtime benchmark 与 libFuzzer。Linux ARM64、macOS ARM64 已移出自动执行矩阵及 required checks。
 - 禁止 force push 和分支删除；不要给管理员保留日常绕过路径。
 
 另建一个匹配 `refs/tags/v*` 的 active tag ruleset，限制 tag 创建、更新和删除，只允许书面发布流程中的发布负责人创建 annotated tag。版本 tag 不移动、不复用。
@@ -58,9 +58,9 @@ applies_to: 首次将 YanqingXu/lua 从私有仓库公开并进入 v0.1.0-rc.1 �
 ## 在公开状态重新取得同 SHA 证据
 
 - [ ] 邀请至少一名能够审查维护者自有改动的独立审查者，并把 `main` required approvals 从 0 提升为 1；在此之前不得生成 RC 治理批准。
-- [ ] 对公开前最后一次候选 `push` CI 使用 GitHub 的 rerun 功能，使同一 SHA 的 17 个 job 在公开状态重新执行并全部成功。
+- [ ] 对公开前最后一次候选 `push` CI 使用 GitHub 的 rerun 功能，使同一 SHA 的 15 个 job 在公开状态重新执行并全部成功。
 - [ ] 手动运行 `Nightly endurance`，并等待同一 SHA 的下一次 scheduled Nightly；两者都必须满足 runtime/native-module soak 与六目标 fuzz 的正式时长。
-- [ ] 手动运行 `Release candidate packages` 的 candidate-only 路径，版本输入为计划中的 `0.1.0-rc.N`，下载并复验三平台包、SBOM、manifest 和 SHA-256。
+- [ ] 手动运行 `Release candidate packages` 的 candidate-only 路径，版本输入为计划中的 `0.1.0-rc.N`，下载并复验 Windows/Linux x64 两个平台包、SBOM、manifest 和 SHA-256。
 - [ ] 生成并审核 `LUA_RELEASE_GOVERNANCE_ATTESTATION`，绑定最终候选 SHA、独立审查记录和已经生效的 branch/tag ruleset。
 - [ ] 按 [RC 与正式发布门禁](release-checklist.md)核对 exact-SHA evidence；在上述证据全部闭环前不创建 `v0.1.0-rc.1`。
 

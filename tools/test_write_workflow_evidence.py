@@ -41,7 +41,7 @@ class WorkflowEvidenceTests(unittest.TestCase):
         nightly = (repository / ".github/workflows/nightly.yml").read_text(encoding="utf-8")
         release = (repository / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
-        ci_fuzz = ci[ci.index("  linux-fuzzers:") : ci.index("  portability:")]
+        ci_fuzz = ci[ci.index("  linux-fuzzers:") : ci.index("  linux-coverage:")]
         ci_allocator = ci[ci.index("  allocator-failure-contract:") : ci.index("  linux-fuzzers:")]
         ci_coverage = ci[ci.index("  linux-coverage:") : ci.index("  linux-runtime-benchmark:")]
         ci_benchmark = ci[ci.index("  linux-runtime-benchmark:") :]

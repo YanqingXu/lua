@@ -1,7 +1,7 @@
 ---
 status: active
 created_at: 2026-08-13
-updated_at: 2026-08-14T08:29:00+08:00
+updated_at: 2026-09-28
 release_target: 0.1.0
 next_release: 0.1.0-rc.1
 candidate_sha: pending
@@ -14,6 +14,11 @@ production_state: pre-rc
 
 # `v0.1.0` 生产上线任务清单
 
+执行范围更新（2026-09-28）：自动 CI 现为 Windows/Linux x64 的 15 个 job，自动发布只生成
+这两个平台的包；Linux ARM64 与 macOS ARM64 已移出自动执行和必需检查。以下带日期、SHA
+或 run 的既有记录保留当时的 17-job/三平台口径；当前验收以
+[RC 与正式发布门禁](docs/release/release-checklist.md) 为准。
+
 ## 1. 目标与使用方法
 
 本文把当前项目从 pre-RC 推进到受控生产上线所需的工作拆成可执行任务。执行者应逐项填写负责人、日期、SHA、run URL、artifact 与审批记录；只有验收标准全部满足后才能勾选任务。
@@ -23,10 +28,10 @@ production_state: pre-rc
 ```text
 修复合并后遗留问题
   -> 冻结最终候选 SHA
-  -> 同 SHA 17/17 CI
+  -> 同 SHA 15/15 CI
   -> 手动 + scheduled Nightly
   -> 仓库治理批准
-  -> candidate-only 三平台包
+  -> candidate-only Windows/Linux x64 两平台包
   -> 目标环境故障注入
   -> v0.1.0-rc.1
   -> 7 天观察 + 24-72 小时业务 soak
@@ -325,11 +330,10 @@ ctest --test-dir build/rc-debugger-off -C Release --output-on-failure
 ### B2. 远端 push CI
 
 - [ ] 候选 SHA 的 `main` push CI 必须成功。
-- [ ] 精确包含 17 个预期 jobs，17/17 completed/success。
+- [ ] 精确包含 15 个预期 jobs，15/15 completed/success。
 - [ ] clang-format 和 clang-tidy 两个步骤均真实执行且成功。
 - [ ] ASan、UBSan、TSan 无未归因报告。
 - [ ] Windows/Linux allocator failure contract 通过。
-- [ ] Linux ARM64 与 macOS ARM64 portability 通过。
 - [ ] official strict、Lua differential 和 C API differential 通过。
 - [ ] `component-coverage` 与 `runtime-benchmark-evidence` artifact 存在、未过期且 SHA 一致。
 - [ ] 七组件 coverage 都不低于批准阈值，且 scope/file/coverable-line 最小值没有收缩。
@@ -461,7 +465,7 @@ Repository variable updated at:
 
 退出条件：发布 workflow 能读取合法 attestation；缺失、过期、同人审批或错误 SHA 的负例全部被拒绝。
 
-## 8. 阶段 E：生成并验证 candidate-only 三平台包
+## 8. 阶段 E：生成并验证 candidate-only Windows/Linux x64 两平台包
 
 目标：在创建 tag 前证明候选 SHA 能从固定 runner 生成可安装、可消费、可审计的正式包。
 
@@ -488,15 +492,14 @@ gh workflow run release.yml --repo YanqingXu/lua --ref main `
 
 - [ ] `windows-x64`：Windows Server 2022、MSVC 19.40–19.x、动态 UCRT/v143。
 - [ ] `linux-x64`：Ubuntu 24.04、GCC 14.x、glibc 2.39。
-- [ ] `macos-arm64`：macOS 14 deployment target、AppleClang 16.x–17.x。
-- [ ] 三个平台均从 clean HEAD 重新 configure、`--clean-first` build、CTest、install、package。
+- [ ] 两个平台均从 clean HEAD 重新 configure、`--clean-first` build、CTest、install、package。
 - [ ] `LUA_CPP_BUILD_DEBUGGER=OFF` 被强制执行，调试器实现不进入 0.1.x 包。
 - [ ] 每个平台 artifact 精确包含 ZIP、外部 SBOM、package manifest、单包 checksum 四类文件。
 - [ ] ZIP 包含静态库、共享库、五个公开头、CMake package 文件、LICENSE、CHANGELOG、SECURITY、RC notes、包内 SBOM 和平台 evidence。
 - [ ] validator 重算逐文件 SHA-256、SPDX packageVerificationCode、内外 SBOM 一致性。
 - [ ] 下载后在隔离目录构建并运行纯 C static/shared consumer。
 - [ ] consumer 不得回退到源码树、CMake registry、默认搜索路径或旧 build cache。
-- [ ] Windows DLL、ELF、Mach-O 的运行库、symbol version、minos 和动态依赖满足平台策略。
+- [ ] Windows DLL、ELF 的运行库、symbol version 和动态依赖满足平台策略。
 
 记录：
 
@@ -504,12 +507,11 @@ gh workflow run release.yml --repo YanqingXu/lua --ref main `
 Candidate-only release run URL / ID / attempt:
 windows-x64 artifact / digest:
 linux-x64 artifact / digest:
-macos-arm64 artifact / digest:
 release-evidence artifact / digest:
 Consumer verification jobs:
 ```
 
-退出条件：candidate-only workflow 全绿，三个包都可下载、可复验、可安装、可被 static/shared consumer 使用。
+退出条件：candidate-only workflow 全绿，两个包都可下载、可复验、可安装、可被 static/shared consumer 使用。
 
 ## 9. 阶段 F：目标环境故障注入与上线前验证
 
@@ -521,7 +523,7 @@ Consumer verification jobs:
 ### F1. 冻结部署合同
 
 - [ ] 明确生产采用独立 worker process，不把不可信脚本嵌入主服务进程。
-- [ ] 明确 Windows Job Object、Linux cgroup/rlimit/container、macOS 外层 VM/container/监督器实现。
+- [ ] 明确 Windows Job Object、Linux cgroup/rlimit/container 实现；若另行部署 macOS，则明确外层 VM/container/监督器实现。
 - [ ] 固定 worker 镜像 digest、SDK digest、配置 schema、sandbox profile 和允许的脚本来源。
 - [ ] 默认禁止任意 native module；若业务必须启用，固定 allowlist、hash/signature 和独立 worker 池。
 - [ ] 固定幂等键、重试、结果提交、drain grace 和最大任务时长。
@@ -547,7 +549,7 @@ Consumer verification jobs:
 - [ ] 验证取消到停止延迟，并覆盖最坏脚本形态。
 - [ ] 验证 State pool 重用前 `lua_runtime_begin_execution` 重置预算与取消状态。
 - [ ] 验证 pool 淘汰与关闭后 allocator live bytes 为 0。
-- [ ] macOS 单独验证外层 CPU/RSS/强杀机制，不宣称 `RLIMIT_AS` 等价硬边界。
+- [ ] 若另行部署 macOS，单独验证外层 CPU/RSS/强杀机制，不宣称 `RLIMIT_AS` 等价硬边界。
 - [ ] 如启用业务原生模块，验证并发、静态状态、异常、ABI、最后引用、卸载与 module-owned `__gc`。
 
 ### F4. 证据与判定
@@ -581,8 +583,8 @@ Go/no-go owner and decision:
 - [ ] RC notes 明确 Runtime Preview、allocator hard-limit 边界、sandbox/OS 隔离边界和平台限制。
 - [ ] 创建 annotated tag `v0.1.0-rc.1`，tag 对象 peel 后精确指向候选 SHA。
 - [ ] 禁止 lightweight tag；禁止移动、删除或复用已有 tag。
-- [ ] tag push 触发 release workflow，并重新运行 governance、exact-SHA evidence、三平台包和下载后 consumer。
-- [ ] publish job 重新深验三 RID × 四资产、全局 `SHA256SUMS` 和 release evidence。
+- [ ] tag push 触发 release workflow，并重新运行 governance、exact-SHA evidence、Windows/Linux x64 两平台包和下载后 consumer。
+- [ ] publish job 重新深验两 RID × 四资产、全局 `SHA256SUMS` 和 release evidence。
 - [ ] GitHub Release 必须标记为 prerelease，Release body 动态包含精确 SHA、run URL 和 digest。
 - [ ] 从公开 Release 页面重新下载资产并独立校验 checksum 与 consumer。
 
@@ -671,11 +673,11 @@ Go/no-go decision URL:
 - [ ] 明确 0.1.x 公开头、导出符号、CMake target、配置 schema、错误分类与 ABI 0 基线。
 - [ ] 确认正式包继续关闭 debugger，且不扩大已声明的平台范围。
 - [ ] 更新版本、CHANGELOG、正式 release notes 和支持策略。
-- [ ] 版本或文档提交产生新 SHA 后，重新执行阶段 B–E 的同 SHA CI、Nightly、治理和三平台候选包门禁。
+- [ ] 版本或文档提交产生新 SHA 后，重新执行阶段 B–E 的同 SHA CI、Nightly、治理和 Windows/Linux x64 两平台候选包门禁。
 - [ ] 对正式 SHA 执行必要的目标环境回归，确认与通过观察期的 RC 无未解释差异。
 - [ ] 创建不可变 annotated tag `v0.1.0`。
 - [ ] tag workflow 全绿后发布正式 GitHub Release，而不是 prerelease。
-- [ ] 独立下载验证三平台资产、SBOM、manifest、checksum 和 static/shared consumer。
+- [ ] 独立下载验证 Windows/Linux x64 两平台资产、SBOM、manifest、checksum 和 static/shared consumer。
 - [ ] 发布负责人形成书面 go/no-go，并记录已知限制和回滚版本。
 
 退出条件：`v0.1.0` 正式 Release 可下载、可审计、可消费，生产放量和回滚负责人均已签字确认。
@@ -701,12 +703,12 @@ Go/no-go decision URL:
 只有以下项目全部为 `[x]` 才允许正式生产放量：
 
 - [ ] 候选 SHA 已冻结且工作树干净。
-- [ ] 候选 SHA 的 17/17 push CI 全绿。
+- [ ] 候选 SHA 的 15/15 push CI 全绿。
 - [ ] 七组件 coverage 与 benchmark 策略通过。
 - [ ] 同 SHA manual Nightly 全绿。
 - [ ] 同 SHA scheduled Nightly 全绿。
 - [ ] required ruleset 或限时治理豁免已批准。
-- [ ] candidate-only 三平台包与下载后 consumer 全绿。
+- [ ] candidate-only Windows/Linux x64 两平台包与下载后 consumer 全绿。
 - [ ] 目标环境故障注入全绿。
 - [ ] `v0.1.0-rc.1` annotated tag 与 prerelease 已发布。
 - [ ] RC 观察至少 7 天且至少三次连续 scheduled Nightly 全绿。
