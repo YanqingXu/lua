@@ -77,7 +77,7 @@ peak 和关闭归零。它显式使用
 ctest --test-dir build -C Release -L runtime-failure-contract --output-on-failure
 ```
 
-scheduled nightly 在 GitHub-hosted Windows/Linux runner 上再次启用 OS limit，运行同一矩阵并保存
+scheduled nightly 在带有 `lua-nightly` 标签的自建 Windows/Linux runner 上再次启用 OS limit，运行同一矩阵并保存
 包含 exact candidate SHA 的 `worker-fault-matrix.json`。它证明仓库参考宿主在这些 runner 上能
 安装限制并保持结构化结果，但不等价于目标镜像、业务监督器或真实 OOM/CPU kill 验收。
 

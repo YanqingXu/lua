@@ -28,7 +28,8 @@ concurrency:
 jobs:
   runtime-soak:
     name: Runtime and native-module soak
-    runs-on: ubuntu-latest
+    if: github.repository == 'YanqingXu/lua' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64, lua-nightly]
     timeout-minutes: 90
     env:
       SOAK_MINUTES: ${{ inputs.soak_minutes || '45' }}
@@ -114,15 +115,16 @@ jobs:
 
   worker-fault-matrix:
     name: Worker fault matrix (${{ matrix.artifact_suffix }})
-    runs-on: ${{ matrix.os }}
+    if: github.repository == 'YanqingXu/lua' && github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - runner: [self-hosted, Linux, X64, lua-nightly]
             artifact_suffix: linux-x64
-          - os: windows-latest
+          - runner: [self-hosted, Windows, X64, lua-nightly]
             artifact_suffix: windows-x64
 
     steps:
@@ -170,7 +172,8 @@ jobs:
 
   long-fuzz:
     name: Long sanitizer fuzz
-    runs-on: ubuntu-latest
+    if: github.repository == 'YanqingXu/lua' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64, lua-nightly]
     timeout-minutes: 160
     env:
       CC: clang-19
@@ -190,10 +193,12 @@ jobs:
           [[ "$FUZZ_SECONDS_PER_TARGET" =~ ^[0-9]+$ ]] &&
             ((FUZZ_SECONDS_PER_TARGET >= 600 && FUZZ_SECONDS_PER_TARGET <= 1200))
 
-      - name: Install Clang
-        run: >-
-          sudo apt-get update && sudo apt-get install --yes
-          clang-19 libfuzzer-19-dev
+      - name: Check preinstalled Clang
+        run: |
+          clang-19 --version
+          clang++-19 --version
+          dpkg-query --show --showformat='${Status}\n' libfuzzer-19-dev |
+            grep -Fx 'install ok installed'
 
       - name: Configure fuzzers
         run: >-
