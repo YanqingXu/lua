@@ -59,8 +59,6 @@ EXPECTED_CI_JOBS = (
     "Linux component coverage",
     "Linux libFuzzer security boundaries",
     "Linux runtime benchmark contract",
-    "Portability (Linux ARM64)",
-    "Portability (macOS ARM64)",
     "Windows MSBuild (Debug)",
     "Windows MSBuild (Release)",
 )

@@ -201,10 +201,6 @@ jobs:
             runner: [self-hosted, Linux, X64, lua-release, ubuntu-24.04]
             rid: linux-x64
             generator: Ninja
-          - os: macos-15
-            runner: [self-hosted, macOS, ARM64, lua-release, macos-15]
-            rid: macos-arm64
-            generator: Ninja
 
     steps:
       - name: Checkout candidate
@@ -236,16 +232,11 @@ jobs:
               $env:CC = 'gcc-14'
               $env:CXX = 'g++-14'
             }
-            $platformArguments = @()
-            if ($IsMacOS) {
-              $platformArguments += '-DCMAKE_OSX_DEPLOYMENT_TARGET=14.0'
-            }
             cmake -S . -B build/release -G '${{ matrix.generator }}' `
               -DCMAKE_BUILD_TYPE=Release `
               -DLUA_CPP_BUILD_BENCHMARKS=ON `
               -DLUA_CPP_BUILD_DEBUGGER=OFF `
-              @baselineArguments `
-              @platformArguments
+              @baselineArguments
           }
 
       - name: Build Release
@@ -267,9 +258,6 @@ jobs:
               }
               'linux-x64' {
                   'build/release/liblua_public_api.so.0.1.0'
-              }
-              'macos-arm64' {
-                  'build/release/liblua_public_api.0.1.0.dylib'
               }
               default {
                   throw 'Unsupported release RID'
@@ -328,10 +316,6 @@ jobs:
           - os: ubuntu-24.04
             runner: [self-hosted, Linux, X64, lua-release, ubuntu-24.04]
             rid: linux-x64
-            generator: Ninja
-          - os: macos-15
-            runner: [self-hosted, macOS, ARM64, lua-release, macos-15]
-            rid: macos-arm64
             generator: Ninja
 
     steps:
@@ -451,7 +435,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir release-artifacts
-          for rid in windows-x64 linux-x64 macos-arm64; do
+          for rid in windows-x64 linux-x64; do
             artifact="lua-cpp-${RELEASE_VERSION}-${rid}"
             destination="release-artifacts/${artifact}"
             mkdir "$destination"
@@ -473,7 +457,7 @@ jobs:
           set -euo pipefail
           [[ ! -e release ]]
           mkdir release
-          for rid in windows-x64 linux-x64 macos-arm64; do
+          for rid in windows-x64 linux-x64; do
             stem="lua-cpp-${RELEASE_VERSION}-${rid}"
             source="release-artifacts/${stem}"
             mapfile -t source_entries < <(

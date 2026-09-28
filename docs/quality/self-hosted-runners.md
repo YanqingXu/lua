@@ -8,37 +8,35 @@ applies_to: repository self-hosted GitHub Actions runner setup and operation
 # 本机 GitHub Actions runner
 
 CI、Nightly 和 Release 的全部 job 均配置为 `self-hosted`。GitHub 仍负责触发、调度、
-日志和 artifact 存储；构建与测试在注册到本仓库的机器上执行。完整测试矩阵保留，缺少匹配
+日志和 artifact 存储；构建与测试在注册到本仓库的机器上执行。当前执行平台为 Windows x64
+与 Linux x64，Linux ARM64 和 macOS ARM64 已移出自动执行矩阵。缺少匹配
 runner 或 runner 离线时任务等待调度，不会回退到 GitHub 托管的 Azure runner。
 修改工作流并不等于已部署：须将配置应用到 GitHub，并注册、启动对应 runner，才能验证实际执行。
 
 ## 标签与执行环境
 
-同一行的全部标签必须同时匹配；`Windows`、`Linux`、`macOS` 和 CPU 架构须与实际环境一致。
+同一行的全部标签必须同时匹配；`Windows`、`Linux` 和 CPU 架构须与实际环境一致。
 
 | 用途 | runner 标签 | 实际环境 |
 | --- | --- | --- |
 | Windows CI | `self-hosted, Windows, X64, lua-ci` | Windows x64、Visual Studio 2026（MSVC v145） |
 | Linux CI、Release 证据验证及发布编排 | `self-hosted, Linux, X64, lua-ci` | Ubuntu 24.04 x64；可使用 WSL 2 |
-| Linux ARM64 portability | `self-hosted, Linux, ARM64, lua-ci` | 独立的 Linux ARM64 原生或仿真环境，GCC 14 |
-| macOS ARM64 portability | `self-hosted, macOS, ARM64, lua-ci` | Apple Silicon Mac，AppleClang |
 | Windows Nightly | `self-hosted, Windows, X64, lua-nightly` | Windows x64 |
 | Linux Nightly | `self-hosted, Linux, X64, lua-nightly` | Ubuntu 24.04 x64；可使用 WSL 2 |
 | Windows SDK 打包及消费验证 | `self-hosted, Windows, X64, lua-release, windows-2022` | 兼容 Windows x64，主机版本至少 `10.0.20348`，满足发布基线 |
 | Linux SDK 打包及消费验证 | `self-hosted, Linux, X64, lua-release, ubuntu-24.04` | Ubuntu 24.04 x64，满足发布基线 |
-| macOS SDK 打包及消费验证 | `self-hosted, macOS, ARM64, lua-release, macos-15` | macOS 15 ARM64，满足发布基线 |
 
 CI allocator check 名称保留 `ubuntu-latest` / `windows-latest`，以维持既有 check 身份；
-实际调度使用独立的 self-hosted 标签。Release 的 `windows-2022`、`ubuntu-24.04`、`macos-15`
+实际调度使用独立的 self-hosted 标签。Release 的 `windows-2022`、`ubuntu-24.04`
 同时是发布基线标识和自定义标签，不能仅给不合格机器添加标签来满足合同。具体 OS、编译器、
-glibc 和部署目标要求见 [发布平台基线](../release/platform-support.md)。
+glibc 要求见 [发布平台基线](../release/platform-support.md)。
 Windows 的最低运行基线是 Windows Server 2022；构建主机校验接受版本至少 `10.0.20348`
 且满足其余工具链与运行库约束的 Windows，不要求产品名称必须为 Windows Server 2022。
 
 一台满足条件的 runner 可同时添加 `lua-ci`、`lua-nightly` 或 `lua-release` 标签，
-但每个 runner 同时只执行一个 job。Windows x64 主机不能通过添加 Linux、macOS 或 ARM64
-标签替代这些环境。WSL 的 Linux runner 必须安装在对应 Linux 发行版内；macOS 任务需要 Mac。
-暂未配置的平台保持等待，不删减对应测试。
+但每个 runner 同时只执行一个 job。Windows x64 主机不能通过添加 Linux 标签替代 Linux
+环境。WSL 的 Linux runner 必须安装在对应 Linux 发行版内。
+当前矩阵内暂未配置的 runner 保持等待；已移除的 ARM64 平台不再产生等待任务。
 
 ## 预装工具
 
@@ -55,10 +53,7 @@ Windows 的最低运行基线是 Windows Server 2022；构建主机校验接受�
   导致 `Get-FileHash` 等自带命令无法加载。不要通过跳过源码完整性检查来规避此问题。
 - Linux x64：GCC/G++ 14、Clang 18 与 libc++/libc++abi 18、LLVM 18、Clang 19 与 libFuzzer、
   clang-format、clang-tidy、pkg-config、Lua 5.1 解释器和开发库。
-- Linux ARM64：GCC/G++ 14 和通用构建工具，均须在 ARM64 环境内可用。
-- macOS ARM64：Xcode/Command Line Tools、Ninja 和通用工具；发布包要求 AppleClang 16.x–17.x，
-  并保留 `CMAKE_OSX_DEPLOYMENT_TARGET=14.0`。
-- Release：Linux 编排 runner 及三个平台的 `lua-release` runner 都需要 GitHub CLI（`gh`）。
+- Release：Linux 编排 runner 及 Windows/Linux x64 的 `lua-release` runner 都需要 GitHub CLI（`gh`）。
 
 Ubuntu 24.04 x64 依赖示例（管理员执行）：
 

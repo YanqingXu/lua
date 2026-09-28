@@ -911,7 +911,7 @@ class ReleaseEvidenceTests(unittest.TestCase):
         ci = manifest["runs"]["ci_push"]
         self.assertEqual(CI_RUN_ID, ci["id"])
         self.assertEqual(2, ci["attempt"])
-        self.assertEqual(17, len(ci["jobs"]))
+        self.assertEqual(15, len(ci["jobs"]))
         self.assertEqual(
             ["component-coverage", "runtime-benchmark-evidence"],
             [artifact["name"] for artifact in ci["artifacts"]],

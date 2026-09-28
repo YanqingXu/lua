@@ -1,7 +1,7 @@
 ---
 status: current
 verified_against: CMakeLists.txt; cmake/LuaCppConfig.cmake.in; .github/workflows/ci.yml; src/lua.h; src/lauxlib.h; src/lualib.h; src/lua_runtime.h; src/lua_cpp_version.h; src/api/lapi.cpp; src/api/lauxlib.cpp; src/lib/debuglib.cpp; src/lib/iolib.cpp; src/runtime/lua_allocator.hpp; src/runtime/runtime_services.hpp; src/runtime/execution_policy.hpp; src/runtime/native_module_registry.hpp; src/common/lua_error.hpp; src/compiler/ast.hpp; src/compiler/parser/parser_impl.hpp; src/vm/state/global_state.cpp; src/vm/state/lua_state.cpp; src/gc/garbage_collector.hpp; src/gc/garbage_collector.cpp; src/core/userdata.cpp; src/lib/testlib.cpp; tests/packaging/; tests/compatibility/lua51-public-api-contract.json; tests/compatibility/lua_public_api_exports.def; tests/compatibility/lua_public_api_exports.map; tests/compatibility/public_api_c_compile.c; tests/compatibility/public_api_cpp_consumer.cpp; tests/compatibility/lua51_c_api_differential_probe.c; tests/compatibility/public_native_module.c; tests/unit/api/test_lua_c_api.cpp; tests/unit/compiler/test_parser_boundaries.cpp; tools/check_lua51_public_api_contract.py; tools/run_lua51_c_api_differential.ps1; tests/lua/official/api.lua; tests/lua/official/code.lua
-last_checked: 2026-07-26
+last_checked: 2026-09-28
 applies_to: Lua 5.1 C API 原型、项目内直接测试与官方 testC 覆盖边界
 ---
 
@@ -54,7 +54,7 @@ bin\lua_test.exe --filter "Lua C API"
 791 个测试、6773 个断言、0 failures、0 expected skips、0 unexpected skips。修复提交
 `4b0bc71` 已在 [PR #14 的 Actions run 29993098262](https://github.com/YanqingXu/lua/actions/runs/29993098262)
 取得此前基线的 17/17 jobs 全绿；该历史结果不替代当前候选所需的同 SHA API、官方 strict、
-差分、平台构建、sanitizer、fuzz、coverage、allocator、ARM64、macOS、benchmark 与 lint
+差分、Windows/Linux x64 平台构建、sanitizer、fuzz、coverage、allocator、benchmark 与 lint
 证据。原始 `api.lua` 另以以下 exact TestC 门禁通过：
 
 ```powershell

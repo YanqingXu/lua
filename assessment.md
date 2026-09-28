@@ -10,6 +10,11 @@ release_state: pre-rc-blocked
 
 # 推荐开发路线图：pre-RC → `v0.1.0` → `v0.2`
 
+执行范围更新（2026-09-28）：自动 CI 现为 Windows/Linux x64 的 15 个 job，自动发布只生成
+这两个平台的包；Linux ARM64 与 macOS ARM64 已移出自动执行和必需检查。以下 2026-07/08
+状态快照保留当时的 17-job/三平台口径；当前验收以
+[RC 与正式发布门禁](docs/release/release-checklist.md) 为准，macOS 本地构建与校验能力仍保留。
+
 ## 一、文档目的
 
 本文件不再使用主观完成百分比描述项目状态，而是作为当前版本的执行路线图。每项工作都要有
@@ -68,12 +73,12 @@ PR #20 已完成 Phase A 三项合并后遗留修复。当前 Ready PR #21
 ### 2.3 接续顺序
 
 1. 审查并合并严格门禁修复，记录新的 `main` SHA；在独立干净 checkout 重新执行 B1。
-2. 在新 SHA 上取得 17/17 CI，并下载复验七组件 coverage 与 runtime benchmark artifact。
+2. 在新 SHA 上取得 15/15 CI，并下载复验七组件 coverage 与 runtime benchmark artifact。
 3. 在同一新 SHA 上取得一次 `workflow_dispatch` 和至少一次 scheduled Nightly，
    复验 runtime/native-module soak、worker fault 与六目标 fuzz artifact。
 4. 对 #5 记录 0.1 “有限 allocator + 进程隔离”、0.2 再评估完整 hard heap limit 的书面决策；
    对 #6 完成 ruleset 或单次 RC 豁免。
-5. 运行 manual release 生成 candidate-only 三平台包；证据齐全后才创建不可变
+5. 运行 manual release 生成 candidate-only Windows/Linux x64 两平台包；证据齐全后才创建不可变
    `v0.1.0-rc.1` annotated tag。
 6. RC 后执行 7 天观察、至少三次连续 scheduled Nightly、24–72 小时业务 soak、shadow/canary
    和实际回滚演练。
@@ -182,7 +187,7 @@ soak、shadow/canary、实际回滚和书面 go/no-go，这些也不得被本地
 - Lua 5.1 语言源码兼容和公开 C API 高兼容；
 - 项目自己的静态/共享 SDK、CMake consumer 和原生模块合同；
 - game-server sandbox、instruction/native-work budget、deadline、取消与 metrics；
-- Windows/MSVC、Linux、macOS 的构建与测试；
+- Windows/MSVC、Linux x64 的自动构建与测试，以及保留的 macOS 本地构建能力；
 - 受校验的项目 binary chunk、SBOM、checksum 和安装后 consumer。
 
 项目当前不承诺：
@@ -244,7 +249,7 @@ soak、shadow/canary、实际回滚和书面 go/no-go，这些也不得被本地
 
 **验收标准**
 
-- 最终候选 SHA 的 17 个 CI jobs 全部成功；
+- 最终候选 SHA 的 15 个 CI jobs 全部成功；
 - clang-format 通过；
 - clang-tidy 实际执行且成功；
 - 完整测试不少于当前 791 tests / 6780 assertions 基线，且 0 failures、0 unexpected skips；
@@ -481,7 +486,7 @@ soak、shadow/canary、实际回滚和书面 go/no-go，这些也不得被本地
 
 只有同时满足以下条件，项目才可以进入 RC：
 
-- 最终候选 SHA 的 17/17 CI 全绿；
+- 最终候选 SHA 的 15/15 CI 全绿；
 - 同一 SHA 的手动与 scheduled nightly 全绿；
 - exact-SHA 发布证据门禁已落地并通过负向合同测试；
 - 仓库治理决策完成；
@@ -516,8 +521,7 @@ P0 退出后，预计 3–7 个工作日完成候选制品、目标环境验证�
 
 1. 明确最低支持环境：
    - Windows x64：MSVC 版本与 CRT；
-   - Linux x64：最低发行版/glibc 基线；
-   - macOS ARM64：最低 deployment target。
+   - Linux x64：最低发行版/glibc 基线。
 2. 在最低支持环境生成 zip、manifest、SPDX 2.3 SBOM 与 SHA-256。
 3. 在全新目录解压，并分别构建/运行静态与共享纯 C consumer。
 4. 检查动态依赖、导出符号、RPATH/install-name 和调试文件策略。
@@ -525,8 +529,8 @@ P0 退出后，预计 3–7 个工作日完成候选制品、目标环境验证�
    - `0.1` 推荐在 configure 阶段明确说明不支持；或
    - 修复 `_dupenv_s` 分支并加入完整 MinGW build + CTest。
    不能继续允许配置成功后在链接阶段才失败。
-6. 如果 ARM64 是正式发布承诺，而不只是 CI 可移植性验证，则增加相应平台包；否则在支持矩阵中
-   明确标注为 CI-only。
+6. 在支持矩阵中明确 Linux ARM64 与 macOS ARM64 已移出自动执行；保留的本地基线与工具能力
+   不构成 CI 或自动发布承诺。
 
 **验收标准**
 
@@ -553,7 +557,7 @@ P0 退出后，预计 3–7 个工作日完成候选制品、目标环境验证�
 - native module load/use/unload；
 - State pool 重用与关闭归零。
 
-macOS 若不提供进程内硬内存边界，必须验证外层监督器合同并写入限制。
+若另行手动验证 macOS，且不提供进程内硬内存边界，必须验证外层监督器合同并写入限制。
 
 **验收标准**
 
@@ -629,7 +633,7 @@ macOS 若不提供进程内硬内存边界，必须验证外层监督器合同�
 **验收标准**
 
 - 删除公开符号、改变签名、破坏受承诺布局或未升级 ABI 版本时 CI 失败；
-- Windows/Linux/macOS 快照可稳定比较；
+- Windows/Linux x64 快照可稳定比较；
 - 不把内部 C++ 类型误纳入公开 ABI。
 
 ### 0.1-03：发布正式版
@@ -924,7 +928,7 @@ P0-03 本地证据 ──────┘          │
 |---|---|
 | 第 1–2 个工作日 | 格式修复、假绿测试、本地质量门证据修复 |
 | 第 2–4 个工作日 | 恢复 nightly、实现 exact-SHA 发布门禁、完成治理决策 |
-| 接下来 3–7 个工作日 | 三平台包、目标环境故障注入、RC notes、`rc.1` |
+| 接下来 3–7 个工作日 | Windows/Linux x64 两平台包、目标环境故障注入、RC notes、`rc.1` |
 | RC 后 7 个自然日 | scheduled nightly、业务 soak、shadow/canary、必要时 `rc.N` |
 | 观察期通过后 | API/ABI 基线与 `v0.1.0` |
 | `v0.1.0` 后 2–6 周 | 按 ADR 进入 0.2 安全、运行和架构里程碑 |

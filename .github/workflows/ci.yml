@@ -389,39 +389,6 @@ jobs:
           path: build/fuzz-artifacts/
           if-no-files-found: ignore
 
-  portability:
-    name: Portability (${{ matrix.name }})
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux ARM64
-            runner: [self-hosted, Linux, ARM64, lua-ci]
-            disable_memory_limit: 0
-          - name: macOS ARM64
-            runner: [self-hosted, macOS, ARM64, lua-ci]
-            disable_memory_limit: 1
-
-    env:
-      # Darwin does not implement RLIMIT_AS as a usable process cap. The
-      # allocator contract jobs retain the hard-cap evidence on Linux/Windows.
-      LUA_TEST_DISABLE_MEMORY_LIMIT: ${{ matrix.disable_memory_limit }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Configure
-        run: cmake -S . -B build/portability -DCMAKE_BUILD_TYPE=Debug
-
-      - name: Build
-        run: cmake --build build/portability --parallel 2
-
-      - name: Test
-        run: ctest --test-dir build/portability --output-on-failure --timeout 600
-
   linux-coverage:
     name: Linux component coverage
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
