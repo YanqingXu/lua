@@ -74,6 +74,11 @@ PowerShell 7 按 [Microsoft 安装说明](https://learn.microsoft.com/powershell
 预装。以 runner 账户确认 `pwsh --version`、`python --version`、`gh --version`。
 工作流中的 `gh` 使用 GitHub 提供的任务令牌，无需在 runner 上保存个人 GitHub 登录凭据。
 
+使用代理时，应分别验证 GitHub 下载、runner 调度与报告上传的连接。若日志显示
+`results-receiver.actions.githubusercontent.com` 的 TLS 连接中断或 `CreateArtifact ECONNRESET`，
+先验证该域名直连；直连可用时，将其加入 runner 启动环境的 `no_proxy` / `NO_PROXY`，
+保留现有代理例外，在 runner 空闲时重启使配置生效。只调整该 runner 的环境，不修改系统代理。
+
 ## 注册与验收
 
 1. 在 [本仓库 Settings → Actions → Runners](https://github.com/YanqingXu/lua/settings/actions/runners)
