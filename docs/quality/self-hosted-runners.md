@@ -50,6 +50,9 @@ Windows 的最低运行基线是 Windows Server 2022；构建主机校验接受�
   与现有 `.vcxproj` 工具集一致。Windows Release 另需 Visual Studio 2022、MSVC v143（19.40+）；
   发布工作流显式选择 VS 2022。承担两种用途时须并行安装对应工具链。
   `python` 必须指向真实 Python 3，不能依赖 WindowsApps 的商店别名。
+- Windows MSBuild CI 使用 Windows PowerShell 5.1；job 将 `PSModulePath` 置空，让 shell
+  使用自身的内置模块。否则由 PowerShell 7 启动的 runner 可能把 7.x 模块路径传给 5.1，
+  导致 `Get-FileHash` 等自带命令无法加载。不要通过跳过源码完整性检查来规避此问题。
 - Linux x64：GCC/G++ 14、Clang 18 与 libc++/libc++abi 18、LLVM 18、Clang 19 与 libFuzzer、
   clang-format、clang-tidy、pkg-config、Lua 5.1 解释器和开发库。
 - Linux ARM64：GCC/G++ 14 和通用构建工具，均须在 ARM64 环境内可用。

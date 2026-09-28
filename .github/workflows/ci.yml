@@ -23,6 +23,9 @@ jobs:
     runs-on: [self-hosted, Windows, X64, lua-ci]
     env:
       LUA_TEST_DISABLE_MEMORY_LIMIT: 1
+      # A runner started by pwsh can leak PowerShell 7 modules into PS 5.1.
+      # Let each shell resolve its own built-in modules (including Get-FileHash).
+      PSModulePath: ''
     strategy:
       fail-fast: false
       matrix:
