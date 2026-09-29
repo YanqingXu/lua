@@ -3,6 +3,7 @@
  * @brief Median-based debugger disabled/attached/breakpoint benchmark contract.
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
@@ -38,45 +39,45 @@ enum class Profile {
 };
 
 struct Config {
-    std::string profile = "all";
+    Lua::Str profile = "all";
     std::filesystem::path jsonPath = "debugger-bench.json";
     usize iterations = 200000;
     usize samples = 7;
 };
 
 struct Sample {
-    double nsPerIteration = 0.0;
-    double variablesPageNs = 0.0;
+    Lua::f64 nsPerIteration = 0.0;
+    Lua::f64 variablesPageNs = 0.0;
     usize variablesPayloadBytes = 0;
     usize variablesReturned = 0;
     usize breakpointHits = 0;
 };
 
-[[noreturn]] void fail(const std::string& message) {
+[[noreturn]] void fail(const Lua::Str& message) {
     throw std::runtime_error(message);
 }
 
-void require(bool condition, const std::string& message) {
+void require(bool condition, const Lua::Str& message) {
     if (!condition) {
         fail(message);
     }
 }
 
-double median(std::vector<double> values) {
+Lua::f64 median(Lua::Vec<Lua::f64> values) {
     require(!values.empty(), "cannot compute median of an empty sample set");
     std::sort(values.begin(), values.end());
     const usize middle = values.size() / 2;
     return values.size() % 2 == 0 ? (values[middle - 1] + values[middle]) / 2.0 : values[middle];
 }
 
-double expectedChecksum(usize count) {
+Lua::f64 expectedChecksum(usize count) {
     const usize cycles = count / 7;
     const usize remainder = count % 7;
     usize total = cycles * 21;
     for (usize value = 1; value <= remainder; ++value) {
         total += value;
     }
-    return static_cast<double>(total);
+    return static_cast<Lua::f64>(total);
 }
 
 Proto* compileFixture(RuntimeServices& services) {
@@ -141,7 +142,7 @@ Sample runSample(Profile profile, usize iterations) {
         controller->registerProto(*proto);
         if (profile == Profile::LineBreakpoint) {
             const SourceId source = controller->registerFilePath("debugger_bench.lua");
-            const std::array requested{SourceBreakpoint{9}};
+            const Lua::Arr<SourceBreakpoint, 1> requested{SourceBreakpoint{9}};
             const auto bindings = controller->setBreakpoints(source, requested);
             require(bindings && bindings->size() == 1 && bindings->front().verified,
                     "benchmark line breakpoint did not bind");
@@ -153,7 +154,7 @@ Sample runSample(Profile profile, usize iterations) {
     }
 
     Sample sample;
-    std::atomic<bool> executionDone = false;
+    Lua::Atom<bool> executionDone = false;
     bool controlTimedOut = false;
     std::exception_ptr controlError;
     std::thread control;
@@ -195,7 +196,7 @@ Sample runSample(Profile profile, usize iterations) {
                             variable.name.size() + variable.value.size() + variable.type.size();
                     }
                     sample.variablesPageNs =
-                        std::chrono::duration<double, std::nano>(inspectEnd - inspectStart).count();
+                        std::chrono::duration<Lua::f64, std::nano>(inspectEnd - inspectStart).count();
                     require(controller->continueExecution(DebugController::mainThreadId()).has_value(),
                             "benchmark breakpoint could not continue");
                 }
@@ -233,7 +234,7 @@ Sample runSample(Profile profile, usize iterations) {
         require(sample.breakpointHits == 1, "line breakpoint profile must stop exactly once");
     }
     sample.nsPerIteration =
-        std::chrono::duration<double, std::nano>(end - start).count() / static_cast<double>(iterations);
+        std::chrono::duration<Lua::f64, std::nano>(end - start).count() / static_cast<Lua::f64>(iterations);
 
     if (session) {
         session->disconnect(DisconnectAction::ContinueExecution);
@@ -247,8 +248,8 @@ Sample runSample(Profile profile, usize iterations) {
     return sample;
 }
 
-std::vector<Sample> runProfile(Profile profile, const Config& config) {
-    std::vector<Sample> samples;
+Lua::Vec<Sample> runProfile(Profile profile, const Config& config) {
+    Lua::Vec<Sample> samples;
     samples.reserve(config.samples);
     for (usize index = 0; index < config.samples; ++index) {
         samples.push_back(runSample(profile, config.iterations));
@@ -256,8 +257,8 @@ std::vector<Sample> runProfile(Profile profile, const Config& config) {
     return samples;
 }
 
-std::vector<double> timingSamples(const std::vector<Sample>& samples) {
-    std::vector<double> values;
+Lua::Vec<Lua::f64> timingSamples(const Lua::Vec<Sample>& samples) {
+    Lua::Vec<Lua::f64> values;
     values.reserve(samples.size());
     for (const Sample& sample : samples) {
         values.push_back(sample.nsPerIteration);
@@ -265,8 +266,8 @@ std::vector<double> timingSamples(const std::vector<Sample>& samples) {
     return values;
 }
 
-void writeSamples(std::ostream& output, const char* name, const std::vector<Sample>& samples, bool comma) {
-    const std::vector<double> timings = timingSamples(samples);
+void writeSamples(std::ostream& output, Lua::CharPtr name, const Lua::Vec<Sample>& samples, bool comma) {
+    const Lua::Vec<Lua::f64> timings = timingSamples(samples);
     output << "    \"" << name << "\": {\"median_ns_per_iteration\": " << std::setprecision(17) << median(timings)
            << ", \"samples_ns_per_iteration\": [";
     for (usize index = 0; index < timings.size(); ++index) {
@@ -281,8 +282,8 @@ void writeSamples(std::ostream& output, const char* name, const std::vector<Samp
 Config parseArguments(int argc, char** argv) {
     Config config;
     for (int index = 1; index < argc; ++index) {
-        const std::string argument = argv[index];
-        auto value = [&]() -> std::string {
+        const Lua::Str argument = argv[index];
+        auto value = [&]() -> Lua::Str {
             if (index + 1 >= argc) {
                 fail(argument + " requires a value");
             }
@@ -319,9 +320,9 @@ int main(int argc, char** argv) {
         const bool runBreakpoint = config.profile == "all" || config.profile == "line-breakpoint";
         require(runDisabled || runAttached || runBreakpoint, "unknown debugger benchmark profile");
 
-        std::vector<Sample> disabled;
-        std::vector<Sample> attached;
-        std::vector<Sample> breakpoint;
+        Lua::Vec<Sample> disabled;
+        Lua::Vec<Sample> attached;
+        Lua::Vec<Sample> breakpoint;
         if (runDisabled && runAttached) {
             disabled.reserve(config.samples);
             attached.reserve(config.samples);
@@ -343,7 +344,7 @@ int main(int argc, char** argv) {
             breakpoint = runProfile(Profile::LineBreakpoint, config);
         }
 
-        double attachedRatio = 0.0;
+        Lua::f64 attachedRatio = 0.0;
         if (!disabled.empty() && !attached.empty()) {
             attachedRatio = median(timingSamples(attached)) / median(timingSamples(disabled));
             require(attachedRatio <= 1.05, "attached-no-breakpoint median overhead exceeds the 5% budget");
@@ -370,7 +371,7 @@ int main(int argc, char** argv) {
                << "  \"resource_limits\": {\"max_stack_frames\": 256, \"variable_page_size\": 100, "
                   "\"max_string_length\": 256, \"max_object_handles\": 4096},\n";
         if (!breakpoint.empty()) {
-            std::vector<double> variableTimes;
+            Lua::Vec<Lua::f64> variableTimes;
             usize maxPayload = 0;
             for (const Sample& sample : breakpoint) {
                 variableTimes.push_back(sample.variablesPageNs);

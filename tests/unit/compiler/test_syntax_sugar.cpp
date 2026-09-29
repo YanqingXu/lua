@@ -1,7 +1,7 @@
 /**
  * @file test_syntax_sugar.cpp
  * @brief 测试Lua 5.1.5语法糖功能
- * 
+ *
  * 测试以下语法糖：
  * 1. 方法定义: function t:method() end
  * 2. 表成员函数定义: function t.a.b.c.f() end
@@ -10,6 +10,7 @@
  * 5. 表字段前瞻解析: {name, age=25}
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/ast.hpp"
@@ -21,12 +22,12 @@ using namespace LuaTest;
 
 /**
  * @brief 测试方法定义语法糖
- * 
+ *
  * function obj:method(a, b) end
  * 应该等价于 function obj.method(self, a, b) end
  */
 void testMethodDefinition(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         function obj:method(a, b)
             return a + b
         end
@@ -55,11 +56,11 @@ void testMethodDefinition(TestSuite& suite) {
 
 /**
  * @brief 测试表成员函数定义
- * 
+ *
  * function lib.math.utils.square(x) end
  */
 void testTableMemberFunction(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         function lib.math.utils.square(x)
             return x * x
         end
@@ -90,7 +91,7 @@ void testTableMemberFunction(TestSuite& suite) {
  * @brief 测试简单函数定义（无表路径）
  */
 void testSimpleFunctionDefinition(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         function foo(a, b)
             return a + b
         end
@@ -114,11 +115,11 @@ void testSimpleFunctionDefinition(TestSuite& suite) {
 
 /**
  * @brief 测试函数调用字符串语法糖
- * 
+ *
  * f"string" 应该等价于 f("string")
  */
 void testFunctionCallStringSugar(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local x = print"Hello, World!"
     )";
 
@@ -146,11 +147,11 @@ void testFunctionCallStringSugar(TestSuite& suite) {
 
 /**
  * @brief 测试函数调用表语法糖
- * 
+ *
  * f{table} 应该等价于 f({table})
  */
 void testFunctionCallTableSugar(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local p = create_point{x=10, y=20}
     )";
 
@@ -182,7 +183,7 @@ void testFunctionCallTableSugar(TestSuite& suite) {
  * obj:write"ok" 和 obj:write{ok=true} 应按 Lua 5.1 函数参数规则解析。
  */
 void testMethodCallLiteralArgumentSugar(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         sink:write"ok"
         sink:write{ok=true}
     )";
@@ -201,8 +202,7 @@ void testMethodCallLiteralArgumentSugar(TestSuite& suite) {
     auto* stringCall = stringCallStmt ? std::get_if<CallExpr>(&stringCallStmt->call->variant) : nullptr;
     ASSERT_TRUE(suite, stringCall != nullptr && stringCall->isMethodCall, "String sugar keeps method call flag");
     ASSERT_TRUE(suite, stringCall != nullptr && stringCall->args.size() == 1, "String sugar has one argument");
-    ASSERT_TRUE(suite, stringCall != nullptr &&
-                std::get_if<StringExpr>(&stringCall->args[0]->variant) != nullptr,
+    ASSERT_TRUE(suite, stringCall != nullptr && std::get_if<StringExpr>(&stringCall->args[0]->variant) != nullptr,
                 "String sugar argument is string");
 
     auto* tableCallStmt = std::get_if<CallStmt>(&chunk.statements[1]->variant);
@@ -210,8 +210,7 @@ void testMethodCallLiteralArgumentSugar(TestSuite& suite) {
     auto* tableCall = tableCallStmt ? std::get_if<CallExpr>(&tableCallStmt->call->variant) : nullptr;
     ASSERT_TRUE(suite, tableCall != nullptr && tableCall->isMethodCall, "Table sugar keeps method call flag");
     ASSERT_TRUE(suite, tableCall != nullptr && tableCall->args.size() == 1, "Table sugar has one argument");
-    ASSERT_TRUE(suite, tableCall != nullptr &&
-                std::get_if<TableExpr>(&tableCall->args[0]->variant) != nullptr,
+    ASSERT_TRUE(suite, tableCall != nullptr && std::get_if<TableExpr>(&tableCall->args[0]->variant) != nullptr,
                 "Table sugar argument is table");
 }
 
@@ -221,7 +220,7 @@ void testMethodCallLiteralArgumentSugar(TestSuite& suite) {
  * 测试表构造器中正确区分数组元素和命名字段
  */
 void testTableFieldLookahead(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local t = {
             name,
             age = 25,
@@ -270,7 +269,7 @@ void testTableFieldLookahead(TestSuite& suite) {
  * @brief 测试复杂表达式作为数组元素
  */
 void testComplexArrayElement(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local t = {
             a + b,
             func(x, y),
@@ -296,9 +295,8 @@ void testComplexArrayElement(TestSuite& suite) {
     ASSERT_TRUE(suite, tableExpr->fields.size() == 4, "Table has 4 fields");
 
     // 所有字段都应该是数组元素（没有key）
-    for (size_t i = 0; i < tableExpr->fields.size(); ++i) {
-        ASSERT_TRUE(suite, tableExpr->fields[i].key == nullptr,
-                   "Field " + std::to_string(i + 1) + " is array element");
+    for (Lua::usize i = 0; i < tableExpr->fields.size(); ++i) {
+        ASSERT_TRUE(suite, tableExpr->fields[i].key == nullptr, "Field " + std::to_string(i + 1) + " is array element");
     }
 }
 
@@ -306,7 +304,7 @@ void testComplexArrayElement(TestSuite& suite) {
  * @brief 测试混合表构造器
  */
 void testMixedTableConstructor(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local t = {
             1, 2, 3,
             name = "test",
@@ -367,5 +365,3 @@ void registerSyntaxSugarTests() {
     registry.registerTest("Syntax Sugar", "Complex Array Element", testComplexArrayElement);
     registry.registerTest("Syntax Sugar", "Mixed Table Constructor", testMixedTableConstructor);
 }
-
-

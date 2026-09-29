@@ -6,6 +6,7 @@
  * @date 2026-01-23
  */
 
+#include "common/types.hpp"
 #include "lib/tablelib.hpp"
 #include "vm/state/lua_state.hpp"
 #include "core/table.hpp"
@@ -36,7 +37,7 @@ namespace Lua {
 /**
  * @brief 获取表参数
  */
-static Table* getTableArg(LuaState* L, i32 idx, const char* funcName) {
+static Table* getTableArg(LuaState* L, i32 idx, CharPtr funcName) {
     if (!L->isTable(idx)) {
         L->error(std::format("bad argument #{} to 'table.{}' (table expected)", idx, funcName).c_str());
     }
@@ -46,14 +47,14 @@ static Table* getTableArg(LuaState* L, i32 idx, const char* funcName) {
 /**
  * @brief 获取数字参数
  */
-static f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
+static f64 getNumberArg(LuaState* L, i32 idx, CharPtr funcName) {
     if (!L->isNumber(idx)) {
         L->error(std::format("bad argument #{} to 'table.{}' (number expected)", idx, funcName).c_str());
     }
     return L->toNumber(idx);
 }
 
-static Function* getFunctionArg(LuaState* L, i32 idx, const char* funcName) {
+static Function* getFunctionArg(LuaState* L, i32 idx, CharPtr funcName) {
     if (!L->isFunction(idx)) {
         L->error(std::format("bad argument #{} to 'table.{}' (function expected)", idx, funcName).c_str());
     }
@@ -61,7 +62,7 @@ static Function* getFunctionArg(LuaState* L, i32 idx, const char* funcName) {
 }
 
 struct TableConcatText {
-    std::array<char, 64> numberBuffer{};
+    Arr<char, 64> numberBuffer{};
     StrView view;
 };
 
@@ -133,13 +134,12 @@ static bool callSortComparator(LuaState* L, Function* comparator, const Value& l
     return result;
 }
 
-static i32 getIntegerArg(LuaState* L, i32 idx, const char* funcName,
-                         IntegerConversion mode = IntegerConversion::Truncate) {
+static i32 getIntegerArg(LuaState* L, i32 idx, CharPtr funcName, IntegerConversion mode = IntegerConversion::Truncate) {
     const auto converted = checkedLuaInteger(getNumberArg(L, idx, funcName), mode);
     if (!converted) {
-        const char* detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
-                             : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
-                                                                                        : "number out of range";
+        CharPtr detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
+                         : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
+                                                                                    : "number out of range";
         L->error(std::format("bad argument #{} to 'table.{}' ({})", idx, funcName, detail).c_str());
     }
     return *converted;

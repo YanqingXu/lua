@@ -149,7 +149,7 @@ enum class TMS : u8 {
  *
  * 按照TMS枚举顺序定义的元方法名称，用于元表查找。
  */
-inline constexpr std::array<StrView, static_cast<usize>(TMS::TM_N)> kMetamethodNames = {{
+inline constexpr Arr<StrView, static_cast<usize>(TMS::TM_N)> kMetamethodNames = {{
     "__index",    // TM_INDEX
     "__newindex", // TM_NEWINDEX
     "__gc",       // TM_GC

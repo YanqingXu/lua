@@ -6,6 +6,7 @@
  * 验证第一阶段第三项的实现：变量存储统一接口
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -23,7 +24,7 @@ using namespace LuaTest;
 
 namespace {
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -63,7 +64,7 @@ LuaState* createFullState() {
 void testLocalVarAssignment(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = 10";
+    Lua::CharPtr code = "local x = 10";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -79,7 +80,7 @@ void testLocalVarAssignment(TestSuite& suite) {
 
     // 局部变量赋值应该生成 LOADK 指令（将常量加载到寄存器）
     bool hasLoadK = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::LOADK) {
             hasLoadK = true;
             break;
@@ -95,7 +96,7 @@ void testLocalVarAssignment(TestSuite& suite) {
 void testGlobalVarAssignment(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "g = 20";
+    Lua::CharPtr code = "g = 20";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -110,7 +111,7 @@ void testGlobalVarAssignment(TestSuite& suite) {
 
     // 全局变量赋值应该生成 SETGLOBAL 指令
     bool hasSetGlobal = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SETGLOBAL) {
             hasSetGlobal = true;
             break;
@@ -126,7 +127,7 @@ void testGlobalVarAssignment(TestSuite& suite) {
 void testTableIndexAssignment(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "t[\"key\"] = 30";
+    Lua::CharPtr code = "t[\"key\"] = 30";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -141,7 +142,7 @@ void testTableIndexAssignment(TestSuite& suite) {
 
     // 表索引赋值应该生成 SETTABLE 指令
     bool hasSetTable = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SETTABLE) {
             hasSetTable = true;
             break;
@@ -157,7 +158,7 @@ void testTableIndexAssignment(TestSuite& suite) {
 void testTableMemberAssignment(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "t.field = 40";
+    Lua::CharPtr code = "t.field = 40";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -172,7 +173,7 @@ void testTableMemberAssignment(TestSuite& suite) {
 
     // 表成员赋值应该生成 SETTABLE 指令
     bool hasSetTable = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SETTABLE) {
             hasSetTable = true;
             break;
@@ -188,7 +189,7 @@ void testTableMemberAssignment(TestSuite& suite) {
 void testMultipleAssignment(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "a, b = 1, 2";
+    Lua::CharPtr code = "a, b = 1, 2";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -203,7 +204,7 @@ void testMultipleAssignment(TestSuite& suite) {
 
     // 多重赋值应该生成两个 SETGLOBAL 指令
     int setGlobalCount = 0;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SETGLOBAL) {
             setGlobalCount++;
         }

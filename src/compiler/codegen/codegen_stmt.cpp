@@ -3,6 +3,7 @@
  * @brief 函数级代码生成辅助函数的兼容转发层
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/codegen.hpp"
 
 namespace Lua {

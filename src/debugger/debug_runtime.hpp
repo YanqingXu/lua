@@ -6,6 +6,7 @@
  */
 
 #include "debugger/breakpoint_manager.hpp"
+#include "common/types.hpp"
 
 #include <atomic>
 
@@ -132,9 +133,9 @@ public:
     [[nodiscard]] virtual SourceId registerFilePath(StrView path) = 0;
     [[nodiscard]] virtual Opt<RegisteredSource> source(SourceId sourceId) const = 0;
     [[nodiscard]] virtual DebugResult<Vec<BreakpointBinding>>
-    setBreakpoints(SourceId sourceId, std::span<const SourceBreakpoint> requested) = 0;
+    setBreakpoints(SourceId sourceId, Span<const SourceBreakpoint> requested) = 0;
     [[nodiscard]] virtual DebugResult<Vec<BreakpointBinding>>
-    setFunctionBreakpoints(std::span<const FunctionBreakpoint> requested) = 0;
+    setFunctionBreakpoints(Span<const FunctionBreakpoint> requested) = 0;
     [[nodiscard]] virtual DebugResult<Vec<DebugThread>> threads() = 0;
     [[nodiscard]] virtual DebugResult<Vec<DebugState>> states() const = 0;
     [[nodiscard]] virtual DebugResult<void> selectState(StateId state) = 0;
@@ -176,10 +177,10 @@ public:
     [[nodiscard]] SourceId registerSourceName(StrView rawSource) override;
     [[nodiscard]] SourceId registerFilePath(StrView path) override;
     [[nodiscard]] Opt<RegisteredSource> source(SourceId sourceId) const override;
+    [[nodiscard]] DebugResult<Vec<BreakpointBinding>> setBreakpoints(SourceId sourceId,
+                                                                     Span<const SourceBreakpoint> requested) override;
     [[nodiscard]] DebugResult<Vec<BreakpointBinding>>
-    setBreakpoints(SourceId sourceId, std::span<const SourceBreakpoint> requested) override;
-    [[nodiscard]] DebugResult<Vec<BreakpointBinding>>
-    setFunctionBreakpoints(std::span<const FunctionBreakpoint> requested) override;
+    setFunctionBreakpoints(Span<const FunctionBreakpoint> requested) override;
     [[nodiscard]] DebugResult<Vec<DebugThread>> threads() override;
     [[nodiscard]] DebugResult<Vec<DebugState>> states() const override;
     [[nodiscard]] DebugResult<void> selectState(StateId state) override;
@@ -233,7 +234,7 @@ public:
     }
 
 private:
-    std::atomic<u8> instructionFlags_ = 0;
+    Atom<u8> instructionFlags_ = 0;
     Ptr<DebugControllerState> state_;
 };
 

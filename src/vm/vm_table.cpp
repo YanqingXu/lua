@@ -3,6 +3,7 @@
  * @brief 虚拟机表构造辅助函数
  */
 
+#include "common/types.hpp"
 #include "vm/vm_internal.hpp"
 
 #include "common/lua_error.hpp"
@@ -31,7 +32,7 @@ void setList(LuaState* L, Value* base, i32 a, i32 b, i32 c) {
 
     i32 baseIndex = (c - 1) * FIELDS_PER_FLUSH;
     if (n > 0) {
-        table->setArrayRange(baseIndex + 1, std::span<const Value>(base + a + 1, static_cast<usize>(n)));
+        table->setArrayRange(baseIndex + 1, Span<const Value>(base + a + 1, static_cast<usize>(n)));
     }
 }
 

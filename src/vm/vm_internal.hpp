@@ -24,18 +24,18 @@ class Proto;
 
 namespace VM::detail {
 
-inline std::unexpected<RuntimeError> mapExceptionToUnexpected(const LuaError& error) {
+inline Unexpect<RuntimeError> mapExceptionToUnexpected(const LuaError& error) {
     if (error.hasErrorObject()) {
-        return std::unexpected(RuntimeError(error.getErrorObject()));
+        return Unexpect<RuntimeError>(RuntimeError(error.getErrorObject()));
     }
-    return std::unexpected(RuntimeError(error.what()));
+    return Unexpect<RuntimeError>(RuntimeError(error.what()));
 }
 
-inline std::unexpected<RuntimeError> mapExceptionToUnexpected(const std::exception& error) {
-    return std::unexpected(RuntimeError(error.what()));
+inline Unexpect<RuntimeError> mapExceptionToUnexpected(const std::exception& error) {
+    return Unexpect<RuntimeError>(RuntimeError(error.what()));
 }
 
-template <typename T, typename Fn> [[nodiscard]] std::expected<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
+template <typename T, typename Fn> [[nodiscard]] Expect<T, RuntimeError> captureRuntimeErrors(Fn&& fn) {
     try {
         return std::forward<Fn>(fn)();
     } catch (const std::bad_alloc&) {

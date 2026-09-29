@@ -116,6 +116,6 @@ struct Token {
     }
 };
 
-const char* tokenTypeToString(TokenType type);
+CharPtr tokenTypeToString(TokenType type);
 
 } // namespace Lua

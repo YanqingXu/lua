@@ -3,6 +3,7 @@
  * @brief Tests for the CodeGenerator statement lowering boundary.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/codegen/codegen.hpp"
@@ -17,26 +18,21 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Statement Emitter";
+constexpr Lua::CharPtr kSuiteName = "Statement Emitter";
 
-}  // namespace
+} // namespace
 
 void testStatementEmitterPublicBoundary(TestSuite& suite) {
-    using StatementResult =
-        decltype(std::declval<StatementEmitter&>().statement(std::declval<const Stmt&>()));
-    using BlockResult =
-        decltype(std::declval<StatementEmitter&>().block(std::declval<const Vec<StmtPtr>&>()));
+    using StatementResult = decltype(std::declval<StatementEmitter&>().statement(std::declval<const Stmt&>()));
+    using BlockResult = decltype(std::declval<StatementEmitter&>().block(std::declval<const Vec<StmtPtr>&>()));
 
     constexpr bool constructibleFromFacade = std::is_constructible_v<StatementEmitter, CodeGenerator&>;
     constexpr bool statementKeepsVoidContract = std::is_same_v<StatementResult, void>;
     constexpr bool blockKeepsVoidContract = std::is_same_v<BlockResult, void>;
 
-    ASSERT_TRUE(suite, constructibleFromFacade,
-                "StatementEmitter should be constructible from CodeGenerator facade");
-    ASSERT_TRUE(suite, statementKeepsVoidContract,
-                "statement should keep the void lowering contract");
-    ASSERT_TRUE(suite, blockKeepsVoidContract,
-                "block should keep the void lowering contract");
+    ASSERT_TRUE(suite, constructibleFromFacade, "StatementEmitter should be constructible from CodeGenerator facade");
+    ASSERT_TRUE(suite, statementKeepsVoidContract, "statement should keep the void lowering contract");
+    ASSERT_TRUE(suite, blockKeepsVoidContract, "block should keep the void lowering contract");
 }
 
 void testStatementEmitterHandlesEmptyStatement(TestSuite& suite) {

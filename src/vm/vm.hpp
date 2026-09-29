@@ -93,13 +93,13 @@ ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i3
  * @brief 执行字节码块（Proto），以 expected 返回运行期错误
  */
 LUA_VM_COMPAT_DEPRECATED("pass RuntimeServices explicitly")
-[[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
+[[nodiscard]] Expect<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls = 1);
 
 /**
  * @brief 使用显式运行时服务执行字节码块（Proto），以 expected 返回运行期错误
  */
-[[nodiscard]] std::expected<ExecResult, RuntimeError> tryExecuteProto(RuntimeServices& services, LuaState* L,
-                                                                      Proto* proto, i32 nexeccalls = 1);
+[[nodiscard]] Expect<ExecResult, RuntimeError> tryExecuteProto(RuntimeServices& services, LuaState* L, Proto* proto,
+                                                               i32 nexeccalls = 1);
 
 /**
  * @brief 从CFunction内部调用栈上的函数（不清除栈）

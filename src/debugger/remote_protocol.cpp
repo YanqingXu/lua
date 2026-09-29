@@ -4,6 +4,7 @@
  */
 
 #include "debugger/remote_protocol.hpp"
+#include "common/types.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -119,7 +120,7 @@ void ProtocolWriter::writeString(StrView value) {
     }
 }
 
-void ProtocolWriter::writeBytes(std::span<const u8> value) {
+void ProtocolWriter::writeBytes(Span<const u8> value) {
     if (value.size() > std::numeric_limits<u32>::max()) {
         if (!error_) {
             error_ = resourceError("protocol byte vector exceeds configured limit", bytes_.size());
@@ -134,12 +135,12 @@ void ProtocolWriter::writeBytes(std::span<const u8> value) {
 
 ProtocolResult<Vec<u8>> ProtocolWriter::finish() && {
     if (error_) {
-        return std::unexpected(std::move(*error_));
+        return Unexpect<ProtocolError>(std::move(*error_));
     }
     return std::move(bytes_);
 }
 
-ProtocolReader::ProtocolReader(std::span<const u8> bytes, usize maxStringBytes, usize maxCollectionItems)
+ProtocolReader::ProtocolReader(Span<const u8> bytes, usize maxStringBytes, usize maxCollectionItems)
     : bytes_(bytes), maxStringBytes_(maxStringBytes), maxCollectionItems_(maxCollectionItems) {}
 
 ProtocolError ProtocolReader::failure(Str message) const {
@@ -152,14 +153,14 @@ bool ProtocolReader::available(usize bytes) const noexcept {
 
 ProtocolResult<u8> ProtocolReader::readU8() {
     if (!available(1)) {
-        return std::unexpected(failure("unexpected end of protocol payload"));
+        return Unexpect<ProtocolError>(failure("unexpected end of protocol payload"));
     }
     return bytes_[offset_++];
 }
 
 ProtocolResult<u16> ProtocolReader::readU16() {
     if (!available(2)) {
-        return std::unexpected(failure("unexpected end of protocol payload"));
+        return Unexpect<ProtocolError>(failure("unexpected end of protocol payload"));
     }
     const u16 value = loadU16(bytes_.data() + offset_);
     offset_ += 2;
@@ -168,7 +169,7 @@ ProtocolResult<u16> ProtocolReader::readU16() {
 
 ProtocolResult<u32> ProtocolReader::readU32() {
     if (!available(4)) {
-        return std::unexpected(failure("unexpected end of protocol payload"));
+        return Unexpect<ProtocolError>(failure("unexpected end of protocol payload"));
     }
     const u32 value = loadU32(bytes_.data() + offset_);
     offset_ += 4;
@@ -177,7 +178,7 @@ ProtocolResult<u32> ProtocolReader::readU32() {
 
 ProtocolResult<u64> ProtocolReader::readU64() {
     if (!available(8)) {
-        return std::unexpected(failure("unexpected end of protocol payload"));
+        return Unexpect<ProtocolError>(failure("unexpected end of protocol payload"));
     }
     const u64 value = loadU64(bytes_.data() + offset_);
     offset_ += 8;
@@ -187,7 +188,7 @@ ProtocolResult<u64> ProtocolReader::readU64() {
 ProtocolResult<i64> ProtocolReader::readI64() {
     auto value = readU64();
     if (!value) {
-        return std::unexpected(value.error());
+        return Unexpect<ProtocolError>(value.error());
     }
     return static_cast<i64>(*value);
 }
@@ -195,10 +196,10 @@ ProtocolResult<i64> ProtocolReader::readI64() {
 ProtocolResult<bool> ProtocolReader::readBool() {
     auto value = readU8();
     if (!value) {
-        return std::unexpected(value.error());
+        return Unexpect<ProtocolError>(value.error());
     }
     if (*value > 1U) {
-        return std::unexpected(failure("protocol boolean must be zero or one"));
+        return Unexpect<ProtocolError>(failure("protocol boolean must be zero or one"));
     }
     return *value != 0;
 }
@@ -206,15 +207,15 @@ ProtocolResult<bool> ProtocolReader::readBool() {
 ProtocolResult<Str> ProtocolReader::readString() {
     auto length = readU32();
     if (!length) {
-        return std::unexpected(length.error());
+        return Unexpect<ProtocolError>(length.error());
     }
     if (*length > maxStringBytes_) {
-        return std::unexpected(resourceError("protocol string exceeds configured byte limit", offset_));
+        return Unexpect<ProtocolError>(resourceError("protocol string exceeds configured byte limit", offset_));
     }
     if (!available(*length)) {
-        return std::unexpected(failure("protocol string is truncated"));
+        return Unexpect<ProtocolError>(failure("protocol string is truncated"));
     }
-    Str value(reinterpret_cast<const char*>(bytes_.data() + offset_), *length);
+    Str value(reinterpret_cast<CharPtr>(bytes_.data() + offset_), *length);
     offset_ += *length;
     return value;
 }
@@ -222,16 +223,15 @@ ProtocolResult<Str> ProtocolReader::readString() {
 ProtocolResult<Vec<u8>> ProtocolReader::readBytes() {
     auto length = readU32();
     if (!length) {
-        return std::unexpected(length.error());
+        return Unexpect<ProtocolError>(length.error());
     }
     if (*length > kProtocolMaxFrameBytes) {
-        return std::unexpected(resourceError("protocol byte vector exceeds configured limit", offset_));
+        return Unexpect<ProtocolError>(resourceError("protocol byte vector exceeds configured limit", offset_));
     }
     if (!available(*length)) {
-        return std::unexpected(failure("protocol byte vector is truncated"));
+        return Unexpect<ProtocolError>(failure("protocol byte vector is truncated"));
     }
-    Vec<u8> value(bytes_.begin() + static_cast<isize>(offset_),
-                  bytes_.begin() + static_cast<isize>(offset_ + *length));
+    Vec<u8> value(bytes_.begin() + static_cast<isize>(offset_), bytes_.begin() + static_cast<isize>(offset_ + *length));
     offset_ += *length;
     return value;
 }
@@ -239,17 +239,17 @@ ProtocolResult<Vec<u8>> ProtocolReader::readBytes() {
 ProtocolResult<usize> ProtocolReader::readCount() {
     auto count = readU32();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     if (*count > maxCollectionItems_) {
-        return std::unexpected(resourceError("protocol collection exceeds configured item limit", offset_));
+        return Unexpect<ProtocolError>(resourceError("protocol collection exceeds configured item limit", offset_));
     }
     return static_cast<usize>(*count);
 }
 
 ProtocolResult<void> ProtocolReader::finish() const {
     if (offset_ != bytes_.size()) {
-        return std::unexpected(protocolError("protocol payload contains trailing bytes", offset_));
+        return Unexpect<ProtocolError>(protocolError("protocol payload contains trailing bytes", offset_));
     }
     return {};
 }
@@ -260,14 +260,14 @@ usize ProtocolReader::remaining() const noexcept {
 
 ProtocolResult<Vec<u8>> encodeProtocolFrame(const ProtocolFrame& frame, usize maxFrameBytes) {
     if (!knownKind(frame.kind)) {
-        return std::unexpected(protocolError("unknown protocol message kind"));
+        return Unexpect<ProtocolError>(protocolError("unknown protocol message kind"));
     }
     if (maxFrameBytes < kProtocolHeaderSize || frame.payload.size() > maxFrameBytes - kProtocolHeaderSize) {
-        return std::unexpected(resourceError("protocol frame exceeds configured byte limit"));
+        return Unexpect<ProtocolError>(resourceError("protocol frame exceeds configured byte limit"));
     }
     const usize totalBytes = kProtocolHeaderSize + frame.payload.size();
     if (totalBytes - kFrameLengthPrefixSize > std::numeric_limits<u32>::max()) {
-        return std::unexpected(resourceError("protocol frame cannot be represented by the length prefix"));
+        return Unexpect<ProtocolError>(resourceError("protocol frame cannot be represented by the length prefix"));
     }
     ProtocolWriter writer(totalBytes);
     writer.writeU32(static_cast<u32>(totalBytes - kFrameLengthPrefixSize));
@@ -286,19 +286,19 @@ ProtocolResult<Vec<u8>> encodeProtocolFrame(const ProtocolFrame& frame, usize ma
     return std::move(writer).finish();
 }
 
-ProtocolResult<ProtocolFrame> decodeProtocolFrame(std::span<const u8> frameBytes, usize maxFrameBytes) {
+ProtocolResult<ProtocolFrame> decodeProtocolFrame(Span<const u8> frameBytes, usize maxFrameBytes) {
     if (frameBytes.size() < kProtocolHeaderSize) {
-        return std::unexpected(protocolError("protocol frame is shorter than its fixed header"));
+        return Unexpect<ProtocolError>(protocolError("protocol frame is shorter than its fixed header"));
     }
     if (frameBytes.size() > maxFrameBytes) {
-        return std::unexpected(resourceError("protocol frame exceeds configured byte limit"));
+        return Unexpect<ProtocolError>(resourceError("protocol frame exceeds configured byte limit"));
     }
     const u32 declared = loadU32(frameBytes.data());
     if (declared != frameBytes.size() - kFrameLengthPrefixSize) {
-        return std::unexpected(protocolError("protocol frame length does not match its prefix"));
+        return Unexpect<ProtocolError>(protocolError("protocol frame length does not match its prefix"));
     }
     if (loadU32(frameBytes.data() + 4) != kProtocolMagic) {
-        return std::unexpected(protocolError("protocol frame magic is invalid", 4));
+        return Unexpect<ProtocolError>(protocolError("protocol frame magic is invalid", 4));
     }
     ProtocolFrame result;
     result.major = loadU16(frameBytes.data() + 8);
@@ -309,10 +309,10 @@ ProtocolResult<ProtocolFrame> decodeProtocolFrame(std::span<const u8> frameBytes
     result.requestId = loadU64(frameBytes.data() + 16);
     result.status = static_cast<ProtocolStatus>(loadU16(frameBytes.data() + 24));
     if (loadU16(frameBytes.data() + 26) != 0) {
-        return std::unexpected(protocolError("protocol reserved header bits must be zero", 26));
+        return Unexpect<ProtocolError>(protocolError("protocol reserved header bits must be zero", 26));
     }
     if (!knownKind(result.kind)) {
-        return std::unexpected(protocolError("unknown protocol message kind", 12));
+        return Unexpect<ProtocolError>(protocolError("unknown protocol message kind", 12));
     }
     result.payload.assign(frameBytes.begin() + static_cast<isize>(kProtocolHeaderSize), frameBytes.end());
     return result;
@@ -322,15 +322,15 @@ ProtocolFrameDecoder::ProtocolFrameDecoder(usize maxFrameBytes) : maxFrameBytes_
     buffer_.reserve(std::min(maxFrameBytes, usize{4096}));
 }
 
-ProtocolResult<Vec<ProtocolFrame>> ProtocolFrameDecoder::feed(std::span<const u8> bytes) {
+ProtocolResult<Vec<ProtocolFrame>> ProtocolFrameDecoder::feed(Span<const u8> bytes) {
     if (error_) {
-        return std::unexpected(*error_);
+        return Unexpect<ProtocolError>(*error_);
     }
     if (bytes.size() > maxFrameBytes_ + kFrameLengthPrefixSize ||
-        buffer_.size() > maxFrameBytes_ + kFrameLengthPrefixSize -
-                             std::min(bytes.size(), maxFrameBytes_ + kFrameLengthPrefixSize)) {
+        buffer_.size() >
+            maxFrameBytes_ + kFrameLengthPrefixSize - std::min(bytes.size(), maxFrameBytes_ + kFrameLengthPrefixSize)) {
         error_ = resourceError("protocol receive buffer exceeds configured byte limit", buffer_.size());
-        return std::unexpected(*error_);
+        return Unexpect<ProtocolError>(*error_);
     }
     buffer_.insert(buffer_.end(), bytes.begin(), bytes.end());
     Vec<ProtocolFrame> frames;
@@ -338,20 +338,20 @@ ProtocolResult<Vec<ProtocolFrame>> ProtocolFrameDecoder::feed(std::span<const u8
         const u32 declared = loadU32(buffer_.data());
         if (declared < kFrameBytesAfterLength) {
             error_ = protocolError("protocol frame length is smaller than its header");
-            return std::unexpected(*error_);
+            return Unexpect<ProtocolError>(*error_);
         }
         const usize totalBytes = kFrameLengthPrefixSize + static_cast<usize>(declared);
         if (totalBytes > maxFrameBytes_) {
             error_ = resourceError("protocol frame exceeds configured byte limit");
-            return std::unexpected(*error_);
+            return Unexpect<ProtocolError>(*error_);
         }
         if (buffer_.size() < totalBytes) {
             break;
         }
-        auto decoded = decodeProtocolFrame(std::span<const u8>(buffer_.data(), totalBytes), maxFrameBytes_);
+        auto decoded = decodeProtocolFrame(Span<const u8>(buffer_.data(), totalBytes), maxFrameBytes_);
         if (!decoded) {
             error_ = decoded.error();
-            return std::unexpected(*error_);
+            return Unexpect<ProtocolError>(*error_);
         }
         frames.push_back(std::move(*decoded));
         buffer_.erase(buffer_.begin(), buffer_.begin() + static_cast<isize>(totalBytes));
@@ -360,15 +360,15 @@ ProtocolResult<Vec<ProtocolFrame>> ProtocolFrameDecoder::feed(std::span<const u8
 }
 
 ProtocolResult<Vec<ProtocolFrame>> ProtocolFrameDecoder::feed(StrView bytes) {
-    return feed(std::span<const u8>(reinterpret_cast<const u8*>(bytes.data()), bytes.size()));
+    return feed(Span<const u8>(reinterpret_cast<const u8*>(bytes.data()), bytes.size()));
 }
 
 ProtocolResult<void> ProtocolFrameDecoder::finish() const {
     if (error_) {
-        return std::unexpected(*error_);
+        return Unexpect<ProtocolError>(*error_);
     }
     if (!buffer_.empty()) {
-        return std::unexpected(protocolError("unexpected EOF inside protocol frame", buffer_.size()));
+        return Unexpect<ProtocolError>(protocolError("unexpected EOF inside protocol frame", buffer_.size()));
     }
     return {};
 }
@@ -392,7 +392,7 @@ ProtocolResult<Vec<u8>> encodeHello(const ProtocolHello& hello) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<ProtocolHello> decodeHello(std::span<const u8> payload) {
+ProtocolResult<ProtocolHello> decodeHello(Span<const u8> payload) {
     ProtocolReader reader(payload);
     ProtocolHello result;
     auto minimumMajor = reader.readU16();
@@ -406,10 +406,10 @@ ProtocolResult<ProtocolHello> decodeHello(std::span<const u8> payload) {
     auto selector = reader.readString();
     if (!minimumMajor || !maximumMajor || !minimumMinor || !maximumMinor || !clientName || !clientVersion ||
         !authToken || !capabilities || !selector) {
-        return std::unexpected(protocolError("malformed protocol hello"));
+        return Unexpect<ProtocolError>(protocolError("malformed protocol hello"));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     result.minimumMajor = *minimumMajor;
     result.maximumMajor = *maximumMajor;
@@ -435,7 +435,7 @@ ProtocolResult<Vec<u8>> encodeHelloAck(const ProtocolHelloAck& hello) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<ProtocolHelloAck> decodeHelloAck(std::span<const u8> payload) {
+ProtocolResult<ProtocolHelloAck> decodeHelloAck(Span<const u8> payload) {
     ProtocolReader reader(payload);
     ProtocolHelloAck result;
     auto major = reader.readU16();
@@ -446,10 +446,10 @@ ProtocolResult<ProtocolHelloAck> decodeHelloAck(std::span<const u8> payload) {
     auto serverName = reader.readString();
     auto serverVersion = reader.readString();
     if (!major || !minor || !capabilities || !sessionId || !heartbeat || !serverName || !serverVersion) {
-        return std::unexpected(protocolError("malformed protocol hello acknowledgement"));
+        return Unexpect<ProtocolError>(protocolError("malformed protocol hello acknowledgement"));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     result.selectedMajor = *major;
     result.selectedMinor = *minor;
@@ -464,17 +464,17 @@ ProtocolResult<ProtocolHelloAck> decodeHelloAck(std::span<const u8> payload) {
 ProtocolResult<ProtocolHelloAck> negotiateHello(const ProtocolHello& hello, u64 availableCapabilities, u64 sessionId,
                                                 StrView serverVersion) {
     if (hello.minimumMajor > hello.maximumMajor || hello.minimumMinor > hello.maximumMinor) {
-        return std::unexpected(protocolError("invalid protocol version range"));
+        return Unexpect<ProtocolError>(protocolError("invalid protocol version range"));
     }
     if (hello.minimumMajor > kProtocolVersionMajor || hello.maximumMajor < kProtocolVersionMajor) {
-        return std::unexpected(
+        return Unexpect<ProtocolError>(
             ProtocolError{ProtocolStatus::VersionMismatch, "no compatible YLDP major version", 0});
     }
     ProtocolHelloAck result;
     result.selectedMajor = kProtocolVersionMajor;
     result.selectedMinor = std::min(hello.maximumMinor, kProtocolVersionMinor);
     if (result.selectedMinor < hello.minimumMinor) {
-        return std::unexpected(
+        return Unexpect<ProtocolError>(
             ProtocolError{ProtocolStatus::VersionMismatch, "no compatible YLDP minor version", 0});
     }
     result.capabilities = hello.requestedCapabilities & availableCapabilities;

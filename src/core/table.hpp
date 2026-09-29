@@ -198,7 +198,7 @@ public:
      * @param values 要写入的连续值
      * @note 分配或写屏障失败时，表的逻辑数组保持不变。
      */
-    void setArrayRange(i32 firstIndex, std::span<const Value> values);
+    void setArrayRange(i32 firstIndex, Span<const Value> values);
 
     /**
      * @brief 获取数组部分的大小

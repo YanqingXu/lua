@@ -3,6 +3,7 @@
  * @brief 语句发射器实现
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/statement_emitter.hpp"
 #include "compiler/codegen/codegen.hpp"
 
@@ -839,7 +840,7 @@ void StatementEmitter::emitStmt(const IfStmt& s) {
         block(branch.body);
     }
 
-    for (size_t i = 1; i < s.branches.size(); i++) {
+    for (usize i = 1; i < s.branches.size(); i++) {
         {
             LineGuard endLine(state_, s.endLine);
             escapelist.append(jump());

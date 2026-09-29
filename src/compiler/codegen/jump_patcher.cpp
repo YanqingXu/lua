@@ -3,6 +3,7 @@
  * @brief 跳转列表与回填辅助逻辑的实现
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 
 #include <stdexcept>

@@ -3,6 +3,7 @@
  * @brief Regression tests for VM trace and debug hook event boundaries.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "compiler/codegen/codegen.hpp"
@@ -26,15 +27,23 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "VM Trace Debug";
+constexpr Lua::CharPtr kSuiteName = "VM Trace Debug";
 
 struct RecordingTraceSink final : ITraceSink {
     Vec<TraceEvent> events;
 
-    void onInstruction(const TraceEvent& evt) override { events.push_back(evt); }
-    void onCall(const TraceEvent& evt) override { events.push_back(evt); }
-    void onReturn(const TraceEvent& evt) override { events.push_back(evt); }
-    void onError(const TraceEvent& evt) override { events.push_back(evt); }
+    void onInstruction(const TraceEvent& evt) override {
+        events.push_back(evt);
+    }
+    void onCall(const TraceEvent& evt) override {
+        events.push_back(evt);
+    }
+    void onReturn(const TraceEvent& evt) override {
+        events.push_back(evt);
+    }
+    void onError(const TraceEvent& evt) override {
+        events.push_back(evt);
+    }
     void flush() override {}
 };
 
@@ -45,7 +54,7 @@ struct HookRecord {
 
 Vec<HookRecord>* g_hookRecords = nullptr;
 
-Proto* compileChunk(RuntimeServices& services, const char* source, const char* sourceName) {
+Proto* compileChunk(RuntimeServices& services, Lua::CharPtr source, Lua::CharPtr sourceName) {
     Parser parser(source, services);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -57,8 +66,8 @@ Proto* compileChunk(RuntimeServices& services, const char* source, const char* s
     return codegen.generate(chunk, sourceName);
 }
 
-bool runLuaChunk(RuntimeServices& services, LuaState* L, const char* source,
-                 const char* sourceName, ITraceSink* traceSink = nullptr, bool traceDiff = false) {
+bool runLuaChunk(RuntimeServices& services, LuaState* L, Lua::CharPtr source, Lua::CharPtr sourceName,
+                 ITraceSink* traceSink = nullptr, bool traceDiff = false) {
     Proto* proto = nullptr;
 
     try {
@@ -122,10 +131,7 @@ i32 captureDebugHook(LuaState* L) {
 
 Str readTextFile(const std::filesystem::path& path) {
     std::ifstream input(path, std::ios::binary);
-    return Str(
-        std::istreambuf_iterator<char>(input),
-        std::istreambuf_iterator<char>()
-    );
+    return Str(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
 }
 
 Str normalizeLineEndings(Str text) {
@@ -137,9 +143,7 @@ Str normalizeLineEndings(Str text) {
     return text;
 }
 
-Str writeTraceGoldenJsonl(const std::filesystem::path& path,
-                          const char* sourceName,
-                          bool traceDiff) {
+Str writeTraceGoldenJsonl(const std::filesystem::path& path, Lua::CharPtr sourceName, bool traceDiff) {
     std::filesystem::remove(path);
 
     RuntimeServices services = RuntimeServices::fromSingletons();
@@ -148,16 +152,11 @@ Str writeTraceGoldenJsonl(const std::filesystem::path& path,
     bool ok = false;
     {
         JsonTraceSink sink(path.string(), 64);
-        ok = sink.isOpen()
-          && runLuaChunk(
-                 services,
-                 L,
-                 "local x = 1\n"
-                 "x = x + 2\n"
-                 "return x\n",
-                 sourceName,
-                 &sink,
-                 traceDiff);
+        ok = sink.isOpen() && runLuaChunk(services, L,
+                                          "local x = 1\n"
+                                          "x = x + 2\n"
+                                          "return x\n",
+                                          sourceName, &sink, traceDiff);
         sink.flush();
     }
 
@@ -169,23 +168,20 @@ Str writeTraceGoldenJsonl(const std::filesystem::path& path,
     return normalizeLineEndings(readTextFile(path));
 }
 
-}  // namespace
+} // namespace
 
 void testTraceEventsKeepInstructionCallReturnOrder(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     LuaState* L = LuaState::newState(services);
     RecordingTraceSink sink;
 
-    bool ok = runLuaChunk(
-        services,
-        L,
-        "local function plus_one(x)\n"
-        "    return x + 1\n"
-        "end\n"
-        "local result = plus_one(41)\n"
-        "return result\n",
-        "test_vm_trace_order.lua",
-        &sink);
+    bool ok = runLuaChunk(services, L,
+                          "local function plus_one(x)\n"
+                          "    return x + 1\n"
+                          "end\n"
+                          "local result = plus_one(41)\n"
+                          "return result\n",
+                          "test_vm_trace_order.lua", &sink);
 
     ASSERT_TRUE(suite, ok, "trace target chunk runs");
     ASSERT_TRUE(suite, !sink.events.empty(), "trace sink captured events");
@@ -234,16 +230,14 @@ void testDebugHooksKeepCountLineCallReturnOrder(TestSuite& suite) {
     services.gc.registerObject(hookFunc);
     L->setDebugHook(hookFunc, HookMaskCall | HookMaskReturn | HookMaskLine, 1);
 
-    bool ok = runLuaChunk(
-        services,
-        L,
-        "local function target()\n"
-        "    local x = 1\n"
-        "    x = x + 1\n"
-        "    return x\n"
-        "end\n"
-        "return target()\n",
-        "test_vm_debug_hook_order.lua");
+    bool ok = runLuaChunk(services, L,
+                          "local function target()\n"
+                          "    local x = 1\n"
+                          "    x = x + 1\n"
+                          "    return x\n"
+                          "end\n"
+                          "return target()\n",
+                          "test_vm_debug_hook_order.lua");
 
     L->setDebugHook(nullptr, 0, 0);
     g_hookRecords = nullptr;
@@ -272,8 +266,7 @@ void testDebugHooksKeepCountLineCallReturnOrder(TestSuite& suite) {
 }
 
 void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
-    const std::filesystem::path path =
-        std::filesystem::temp_directory_path() / "lua_cpp_trace_json_sink_test.jsonl";
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "lua_cpp_trace_json_sink_test.jsonl";
     std::filesystem::remove(path);
 
     {
@@ -339,36 +332,32 @@ void testJsonTraceSinkWritesStableJsonLines(TestSuite& suite) {
     }
 
     const Str content = readTextFile(path);
-    ASSERT_TRUE(suite, content.find(
-        "{\"seq\":7,\"kind\":\"instruction\",\"funcName\":\"trace\\\"fn\",\"pc\":3,\"op\":\"LOADK\","
-        "\"a\":1,\"b\":2,\"c\":3,\"bx\":4,\"sbx\":-5,\"line\":99,"
-        "\"source\":\"trace \\\"src\\\"\\n.lua\",\"callDepth\":2,"
-        "\"changedRegisters\":[{\"slot\":1,\"name\":\"x\",\"old\":null,"
-        "\"new\":42,\"oldType\":\"nil\",\"newType\":\"number\"}]}"
-    ) != Str::npos, "instruction trace JSON line is stable");
-    ASSERT_TRUE(suite, content.find(
-        "{\"seq\":8,\"kind\":\"call\",\"funcName\":\"fn\\\"name\","
-        "\"source\":\"call.lua\",\"line\":12,\"callDepth\":3}"
-    ) != Str::npos, "call trace JSON line is stable");
     ASSERT_TRUE(
         suite,
-        content.find(
-            "{\"seq\":9,\"kind\":\"return\",\"funcName\":\"ret\\\"fn\","
-            "\"source\":\"return.lua\",\"line\":13,\"callDepth\":2}"
-        ) != Str::npos,
-        "return trace JSON line is stable"
-    );
-    ASSERT_TRUE(suite, content.find(
-        "{\"seq\":10,\"kind\":\"error\",\"funcName\":\"err\\\"fn\",\"message\":\"bad\\tthing\","
-        "\"source\":\"err.lua\",\"line\":14,\"callDepth\":1}"
-    ) != Str::npos, "error trace JSON line is stable");
+        content.find("{\"seq\":7,\"kind\":\"instruction\",\"funcName\":\"trace\\\"fn\",\"pc\":3,\"op\":\"LOADK\","
+                     "\"a\":1,\"b\":2,\"c\":3,\"bx\":4,\"sbx\":-5,\"line\":99,"
+                     "\"source\":\"trace \\\"src\\\"\\n.lua\",\"callDepth\":2,"
+                     "\"changedRegisters\":[{\"slot\":1,\"name\":\"x\",\"old\":null,"
+                     "\"new\":42,\"oldType\":\"nil\",\"newType\":\"number\"}]}") != Str::npos,
+        "instruction trace JSON line is stable");
+    ASSERT_TRUE(suite,
+                content.find("{\"seq\":8,\"kind\":\"call\",\"funcName\":\"fn\\\"name\","
+                             "\"source\":\"call.lua\",\"line\":12,\"callDepth\":3}") != Str::npos,
+                "call trace JSON line is stable");
+    ASSERT_TRUE(suite,
+                content.find("{\"seq\":9,\"kind\":\"return\",\"funcName\":\"ret\\\"fn\","
+                             "\"source\":\"return.lua\",\"line\":13,\"callDepth\":2}") != Str::npos,
+                "return trace JSON line is stable");
+    ASSERT_TRUE(suite,
+                content.find("{\"seq\":10,\"kind\":\"error\",\"funcName\":\"err\\\"fn\",\"message\":\"bad\\tthing\","
+                             "\"source\":\"err.lua\",\"line\":14,\"callDepth\":1}") != Str::npos,
+                "error trace JSON line is stable");
 
     std::filesystem::remove(path);
 }
 
 void testTraceDiffWritesChangedRegisters(TestSuite& suite) {
-    const std::filesystem::path path =
-        std::filesystem::temp_directory_path() / "lua_cpp_trace_diff_test.jsonl";
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "lua_cpp_trace_diff_test.jsonl";
     std::filesystem::remove(path);
 
     RuntimeServices services = RuntimeServices::fromSingletons();
@@ -379,63 +368,70 @@ void testTraceDiffWritesChangedRegisters(TestSuite& suite) {
         JsonTraceSink sink(path.string(), 64);
         ASSERT_TRUE(suite, sink.isOpen(), "json trace diff sink opens temp file");
 
-        ok = runLuaChunk(
-            services,
-            L,
-            "local x = 1\n"
-            "x = x + 2\n"
-            "return x\n",
-            "test_vm_trace_diff.lua",
-            &sink,
-            true);
+        ok = runLuaChunk(services, L,
+                         "local x = 1\n"
+                         "x = x + 2\n"
+                         "return x\n",
+                         "test_vm_trace_diff.lua", &sink, true);
         sink.flush();
     }
 
     ASSERT_TRUE(suite, ok, "trace diff target chunk runs");
 
     const Str content = readTextFile(path);
-    ASSERT_TRUE(suite, content.find("\"changedRegisters\"") != Str::npos,
-                "trace diff writes changedRegisters");
+    ASSERT_TRUE(suite, content.find("\"changedRegisters\"") != Str::npos, "trace diff writes changedRegisters");
     ASSERT_TRUE(suite, content.find("\"funcName\":\"test_vm_trace_diff.lua\"") != Str::npos,
                 "trace diff writes instruction function names");
-    ASSERT_TRUE(suite, content.find("\"registers\"") == Str::npos,
-                "trace diff omits full register snapshots");
-    ASSERT_TRUE(suite, content.find("\"old\":null") != Str::npos,
-                "trace diff records old nil value");
-    ASSERT_TRUE(suite, content.find("\"new\":1") != Str::npos,
-                "trace diff records first assigned value");
-    ASSERT_TRUE(suite, content.find("\"new\":3") != Str::npos,
-                "trace diff records updated value");
+    ASSERT_TRUE(suite, content.find("\"registers\"") == Str::npos, "trace diff omits full register snapshots");
+    ASSERT_TRUE(suite, content.find("\"old\":null") != Str::npos, "trace diff records old nil value");
+    ASSERT_TRUE(suite, content.find("\"new\":1") != Str::npos, "trace diff records first assigned value");
+    ASSERT_TRUE(suite, content.find("\"new\":3") != Str::npos, "trace diff records updated value");
 
     std::filesystem::remove(path);
     delete L;
 }
 
 void testTraceJsonlPlainGolden(TestSuite& suite) {
-    const std::filesystem::path path =
-        std::filesystem::temp_directory_path() / "lua_cpp_trace_plain_golden_test.jsonl";
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "lua_cpp_trace_plain_golden_test.jsonl";
 
     const Str actual = writeTraceGoldenJsonl(path, "trace_plain_golden.lua", false);
-    const Str expected =
-        "{\"seq\":0,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":0,\"op\":\"LOADK\",\"a\":0,\"b\":0,\"c\":0,\"bx\":0,\"sbx\":-131071,\"line\":1,\"source\":\"trace_plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":null,\"value\":null,\"type\":\"nil\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
-        "{\"seq\":1,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":1,\"op\":\"ADD\",\"a\":0,\"b\":0,\"c\":257,\"bx\":257,\"sbx\":-130814,\"line\":2,\"source\":\"trace_plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":\"x\",\"value\":1,\"type\":\"number\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
-        "{\"seq\":2,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":2,\"op\":\"RETURN\",\"a\":0,\"b\":2,\"c\":0,\"bx\":1024,\"sbx\":-130047,\"line\":3,\"source\":\"trace_plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":\"x\",\"value\":3,\"type\":\"number\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
-        "{\"seq\":3,\"kind\":\"return\",\"funcName\":\"trace_plain_golden.lua\",\"source\":\"trace_plain_golden.lua\",\"line\":3,\"callDepth\":1}\n";
+    const Str expected = "{\"seq\":0,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":0,\"op\":"
+                         "\"LOADK\",\"a\":0,\"b\":0,\"c\":0,\"bx\":0,\"sbx\":-131071,\"line\":1,\"source\":\"trace_"
+                         "plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":null,\"value\":null,"
+                         "\"type\":\"nil\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
+                         "{\"seq\":1,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":1,\"op\":"
+                         "\"ADD\",\"a\":0,\"b\":0,\"c\":257,\"bx\":257,\"sbx\":-130814,\"line\":2,\"source\":\"trace_"
+                         "plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":\"x\",\"value\":1,"
+                         "\"type\":\"number\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
+                         "{\"seq\":2,\"kind\":\"instruction\",\"funcName\":\"trace_plain_golden.lua\",\"pc\":2,\"op\":"
+                         "\"RETURN\",\"a\":0,\"b\":2,\"c\":0,\"bx\":1024,\"sbx\":-130047,\"line\":3,\"source\":\"trace_"
+                         "plain_golden.lua\",\"callDepth\":1,\"registers\":[{\"slot\":0,\"name\":\"x\",\"value\":3,"
+                         "\"type\":\"number\"},{\"slot\":1,\"name\":null,\"value\":null,\"type\":\"nil\"}]}\n"
+                         "{\"seq\":3,\"kind\":\"return\",\"funcName\":\"trace_plain_golden.lua\",\"source\":\"trace_"
+                         "plain_golden.lua\",\"line\":3,\"callDepth\":1}\n";
 
     ASSERT_EQ(suite, expected, actual, "plain trace JSONL matches golden output");
     std::filesystem::remove(path);
 }
 
 void testTraceJsonlDiffGolden(TestSuite& suite) {
-    const std::filesystem::path path =
-        std::filesystem::temp_directory_path() / "lua_cpp_trace_diff_golden_test.jsonl";
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "lua_cpp_trace_diff_golden_test.jsonl";
 
     const Str actual = writeTraceGoldenJsonl(path, "trace_diff_golden.lua", true);
-    const Str expected =
-        "{\"seq\":0,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":0,\"op\":\"LOADK\",\"a\":0,\"b\":0,\"c\":0,\"bx\":0,\"sbx\":-131071,\"line\":1,\"source\":\"trace_diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":null,\"old\":null,\"new\":1,\"oldType\":\"nil\",\"newType\":\"number\"}]}\n"
-        "{\"seq\":1,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":1,\"op\":\"ADD\",\"a\":0,\"b\":0,\"c\":257,\"bx\":257,\"sbx\":-130814,\"line\":2,\"source\":\"trace_diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":\"x\",\"old\":1,\"new\":3,\"oldType\":\"number\",\"newType\":\"number\"}]}\n"
-        "{\"seq\":2,\"kind\":\"return\",\"funcName\":\"trace_diff_golden.lua\",\"source\":\"trace_diff_golden.lua\",\"line\":3,\"callDepth\":1}\n"
-        "{\"seq\":3,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":2,\"op\":\"RETURN\",\"a\":0,\"b\":2,\"c\":0,\"bx\":1024,\"sbx\":-130047,\"line\":3,\"source\":\"trace_diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":\"x\",\"old\":3,\"new\":null,\"oldType\":\"number\",\"newType\":\"nil\"}]}\n";
+    const Str expected = "{\"seq\":0,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":0,\"op\":"
+                         "\"LOADK\",\"a\":0,\"b\":0,\"c\":0,\"bx\":0,\"sbx\":-131071,\"line\":1,\"source\":\"trace_"
+                         "diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":null,\"old\":"
+                         "null,\"new\":1,\"oldType\":\"nil\",\"newType\":\"number\"}]}\n"
+                         "{\"seq\":1,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":1,\"op\":"
+                         "\"ADD\",\"a\":0,\"b\":0,\"c\":257,\"bx\":257,\"sbx\":-130814,\"line\":2,\"source\":\"trace_"
+                         "diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":\"x\",\"old\":1,"
+                         "\"new\":3,\"oldType\":\"number\",\"newType\":\"number\"}]}\n"
+                         "{\"seq\":2,\"kind\":\"return\",\"funcName\":\"trace_diff_golden.lua\",\"source\":\"trace_"
+                         "diff_golden.lua\",\"line\":3,\"callDepth\":1}\n"
+                         "{\"seq\":3,\"kind\":\"instruction\",\"funcName\":\"trace_diff_golden.lua\",\"pc\":2,\"op\":"
+                         "\"RETURN\",\"a\":0,\"b\":2,\"c\":0,\"bx\":1024,\"sbx\":-130047,\"line\":3,\"source\":\"trace_"
+                         "diff_golden.lua\",\"callDepth\":1,\"changedRegisters\":[{\"slot\":0,\"name\":\"x\",\"old\":3,"
+                         "\"new\":null,\"oldType\":\"number\",\"newType\":\"nil\"}]}\n";
 
     ASSERT_EQ(suite, expected, actual, "trace-diff JSONL matches golden output");
     std::filesystem::remove(path);
@@ -451,14 +447,11 @@ void testTraceConfigurationIsIsolatedPerContext(TestSuite& suite) {
 
     VM::setTraceSink(first, &firstSink);
     VM::setTraceDiffEnabled(first, true);
-    ASSERT_TRUE(suite, VM::getTraceSink(first) == &firstSink,
-                "first context retains its trace sink");
+    ASSERT_TRUE(suite, VM::getTraceSink(first) == &firstSink, "first context retains its trace sink");
     ASSERT_TRUE(suite, VM::getTraceSink(second) == nullptr,
                 "second context does not inherit another context trace sink");
-    ASSERT_TRUE(suite, VM::isTraceDiffEnabled(first),
-                "first context retains its trace diff switch");
-    ASSERT_FALSE(suite, VM::isTraceDiffEnabled(second),
-                 "second context does not inherit another context trace switch");
+    ASSERT_TRUE(suite, VM::isTraceDiffEnabled(first), "first context retains its trace diff switch");
+    ASSERT_FALSE(suite, VM::isTraceDiffEnabled(second), "second context does not inherit another context trace switch");
 
     VM::setTraceSink(second, &secondSink);
     ASSERT_TRUE(suite, VM::getTraceSink(first) == &firstSink && VM::getTraceSink(second) == &secondSink,
@@ -476,14 +469,10 @@ void testRingTraceSinkIsCapacityBounded(TestSuite& suite) {
         event.seq = sequence;
         sink.onInstruction(event);
     }
-    ASSERT_EQ(suite, static_cast<usize>(3), sink.size(),
-              "trace ring never grows beyond its configured capacity");
-    ASSERT_EQ(suite, static_cast<u64>(5), sink.totalEvents(),
-              "trace ring reports all observed events");
-    ASSERT_EQ(suite, static_cast<u64>(2), sink.at(0).seq,
-              "trace ring evicts the oldest event first");
-    ASSERT_EQ(suite, static_cast<u64>(4), sink.at(2).seq,
-              "trace ring preserves chronological order");
+    ASSERT_EQ(suite, static_cast<usize>(3), sink.size(), "trace ring never grows beyond its configured capacity");
+    ASSERT_EQ(suite, static_cast<u64>(5), sink.totalEvents(), "trace ring reports all observed events");
+    ASSERT_EQ(suite, static_cast<u64>(2), sink.at(0).seq, "trace ring evicts the oldest event first");
+    ASSERT_EQ(suite, static_cast<u64>(4), sink.at(2).seq, "trace ring preserves chronological order");
 }
 
 void registerVMTraceDebugTests() {
@@ -493,17 +482,11 @@ void registerVMTraceDebugTests() {
                           testTraceEventsKeepInstructionCallReturnOrder);
     registry.registerTest(kSuiteName, "Debug Hooks Keep Count Line Call Return Order",
                           testDebugHooksKeepCountLineCallReturnOrder);
-    registry.registerTest(kSuiteName, "JsonTraceSink Writes Stable Json Lines",
-                          testJsonTraceSinkWritesStableJsonLines);
-    registry.registerTest(kSuiteName, "Trace Diff Writes Changed Registers",
-                          testTraceDiffWritesChangedRegisters);
-    registry.registerTest(kSuiteName, "Trace JSONL Plain Golden",
-                          testTraceJsonlPlainGolden);
-    registry.registerTest(kSuiteName, "Trace JSONL Diff Golden",
-                          testTraceJsonlDiffGolden);
+    registry.registerTest(kSuiteName, "JsonTraceSink Writes Stable Json Lines", testJsonTraceSinkWritesStableJsonLines);
+    registry.registerTest(kSuiteName, "Trace Diff Writes Changed Registers", testTraceDiffWritesChangedRegisters);
+    registry.registerTest(kSuiteName, "Trace JSONL Plain Golden", testTraceJsonlPlainGolden);
+    registry.registerTest(kSuiteName, "Trace JSONL Diff Golden", testTraceJsonlDiffGolden);
     registry.registerTest(kSuiteName, "Trace Configuration Context Isolation",
                           testTraceConfigurationIsIsolatedPerContext);
-    registry.registerTest(kSuiteName, "Ring Trace Sink Capacity",
-                          testRingTraceSinkIsCapacityBounded);
+    registry.registerTest(kSuiteName, "Ring Trace Sink Capacity", testRingTraceSinkIsCapacityBounded);
 }
-

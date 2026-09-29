@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "lauxlib.h"
 #include "lua.h"
 
@@ -7,7 +8,7 @@
 #include <vector>
 
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size) {
-    constexpr std::size_t kMaxInput = 1024 * 1024;
+    constexpr Lua::usize kMaxInput = 1024 * 1024;
     if (data == nullptr || size > kMaxInput) {
         return 0;
     }
@@ -20,11 +21,10 @@ extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size
         }
 
         constexpr char kSignature[] = {'\x1b', 'L', 'u', 'a'};
-        const bool alreadyBinary = size >= sizeof(kSignature) &&
-                                   std::memcmp(data, kSignature, sizeof(kSignature)) == 0;
-        std::vector<char> chunk;
-        const char* bytes = reinterpret_cast<const char*>(data);
-        std::size_t byteCount = size;
+        const bool alreadyBinary = size >= sizeof(kSignature) && std::memcmp(data, kSignature, sizeof(kSignature)) == 0;
+        Lua::Vec<char> chunk;
+        Lua::CharPtr bytes = reinterpret_cast<Lua::CharPtr>(data);
+        Lua::usize byteCount = size;
         if (!alreadyBinary) {
             chunk.insert(chunk.end(), kSignature, kSignature + sizeof(kSignature));
             chunk.insert(chunk.end(), bytes, bytes + size);

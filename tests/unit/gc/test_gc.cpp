@@ -6,6 +6,7 @@
  * @date 2025-11-14
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/opcode.hpp"
@@ -87,7 +88,7 @@ struct GCAllocatorProbe {
     usize failOnAllocation = 0;
 };
 
-static void* gcTrackingAllocator(void* userData, void* pointer, std::size_t oldSize, std::size_t newSize) {
+static void* gcTrackingAllocator(void* userData, void* pointer, Lua::usize oldSize, Lua::usize newSize) {
     auto* probe = static_cast<GCAllocatorProbe*>(userData);
     if (newSize == 0) {
         if (pointer != nullptr) {
@@ -1271,7 +1272,7 @@ void testCollectGarbageRunsUserdataFinalizer(TestSuite& suite) {
 void testFinalizerBudgetSlicesFullCollections(TestSuite& suite) {
     gFinalizerCalls = 0;
 
-    auto stateOwner = std::unique_ptr<LuaState>(LuaState::newIsolatedState());
+    auto stateOwner = Lua::UPtr<LuaState>(LuaState::newIsolatedState());
     LuaState* L = stateOwner.get();
     GlobalState& globalState = L->getGlobalState();
     GarbageCollector& gc = globalState.getGC();
@@ -1313,7 +1314,7 @@ void testFinalizerBudgetSlicesFullCollections(TestSuite& suite) {
 void testFinalizerBudgetSurvivesReentrantCollection(TestSuite& suite) {
     gReentrantFinalizerCalls = 0;
 
-    auto stateOwner = std::unique_ptr<LuaState>(LuaState::newIsolatedState());
+    auto stateOwner = Lua::UPtr<LuaState>(LuaState::newIsolatedState());
     LuaState* L = stateOwner.get();
     GlobalState& globalState = L->getGlobalState();
     GarbageCollector& gc = globalState.getGC();

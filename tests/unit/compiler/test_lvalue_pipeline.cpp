@@ -10,6 +10,7 @@
  * - a,b = f() 多返回值写入混合左值
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -32,7 +33,7 @@ LuaState* createFullState() {
     return L;
 }
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -57,7 +58,7 @@ bool runLua(LuaState* L, const char* code) {
 }
 
 // Helper: compile and count occurrences of an opcode
-int countOpcode(const char* code, OpCode op) {
+int countOpcode(Lua::CharPtr code, OpCode op) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
@@ -68,7 +69,7 @@ int countOpcode(const char* code, OpCode op) {
     CodeGenerator codegen(services);
     Proto* proto = codegen.generate(chunk);
     int count = 0;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == op)
             count++;
     }

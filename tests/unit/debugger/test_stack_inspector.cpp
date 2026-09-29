@@ -3,6 +3,7 @@
  * @brief Owner-thread stack, scopes, variables, paging, and stale-handle tests.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "compiler/codegen/codegen.hpp"
@@ -26,7 +27,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Debugger Stack Inspector";
+constexpr Lua::CharPtr kSuiteName = "Debugger Stack Inspector";
 
 Proto* compileInspectorChunk(RuntimeServices& services, StrView source, StrView sourceName) {
     Parser parser{Str(source), services};
@@ -63,7 +64,7 @@ const DebugVariable* findVariable(const Vec<DebugVariable>& variables, StrView n
     return nullptr;
 }
 
-std::atomic<i32> gInspectorMetamethodCalls = 0;
+Lua::Atom<i32> gInspectorMetamethodCalls = 0;
 
 i32 inspectorIndexMetamethod(LuaState*) {
     gInspectorMetamethodCalls.fetch_add(1, std::memory_order_relaxed);
@@ -124,13 +125,13 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
     function->setEnv(functionEnvironment);
 
     const SourceId sourceId = runtime.registerFilePath("debugger/stack_and_values.lua");
-    const std::array breakpoints{SourceBreakpoint{9}};
+    const Lua::Arr<SourceBreakpoint, 1> breakpoints{SourceBreakpoint{9}};
     auto breakpointResult = runtime.setBreakpoints(sourceId, breakpoints);
     auto attached = runtime.attachSession();
     DebugSession session = std::move(*attached);
     const bool configured = runtime.configurationDone().has_value();
 
-    std::atomic<bool> executionDone = false;
+    Lua::Atom<bool> executionDone = false;
     bool timedOut = false;
     bool threadsValid = false;
     bool stackOrderValid = false;
@@ -197,9 +198,9 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
                                         evaluatedLocal->value == "\"inner\"" && evaluatedUpvalue->value == "22" &&
                                         evaluatedField->value == "\"fixture\"" &&
                                         evaluatedEnvironment->value == "\"fenv\"";
-                evaluationRejectedSideEffects =
-                    !rejectedCall && !rejectedAssignment && rejectedCall.error().code == DebugErrorCode::Unsupported &&
-                    rejectedAssignment.error().code == DebugErrorCode::Unsupported;
+                evaluationRejectedSideEffects = !rejectedCall && !rejectedAssignment &&
+                                                rejectedCall.error().code == DebugErrorCode::Unsupported &&
+                                                rejectedAssignment.error().code == DebugErrorCode::Unsupported;
                 auto frameScopes = runtime.scopes(oldFrame);
                 auto repeatedScopes = runtime.scopes(oldFrame);
                 scopesStable = frameScopes && repeatedScopes && frameScopes->size() == 3 &&
@@ -209,10 +210,10 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
                     const DebugScope* upvaluesScope = findScope(*frameScopes, DebugScopeKind::Upvalues);
                     auto locals = localsScope != nullptr
                                       ? runtime.variables(localsScope->variablesReference, 0, 100)
-                                      : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                                      : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
                     auto upvalues = upvaluesScope != nullptr
                                         ? runtime.variables(upvaluesScope->variablesReference, 0, 100)
-                                        : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                                        : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
 
                     const DebugVariable* extra = locals ? findVariable(*locals, "extra") : nullptr;
                     const DebugVariable* shadow = locals ? findVariable(*locals, "shadow") : nullptr;
@@ -230,23 +231,25 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
                         auto overview = runtime.variables(oldVariables, 0, 100);
                         const DebugVariable* arraySection = overview ? findVariable(*overview, "[array]") : nullptr;
                         const DebugVariable* hashSection = overview ? findVariable(*overview, "[hash]") : nullptr;
-                        auto firstVariables = arraySection != nullptr
-                                                  ? runtime.variables(arraySection->variablesReference, 0, 2)
-                                                  : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
-                        auto nextVariables = arraySection != nullptr
-                                                 ? runtime.variables(arraySection->variablesReference, 2, 2)
-                                                 : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                        auto firstVariables =
+                            arraySection != nullptr
+                                ? runtime.variables(arraySection->variablesReference, 0, 2)
+                                : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
+                        auto nextVariables =
+                            arraySection != nullptr
+                                ? runtime.variables(arraySection->variablesReference, 2, 2)
+                                : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
                         tablePagingValid = firstVariables && nextVariables && firstVariables->size() == 2 &&
                                            nextVariables->size() == 1;
-                        auto namedSection = hashSection != nullptr
-                                                ? runtime.variables(hashSection->variablesReference, 0, 100)
-                                                : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                        auto namedSection =
+                            hashSection != nullptr
+                                ? runtime.variables(hashSection->variablesReference, 0, 100)
+                                : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
                         const DebugVariable* self = namedSection ? findVariable(*namedSection, "self") : nullptr;
                         selfReferenceStable = self != nullptr && self->variablesReference == oldVariables;
-                        tableGroupsValid = overview && overview->size() == 2 && arraySection != nullptr &&
-                                           hashSection != nullptr;
-                        auto indexedVariables =
-                            runtime.variables(oldVariables, 0, 100, DebugVariableFilter::Indexed);
+                        tableGroupsValid =
+                            overview && overview->size() == 2 && arraySection != nullptr && hashSection != nullptr;
+                        auto indexedVariables = runtime.variables(oldVariables, 0, 100, DebugVariableFilter::Indexed);
                         auto namedVariables = runtime.variables(oldVariables, 0, 100, DebugVariableFilter::Named);
                         tableFiltersValid = indexedVariables && namedVariables && indexedVariables->size() == 3 &&
                                             namedVariables->size() == 2 &&
@@ -257,7 +260,7 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
                     const DebugScope* globalsScope = findScope(*frameScopes, DebugScopeKind::Globals);
                     auto globals = globalsScope != nullptr
                                        ? runtime.variables(globalsScope->variablesReference, 0, 100)
-                                       : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                                       : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
                     const DebugVariable* boolean = globals ? findVariable(*globals, "debug_bool") : nullptr;
                     const DebugVariable* number = globals ? findVariable(*globals, "debug_number") : nullptr;
                     const DebugVariable* string = globals ? findVariable(*globals, "debug_string") : nullptr;
@@ -282,9 +285,10 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
                         const DebugVariable* metatableSection =
                             overview ? findVariable(*overview, "[metatable]") : nullptr;
                         tableGroupsValid = tableGroupsValid && arraySection != nullptr && metatableSection != nullptr;
-                        auto oversizedPage = arraySection != nullptr
-                                                 ? runtime.variables(arraySection->variablesReference, 0, 1000)
-                                                 : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                        auto oversizedPage =
+                            arraySection != nullptr
+                                ? runtime.variables(arraySection->variablesReference, 0, 1000)
+                                : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
                         hardPageLimitApplied = oversizedPage && oversizedPage->size() == 100;
                     }
                     inspectionHadNoMetamethodSideEffect =
@@ -326,8 +330,7 @@ void testStackScopesVariablesAndStaleHandles(TestSuite& suite) {
     ASSERT_TRUE(suite, localsValid, "Locals honor PC lifetimes and expose expected values");
     ASSERT_TRUE(suite, upvaluesValid, "Upvalues use Proto names and closure slot values");
     ASSERT_TRUE(suite, tablePagingValid, "Raw table expansion enforces requested pages");
-    ASSERT_TRUE(suite, tableGroupsValid,
-                "Table overview exposes stable array, hash, and metatable section handles");
+    ASSERT_TRUE(suite, tableGroupsValid, "Table overview exposes stable array, hash, and metatable section handles");
     ASSERT_TRUE(suite, tableFiltersValid, "Indexed and named table views have independent deterministic pages");
     ASSERT_TRUE(suite, selfReferenceStable, "Self-referential table reuses its existing object handle");
     ASSERT_TRUE(
@@ -370,7 +373,7 @@ void testTailCallPlaceholders(TestSuite& suite) {
     Proto* proto = compileInspectorChunk(services, source, "@debugger/tail_stack.lua");
     Function* function = createInspectorFunction(services, state.get(), proto);
     const SourceId sourceId = controller.registerFilePath("debugger/tail_stack.lua");
-    const std::array breakpoints{SourceBreakpoint{4}};
+    const Lua::Arr<SourceBreakpoint, 1> breakpoints{SourceBreakpoint{4}};
     (void)controller.setBreakpoints(sourceId, breakpoints);
     auto attached = controller.attachSession();
     DebugSession session = std::move(*attached);
@@ -424,7 +427,7 @@ void testInspectorResourceLimitIsStructured(TestSuite& suite) {
     Proto* proto = compileInspectorChunk(services, "local value = 1\nreturn value\n", "@debugger/limits.lua");
     Function* function = createInspectorFunction(services, state.get(), proto);
     const SourceId sourceId = controller.registerFilePath("debugger/limits.lua");
-    const std::array breakpoints{SourceBreakpoint{2}};
+    const Lua::Arr<SourceBreakpoint, 1> breakpoints{SourceBreakpoint{2}};
     (void)controller.setBreakpoints(sourceId, breakpoints);
     auto attached = controller.attachSession();
     DebugSession session = std::move(*attached);
@@ -470,29 +473,29 @@ void testInspectorResourceLimitIsStructured(TestSuite& suite) {
 }
 
 void testWritableVariablesAndGcBarriers(TestSuite& suite) {
-    constexpr StrView source = "local shared = {name = 'old', [1] = 1}\n"
-                               "local function makeWorker()\n"
-                               "    local captured = 'before'\n"
-                               "    return function()\n"
-                               "        local localValue = 'local-old'\n"
-                               "        local marker = 1\n"
-                               "        debug_write_result = localValue .. ':' .. captured .. ':' .. shared.name .. ':' .. shared[1]\n"
-                               "        return marker\n"
-                               "    end\n"
-                               "end\n"
-                               "local worker = makeWorker()\n"
-                               "worker()\n"
-                               "return debug_write_result\n";
+    constexpr StrView source =
+        "local shared = {name = 'old', [1] = 1}\n"
+        "local function makeWorker()\n"
+        "    local captured = 'before'\n"
+        "    return function()\n"
+        "        local localValue = 'local-old'\n"
+        "        local marker = 1\n"
+        "        debug_write_result = localValue .. ':' .. captured .. ':' .. shared.name .. ':' .. shared[1]\n"
+        "        return marker\n"
+        "    end\n"
+        "end\n"
+        "local worker = makeWorker()\n"
+        "worker()\n"
+        "return debug_write_result\n";
     EngineContext context;
     DebugController& controller = context.globalState().enableDebugger();
-    const bool policyConfigured =
-        controller.configureWritePolicy(DebugWritePolicy{true, true}).has_value();
+    const bool policyConfigured = controller.configureWritePolicy(DebugWritePolicy{true, true}).has_value();
     RuntimeServices services = context.services();
     UPtr<LuaState> state = LuaState::create(context);
     Proto* proto = compileInspectorChunk(services, source, "@debugger/writable_variables.lua");
     Function* function = createInspectorFunction(services, state.get(), proto);
     const SourceId sourceId = controller.registerFilePath("debugger/writable_variables.lua");
-    const std::array breakpoints{SourceBreakpoint{7}};
+    const Lua::Arr<SourceBreakpoint, 1> breakpoints{SourceBreakpoint{7}};
     (void)controller.setBreakpoints(sourceId, breakpoints);
     auto attached = controller.attachSession();
     DebugSession session = std::move(*attached);
@@ -513,8 +516,9 @@ void testWritableVariablesAndGcBarriers(TestSuite& suite) {
                 continue;
             }
             auto frames = controller.stackTrace(ThreadId{1}, 0, 1);
-            auto scopes = frames && !frames->empty() ? controller.scopes(frames->front().id)
-                                                     : DebugResult<Vec<DebugScope>>(std::unexpected(DebugError{}));
+            auto scopes = frames && !frames->empty()
+                              ? controller.scopes(frames->front().id)
+                              : DebugResult<Vec<DebugScope>>(Lua::Unexpect<DebugError>(DebugError{}));
             if (!scopes) {
                 break;
             }
@@ -522,18 +526,18 @@ void testWritableVariablesAndGcBarriers(TestSuite& suite) {
             const DebugScope* upvaluesScope = findScope(*scopes, DebugScopeKind::Upvalues);
             auto upvalues = upvaluesScope != nullptr
                                 ? controller.variables(upvaluesScope->variablesReference, 0, 100)
-                                : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                                : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
             const DebugVariable* shared = upvalues ? findVariable(*upvalues, "shared") : nullptr;
             auto syntheticGroupWrite = shared != nullptr
                                            ? controller.setVariable(shared->variablesReference, "[array]", "nil")
-                                           : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
+                                           : DebugResult<DebugVariable>(Lua::Unexpect<DebugError>(DebugError{}));
             syntheticGroupWriteRejected =
                 !syntheticGroupWrite && syntheticGroupWrite.error().code == DebugErrorCode::Unsupported;
             expressionMutationCorpusBounded = true;
             try {
                 const Str seed = "shared['name']";
                 for (usize index = 0; index < seed.size(); ++index) {
-                    for (const char replacement : std::array<char, 4>{'\0', '[', '\'', static_cast<char>(0xff)}) {
+                    for (const char replacement : Lua::Arr<char, 4>{'\0', '[', '\'', static_cast<char>(0xff)}) {
                         Str mutation = seed;
                         mutation[index] = replacement;
                         (void)controller.evaluate(frames->front().id, mutation);
@@ -544,46 +548,41 @@ void testWritableVariablesAndGcBarriers(TestSuite& suite) {
             }
             auto localWrite = localsScope != nullptr
                                   ? controller.setVariable(localsScope->variablesReference, "localValue", "'local-new'")
-                                  : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
+                                  : DebugResult<DebugVariable>(Lua::Unexpect<DebugError>(DebugError{}));
             auto upvalueWrite = upvaluesScope != nullptr
                                     ? controller.setVariable(upvaluesScope->variablesReference, "captured", "'after'")
-                                    : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
+                                    : DebugResult<DebugVariable>(Lua::Unexpect<DebugError>(DebugError{}));
             auto fieldWrite = shared != nullptr
                                   ? controller.setVariable(shared->variablesReference, "name", "'updated'")
-                                  : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
-            auto arrayWrite = shared != nullptr
-                                  ? controller.setVariable(shared->variablesReference, "[1]", "99")
-                                  : DebugResult<DebugVariable>(std::unexpected(DebugError{}));
-            writesSucceeded = localWrite && upvalueWrite && fieldWrite && arrayWrite &&
-                              localWrite->type == "string" && upvalueWrite->type == "string" &&
-                              fieldWrite->value == "\"updated\"" && arrayWrite->value == "99";
+                                  : DebugResult<DebugVariable>(Lua::Unexpect<DebugError>(DebugError{}));
+            auto arrayWrite = shared != nullptr ? controller.setVariable(shared->variablesReference, "[1]", "99")
+                                                : DebugResult<DebugVariable>(Lua::Unexpect<DebugError>(DebugError{}));
+            writesSucceeded = localWrite && upvalueWrite && fieldWrite && arrayWrite && localWrite->type == "string" &&
+                              upvalueWrite->type == "string" && fieldWrite->value == "\"updated\"" &&
+                              arrayWrite->value == "99";
             auto sideEffect = controller.evaluateWithSideEffects(
-                frames->front().id,
-                "(function() localValue = 'console-local'; captured = 'console-up'; "
-                "shared.name = 'console-table'; return localValue end)()");
+                frames->front().id, "(function() localValue = 'console-local'; captured = 'console-up'; "
+                                    "shared.name = 'console-table'; return localValue end)()");
             sideEffectEvaluationSucceeded =
                 sideEffect && sideEffect->value == "\"console-local\"" && sideEffect->type == "string";
-            auto runaway = controller.evaluateWithSideEffects(
-                frames->front().id, "(function() while true do end end)()");
-            sideEffectBudgetEnforced =
-                !runaway && runaway.error().code == DebugErrorCode::ResourceLimit;
+            auto runaway =
+                controller.evaluateWithSideEffects(frames->front().id, "(function() while true do end end)()");
+            sideEffectBudgetEnforced = !runaway && runaway.error().code == DebugErrorCode::ResourceLimit;
             auto refreshedLocals = localsScope != nullptr
                                        ? controller.variables(localsScope->variablesReference, 0, 100)
-                                       : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
-            auto refreshedTable = shared != nullptr
-                                      ? controller.variables(shared->variablesReference, 0, 100,
-                                                             DebugVariableFilter::Named)
-                                      : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
-            auto refreshedArray = shared != nullptr
-                                      ? controller.variables(shared->variablesReference, 0, 100,
-                                                             DebugVariableFilter::Indexed)
-                                      : DebugResult<Vec<DebugVariable>>(std::unexpected(DebugError{}));
+                                       : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
+            auto refreshedTable =
+                shared != nullptr ? controller.variables(shared->variablesReference, 0, 100, DebugVariableFilter::Named)
+                                  : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
+            auto refreshedArray =
+                shared != nullptr
+                    ? controller.variables(shared->variablesReference, 0, 100, DebugVariableFilter::Indexed)
+                    : DebugResult<Vec<DebugVariable>>(Lua::Unexpect<DebugError>(DebugError{}));
             const DebugVariable* localValue = refreshedLocals ? findVariable(*refreshedLocals, "localValue") : nullptr;
             const DebugVariable* name = refreshedTable ? findVariable(*refreshedTable, "name") : nullptr;
             const DebugVariable* first = refreshedArray ? findVariable(*refreshedArray, "[1]") : nullptr;
-            valuesRefreshed = localValue != nullptr && localValue->value == "\"console-local\"" &&
-                              name != nullptr && name->value == "\"console-table\"" && first != nullptr &&
-                              first->value == "99";
+            valuesRefreshed = localValue != nullptr && localValue->value == "\"console-local\"" && name != nullptr &&
+                              name->value == "\"console-table\"" && first != nullptr && first->value == "99";
             (void)controller.continueExecution(ThreadId{1});
             return;
         }
@@ -609,10 +608,10 @@ void testWritableVariablesAndGcBarriers(TestSuite& suite) {
                 "Read-only expression mutation corpus returns bounded errors without C++ exceptions");
     ASSERT_TRUE(suite, syntheticGroupWriteRejected,
                 "Synthetic table group rows cannot be mistaken for writable raw table fields");
-    ASSERT_TRUE(suite, valuesRefreshed,
-                "Variables responses immediately reflect writes in the same pause generation");
-    ASSERT_TRUE(suite, executed && finalValue.isString() &&
-                           finalValue.asString()->view() == "console-local:console-up:console-table:99",
+    ASSERT_TRUE(suite, valuesRefreshed, "Variables responses immediately reflect writes in the same pause generation");
+    ASSERT_TRUE(suite,
+                executed && finalValue.isString() &&
+                    finalValue.asString()->view() == "console-local:console-up:console-table:99",
                 "String writes survive closed-upvalue and table GC barriers and affect resumed Lua execution");
 
     session.disconnect(DisconnectAction::ContinueExecution);

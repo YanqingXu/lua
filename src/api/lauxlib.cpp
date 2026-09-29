@@ -4,6 +4,7 @@
  */
 
 #include "lauxlib.h"
+#include "common/types.hpp"
 
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
@@ -31,16 +32,16 @@ int absoluteIndex(lua_State* state, int index) {
     return index > 0 || index <= LUA_REGISTRYINDEX ? index : lua_gettop(state) + index + 1;
 }
 
-std::string chunkId(Lua::StrView source) {
+Lua::Str chunkId(Lua::StrView source) {
     if (!source.empty() && source.front() == '=') {
-        return std::string(source.substr(1));
+        return Lua::Str(source.substr(1));
     }
     if (!source.empty() && source.front() == '@') {
-        return std::string(source.substr(1));
+        return Lua::Str(source.substr(1));
     }
 
-    constexpr std::size_t kSnippetLimit = 60;
-    std::string snippet;
+    constexpr Lua::usize kSnippetLimit = 60;
+    Lua::Str snippet;
     bool truncated = false;
     for (char ch : source) {
         if (ch == '\n' || ch == '\r' || snippet.size() >= kSnippetLimit) {
@@ -58,23 +59,23 @@ std::string chunkId(Lua::StrView source) {
     return "[string \"" + snippet + "\"]";
 }
 
-std::string formatMessage(const char* format, va_list arguments) {
-    const char* effectiveFormat = format != nullptr ? format : "";
+Lua::Str formatMessage(Lua::CharPtr format, va_list arguments) {
+    Lua::CharPtr effectiveFormat = format != nullptr ? format : "";
     va_list countArguments;
     va_copy(countArguments, arguments);
     const int required = std::vsnprintf(nullptr, 0, effectiveFormat, countArguments);
     va_end(countArguments);
     if (required <= 0) {
-        return required == 0 ? std::string() : std::string(effectiveFormat);
+        return required == 0 ? Lua::Str() : Lua::Str(effectiveFormat);
     }
 
-    std::vector<char> buffer(static_cast<std::size_t>(required) + 1U);
+    Lua::Vec<char> buffer(static_cast<Lua::usize>(required) + 1U);
     (void)std::vsnprintf(buffer.data(), buffer.size(), effectiveFormat, arguments);
-    return std::string(buffer.data(), static_cast<std::size_t>(required));
+    return Lua::Str(buffer.data(), static_cast<Lua::usize>(required));
 }
 
 struct AuxiliaryFunctionInfo {
-    std::string name = "?";
+    Lua::Str name = "?";
     bool method = false;
 };
 
@@ -109,24 +110,24 @@ AuxiliaryFunctionInfo currentAuxiliaryFunction(lua_State* stateHandle) {
 
     AuxiliaryFunctionInfo info;
     info.method = description->starts_with("method '");
-    const std::size_t firstQuote = description->find('\'');
-    const std::size_t lastQuote = description->rfind('\'');
-    if (firstQuote != std::string::npos && lastQuote > firstQuote) {
+    const Lua::usize firstQuote = description->find('\'');
+    const Lua::usize lastQuote = description->rfind('\'');
+    if (firstQuote != Lua::Str::npos && lastQuote > firstQuote) {
         info.name.assign(description->data() + firstQuote + 1, lastQuote - firstQuote - 1);
     }
     return info;
 }
 
-std::size_t bufferLength(const luaL_Buffer* buffer) {
-    return static_cast<std::size_t>(buffer->p - buffer->buffer);
+Lua::usize bufferLength(const luaL_Buffer* buffer) {
+    return static_cast<Lua::usize>(buffer->p - buffer->buffer);
 }
 
-std::size_t bufferFree(const luaL_Buffer* buffer) {
-    return static_cast<std::size_t>(LUAL_BUFFERSIZE) - bufferLength(buffer);
+Lua::usize bufferFree(const luaL_Buffer* buffer) {
+    return static_cast<Lua::usize>(LUAL_BUFFERSIZE) - bufferLength(buffer);
 }
 
 int emptyBuffer(luaL_Buffer* buffer) {
-    const std::size_t length = bufferLength(buffer);
+    const Lua::usize length = bufferLength(buffer);
     if (length == 0) {
         return 0;
     }
@@ -144,9 +145,9 @@ void adjustStack(luaL_Buffer* buffer) {
 
     lua_State* state = buffer->L;
     int toGet = 1;
-    std::size_t topLength = lua_objlen(state, -1);
+    Lua::usize topLength = lua_objlen(state, -1);
     do {
-        const std::size_t length = lua_objlen(state, -(toGet + 1));
+        const Lua::usize length = lua_objlen(state, -(toGet + 1));
         if (buffer->lvl - toGet + 1 >= kLimit || topLength > length) {
             topLength += length;
             ++toGet;
@@ -178,7 +179,7 @@ void luaL_where(lua_State* L, int level) LUA_CXX_MAY_THROW {
                 const Lua::i32 line = proto->getLine(pc > 0 ? pc - 1 : 0);
                 const Lua::StrView source =
                     proto->getSource() != nullptr ? proto->getSource()->view() : Lua::StrView("=?");
-                const std::string location = chunkId(source) + ":" + std::to_string(line) + ": ";
+                const Lua::Str location = chunkId(source) + ":" + std::to_string(line) + ": ";
                 lua_pushlstring(L, location.data(), location.size());
                 return;
             }
@@ -190,7 +191,7 @@ void luaL_where(lua_State* L, int level) LUA_CXX_MAY_THROW {
 int luaL_error(lua_State* L, const char* format, ...) LUA_CXX_MAY_THROW {
     va_list arguments;
     va_start(arguments, format);
-    const std::string message = formatMessage(format, arguments);
+    const Lua::Str message = formatMessage(format, arguments);
     va_end(arguments);
 
     luaL_where(L, 1);
@@ -200,7 +201,7 @@ int luaL_error(lua_State* L, const char* format, ...) LUA_CXX_MAY_THROW {
 }
 
 int luaL_argerror(lua_State* L, int narg, const char* extraMessage) LUA_CXX_MAY_THROW {
-    const char* detail = extraMessage != nullptr ? extraMessage : "bad argument";
+    Lua::CharPtr detail = extraMessage != nullptr ? extraMessage : "bad argument";
     if (fromAuxState(L)->getCurrentCI() == 0) {
         return luaL_error(L, "bad argument #%d (%s)", narg, detail);
     }
@@ -216,9 +217,9 @@ int luaL_argerror(lua_State* L, int narg, const char* extraMessage) LUA_CXX_MAY_
 }
 
 int luaL_typerror(lua_State* L, int narg, const char* typeName) LUA_CXX_MAY_THROW {
-    const char* expected = typeName != nullptr ? typeName : "value";
-    const char* actual = lua_typename(L, lua_type(L, narg));
-    const std::string message = std::string(expected) + " expected, got " + (actual != nullptr ? actual : "no value");
+    Lua::CharPtr expected = typeName != nullptr ? typeName : "value";
+    Lua::CharPtr actual = lua_typename(L, lua_type(L, narg));
+    const Lua::Str message = Lua::Str(expected) + " expected, got " + (actual != nullptr ? actual : "no value");
     return luaL_argerror(L, narg, message.c_str());
 }
 
@@ -229,7 +230,7 @@ void luaL_argcheck(lua_State* L, int condition, int narg, const char* extraMessa
 }
 
 const char* luaL_checklstring(lua_State* L, int narg, size_t* length) LUA_CXX_MAY_THROW {
-    const char* text = lua_tolstring(L, narg, length);
+    Lua::CharPtr text = lua_tolstring(L, narg, length);
     if (text == nullptr) {
         (void)luaL_typerror(L, narg, "string");
     }
@@ -322,7 +323,7 @@ void* luaL_checkudata(lua_State* L, int narg, const char* typeName) LUA_CXX_MAY_
 }
 
 int luaL_checkoption(lua_State* L, int narg, const char* defaultValue, const char* const options[]) LUA_CXX_MAY_THROW {
-    const char* selected = defaultValue != nullptr ? luaL_optstring(L, narg, defaultValue) : luaL_checkstring(L, narg);
+    Lua::CharPtr selected = defaultValue != nullptr ? luaL_optstring(L, narg, defaultValue) : luaL_checkstring(L, narg);
     if (options != nullptr) {
         for (int index = 0; options[index] != nullptr; ++index) {
             if (std::strcmp(options[index], selected) == 0) {
@@ -330,7 +331,7 @@ int luaL_checkoption(lua_State* L, int narg, const char* defaultValue, const cha
             }
         }
     }
-    return luaL_argerror(L, narg, (std::string("invalid option '") + selected + "'").c_str());
+    return luaL_argerror(L, narg, (Lua::Str("invalid option '") + selected + "'").c_str());
 }
 
 int luaL_getmetafield(lua_State* L, int objectIndex, const char* event) LUA_CXX_MAY_THROW {
@@ -358,17 +359,17 @@ int luaL_callmeta(lua_State* L, int objectIndex, const char* event) LUA_CXX_MAY_
 }
 
 const char* luaL_findtable(lua_State* L, int tableIndex, const char* fieldName, int sizeHint) LUA_CXX_MAY_THROW {
-    const char* current = fieldName != nullptr ? fieldName : "";
+    Lua::CharPtr current = fieldName != nullptr ? fieldName : "";
     lua_pushvalue(L, tableIndex);
     for (;;) {
-        const char* separator = std::strchr(current, '.');
-        const char* end = separator != nullptr ? separator : current + std::strlen(current);
-        lua_pushlstring(L, current, static_cast<size_t>(end - current));
+        Lua::CharPtr separator = std::strchr(current, '.');
+        Lua::CharPtr end = separator != nullptr ? separator : current + std::strlen(current);
+        lua_pushlstring(L, current, static_cast<Lua::usize>(end - current));
         lua_rawget(L, -2);
         if (lua_isnil(L, -1)) {
             lua_pop(L, 1);
             lua_createtable(L, 0, separator != nullptr ? 1 : sizeHint);
-            lua_pushlstring(L, current, static_cast<size_t>(end - current));
+            lua_pushlstring(L, current, static_cast<Lua::usize>(end - current));
             lua_pushvalue(L, -2);
             lua_settable(L, -4);
         } else if (!lua_istable(L, -1)) {
@@ -397,7 +398,7 @@ void luaL_openlib(lua_State* L, const char* libraryName, const luaL_Reg* functio
         lua_getfield(L, -1, libraryName);
         if (!lua_istable(L, -1)) {
             lua_pop(L, 1);
-            const char* conflict = luaL_findtable(L, LUA_GLOBALSINDEX, libraryName, functionCount);
+            Lua::CharPtr conflict = luaL_findtable(L, LUA_GLOBALSINDEX, libraryName, functionCount);
             if (conflict != nullptr) {
                 (void)luaL_error(L, "name conflict for module '%s'", libraryName);
             }
@@ -430,9 +431,9 @@ lua_State* luaL_newstate(void) LUA_CXX_MAY_THROW {
 
 const char* luaL_gsub(lua_State* L, const char* source, const char* pattern,
                       const char* replacement) LUA_CXX_MAY_THROW {
-    const char* current = source != nullptr ? source : "";
-    const char* needle = pattern != nullptr ? pattern : "";
-    const char* substitute = replacement != nullptr ? replacement : "";
+    Lua::CharPtr current = source != nullptr ? source : "";
+    Lua::CharPtr needle = pattern != nullptr ? pattern : "";
+    Lua::CharPtr substitute = replacement != nullptr ? replacement : "";
     if (*needle == '\0') {
         lua_pushstring(L, current);
         return lua_tostring(L, -1);
@@ -440,10 +441,10 @@ const char* luaL_gsub(lua_State* L, const char* source, const char* pattern,
 
     luaL_Buffer buffer;
     luaL_buffinit(L, &buffer);
-    const std::size_t needleLength = std::strlen(needle);
-    const char* match = nullptr;
+    const Lua::usize needleLength = std::strlen(needle);
+    Lua::CharPtr match = nullptr;
     while ((match = std::strstr(current, needle)) != nullptr) {
-        luaL_addlstring(&buffer, current, static_cast<size_t>(match - current));
+        luaL_addlstring(&buffer, current, static_cast<Lua::usize>(match - current));
         luaL_addstring(&buffer, substitute);
         current = match + needleLength;
     }
@@ -466,13 +467,13 @@ char* luaL_prepbuffer(luaL_Buffer* buffer) LUA_CXX_MAY_THROW {
 }
 
 void luaL_addlstring(luaL_Buffer* buffer, const char* text, size_t length) LUA_CXX_MAY_THROW {
-    const char* current = text;
-    std::size_t remaining = length;
+    Lua::CharPtr current = text;
+    Lua::usize remaining = length;
     while (remaining != 0) {
         if (bufferFree(buffer) == 0) {
             (void)luaL_prepbuffer(buffer);
         }
-        const std::size_t count = std::min(remaining, bufferFree(buffer));
+        const Lua::usize count = std::min(remaining, bufferFree(buffer));
         std::memcpy(buffer->p, current, count);
         buffer->p += count;
         current += count;
@@ -481,13 +482,13 @@ void luaL_addlstring(luaL_Buffer* buffer, const char* text, size_t length) LUA_C
 }
 
 void luaL_addstring(luaL_Buffer* buffer, const char* text) LUA_CXX_MAY_THROW {
-    const char* effectiveText = text != nullptr ? text : "";
+    Lua::CharPtr effectiveText = text != nullptr ? text : "";
     luaL_addlstring(buffer, effectiveText, std::strlen(effectiveText));
 }
 
 void luaL_addvalue(luaL_Buffer* buffer) LUA_CXX_MAY_THROW {
-    size_t valueLength = 0;
-    const char* value = lua_tolstring(buffer->L, -1, &valueLength);
+    Lua::usize valueLength = 0;
+    Lua::CharPtr value = lua_tolstring(buffer->L, -1, &valueLength);
     if (value == nullptr) {
         (void)luaL_error(buffer->L, "string expected");
     }

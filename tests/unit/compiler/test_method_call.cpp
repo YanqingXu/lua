@@ -6,6 +6,7 @@
  * 验证第一阶段第二项的实现：方法调用支持
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -28,7 +29,7 @@ using namespace LuaTest;
 void testSimpleMethodCall(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local result = obj:method()";
+    Lua::CharPtr code = "local result = obj:method()";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -44,7 +45,7 @@ void testSimpleMethodCall(TestSuite& suite) {
 
     // 验证生成了 SELF 指令
     bool hasSelf = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SELF) {
             hasSelf = true;
             break;
@@ -54,7 +55,7 @@ void testSimpleMethodCall(TestSuite& suite) {
 
     // 验证生成了 CALL 指令
     bool hasCall = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::CALL) {
             hasCall = true;
             break;
@@ -71,7 +72,7 @@ void testSimpleMethodCall(TestSuite& suite) {
 void testMethodCallWithArgs(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local result = obj:method(a, b)";
+    Lua::CharPtr code = "local result = obj:method(a, b)";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -86,7 +87,7 @@ void testMethodCallWithArgs(TestSuite& suite) {
 
     // 验证生成了 SELF 指令
     bool hasSelf = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SELF) {
             hasSelf = true;
             break;
@@ -96,7 +97,7 @@ void testMethodCallWithArgs(TestSuite& suite) {
 
     // 验证生成了 CALL 指令
     bool hasCall = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::CALL) {
             hasCall = true;
             break;
@@ -113,7 +114,7 @@ void testMethodCallWithArgs(TestSuite& suite) {
 void testChainedMethodCall(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local result = obj:method1():method2()";
+    Lua::CharPtr code = "local result = obj:method1():method2()";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -128,7 +129,7 @@ void testChainedMethodCall(TestSuite& suite) {
 
     // 验证生成了两个 SELF 指令
     int selfCount = 0;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SELF) {
             selfCount++;
         }
@@ -137,7 +138,7 @@ void testChainedMethodCall(TestSuite& suite) {
 
     // 验证生成了两个 CALL 指令
     int callCount = 0;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::CALL) {
             callCount++;
         }
@@ -153,7 +154,7 @@ void testChainedMethodCall(TestSuite& suite) {
 void testMethodCallWithFunctionArg(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local result = obj:method(func())";
+    Lua::CharPtr code = "local result = obj:method(func())";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -168,7 +169,7 @@ void testMethodCallWithFunctionArg(TestSuite& suite) {
 
     // 验证生成了 SELF 指令（用于方法调用）
     bool hasSelf = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SELF) {
             hasSelf = true;
             break;
@@ -178,7 +179,7 @@ void testMethodCallWithFunctionArg(TestSuite& suite) {
 
     // 验证生成了两个 CALL 指令
     int callCount = 0;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::CALL) {
             callCount++;
         }
@@ -194,7 +195,7 @@ void testMethodCallWithFunctionArg(TestSuite& suite) {
 void testSelfInstructionFormat(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local result = obj:method()";
+    Lua::CharPtr code = "local result = obj:method()";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -209,7 +210,7 @@ void testSelfInstructionFormat(TestSuite& suite) {
 
     // 查找 SELF 指令
     int selfIdx = -1;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SELF) {
             selfIdx = static_cast<int>(i);
             break;
@@ -244,7 +245,7 @@ void testSelfInstructionFormat(TestSuite& suite) {
 void testMethodNameInConstants(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local result = obj:method()";
+    Lua::CharPtr code = "local result = obj:method()";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -260,7 +261,7 @@ void testMethodNameInConstants(TestSuite& suite) {
 
     // 验证常量表中有字符串常量（方法名和对象名）
     bool hasStringConstant = false;
-    for (size_t i = 0; i < proto->getConstantCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getConstantCount(); i++) {
         Value constant = proto->getConstant(i);
         if (constant.isString()) {
             hasStringConstant = true;
@@ -278,7 +279,7 @@ void testMethodNameInConstants(TestSuite& suite) {
 void testMethodCallMultipleArgs(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local result = obj:method(1, 2, 3)";
+    Lua::CharPtr code = "local result = obj:method(1, 2, 3)";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -293,7 +294,7 @@ void testMethodCallMultipleArgs(TestSuite& suite) {
 
     // 验证生成了 SELF 指令
     bool hasSelf = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SELF) {
             hasSelf = true;
             break;
@@ -308,7 +309,7 @@ void testMethodCallMultipleArgs(TestSuite& suite) {
 void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    std::string code = "local obj = {}\nlocal sink = {\n";
+    Lua::Str code = "local obj = {}\nlocal sink = {\n";
     for (int i = 0; i < 270; ++i) {
         code += "\"k" + std::to_string(i) + "\",\n";
     }
@@ -327,7 +328,7 @@ void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
 
     int targetConst = -1;
-    for (size_t i = 0; i < proto->getConstantCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getConstantCount(); i++) {
         Value constant = proto->getConstant(i);
         if (constant.isString() && constant.asString()->getData() == "target") {
             targetConst = static_cast<int>(i);
@@ -338,7 +339,7 @@ void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
     ASSERT_TRUE(suite, targetConst > MAXINDEXRK, "Method name constant exceeds RK range");
 
     int selfIdx = -1;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::SELF) {
             selfIdx = static_cast<int>(i);
             break;
@@ -370,7 +371,7 @@ void testWideMethodNameConstantUsesRegister(TestSuite& suite) {
 void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    std::string code = "local obj = {}\nlocal sink = {\n";
+    Lua::Str code = "local obj = {}\nlocal sink = {\n";
     for (int i = 0; i < 270; ++i) {
         code += "\"k" + std::to_string(i) + "\",\n";
     }
@@ -389,7 +390,7 @@ void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
 
     int targetConst = -1;
-    for (size_t i = 0; i < proto->getConstantCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getConstantCount(); i++) {
         Value constant = proto->getConstant(i);
         if (constant.isString() && constant.asString()->getData() == "target") {
             targetConst = static_cast<int>(i);
@@ -400,7 +401,7 @@ void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
     ASSERT_TRUE(suite, targetConst > MAXINDEXRK, "Method definition key exceeds RK range");
 
     bool storesWithLoadedKey = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
         if (GET_OPCODE(inst) != OpCode::SETTABLE) {
             continue;
@@ -411,7 +412,7 @@ void testWideMethodDefinitionKeyUsesRegister(TestSuite& suite) {
             continue;
         }
 
-        for (size_t j = 0; j < i; ++j) {
+        for (Lua::usize j = 0; j < i; ++j) {
             Instruction before = proto->getInstruction(j);
             if (GET_OPCODE(before) == OpCode::LOADK && GETARG_A(before) == keyReg && GETARG_Bx(before) == targetConst) {
                 storesWithLoadedKey = true;

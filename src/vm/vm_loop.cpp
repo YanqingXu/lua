@@ -3,6 +3,7 @@
  * @brief VM 循环辅助操作
  */
 
+#include "common/types.hpp"
 #include "vm/vm_internal.hpp"
 
 #include "compiler/opcode.hpp"

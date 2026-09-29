@@ -3,6 +3,7 @@
  * @brief RuntimeServices compatibility and explicit-context entry tests.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "common/lua_error.hpp"
 #include "compiler/codegen/codegen.hpp"
@@ -34,9 +35,9 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Runtime Services";
+constexpr Lua::CharPtr kSuiteName = "Runtime Services";
 
-Proto* compileChunk(RuntimeServices& services, const char* source, const char* sourceName) {
+Proto* compileChunk(RuntimeServices& services, Lua::CharPtr source, Lua::CharPtr sourceName) {
     Parser parser(source, services);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -201,7 +202,7 @@ void testEngineContextRejectsConcurrentRootState(TestSuite& suite) {
     try {
         [[maybe_unused]] UPtr<LuaState> second = LuaState::create(context);
     } catch (const RuntimeError& error) {
-        rejectedSecondRoot = std::string(error.what()).find("already owns a root state") != std::string::npos;
+        rejectedSecondRoot = Lua::Str(error.what()).find("already owns a root state") != Lua::Str::npos;
     }
 
     ASSERT_TRUE(suite, rejectedSecondRoot, "EngineContext rejects a concurrent second root state");
@@ -245,8 +246,7 @@ void testLuaStateAndVmAcceptRuntimeServices(TestSuite& suite) {
     VM::execute(services, L, func);
 
     ASSERT_TRUE(suite, L->top().isString(), "context-aware vm leaves string result");
-    ASSERT_EQ(suite, std::string("runtime"), std::string(L->top().asString()->c_str()),
-              "context-aware vm executes concat");
+    ASSERT_EQ(suite, Lua::Str("runtime"), Lua::Str(L->top().asString()->c_str()), "context-aware vm executes concat");
 
     delete L;
 }
@@ -287,7 +287,7 @@ void testCoroutineResumeUsesContextRuntimeServices(TestSuite& suite) {
     ASSERT_EQ(suite, prefixTop + 2, L->getAbsoluteTop(),
               "coroutine resume preserves its thread prefix and publishes two results");
     ASSERT_TRUE(suite, L->top().isString(), "isolated-context coroutine returns a string");
-    ASSERT_EQ(suite, std::string("context"), std::string(L->top().asString()->c_str()),
+    ASSERT_EQ(suite, Lua::Str("context"), Lua::Str(L->top().asString()->c_str()),
               "isolated-context coroutine executes string operations");
     ASSERT_TRUE(suite, L->top().asString()->getOwnerCollector() == &context.gc(),
                 "coroutine result belongs to its context collector");
@@ -387,7 +387,7 @@ void testCancellationHandleIsSafeAfterContextTeardown(TestSuite& suite) {
     }
 
     ASSERT_TRUE(suite, !static_cast<bool>(lateHandle), "cancellation handle expires with its context");
-    std::atomic<bool> requestReturned = false;
+    Lua::Atom<bool> requestReturned = false;
     std::thread lateRequester([lateHandle, &requestReturned] {
         lateHandle.requestCancellation();
         requestReturned.store(true, std::memory_order_release);
@@ -406,7 +406,7 @@ void testResourcePolicyIsIsolatedPerContext(TestSuite& suite) {
     try {
         (void)restricted.strings().intern("12345");
     } catch (const ResourceLimitError& error) {
-        rejected = std::string(error.what()) == "resource limit exceeded: string bytes";
+        rejected = Lua::Str(error.what()) == "resource limit exceeded: string bytes";
     }
 
     ASSERT_TRUE(suite, rejected, "context string pool enforces the canonical byte limit");
@@ -427,7 +427,7 @@ void testResourcePolicyBoundsEveryStackGrowthPath(TestSuite& suite) {
     try {
         L->pushNumber(3);
     } catch (const StackOverflowError& error) {
-        pushRejected = std::string(error.what()) == "stack overflow: resource stack slot limit exceeded";
+        pushRejected = Lua::Str(error.what()) == "stack overflow: resource stack slot limit exceeded";
     }
     ASSERT_TRUE(suite, pushRejected, "logical pushes stop at the per-context stack-slot limit");
     ASSERT_EQ(suite, limit, L->getAbsoluteTop(), "rejected logical push leaves the top unchanged");
@@ -494,37 +494,37 @@ void testRuntimeOwnerThreadRejectsForeignStateAccess(TestSuite& suite) {
         try {
             (void)context.services();
         } catch (const RuntimeOwnerThreadError& error) {
-            servicesRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+            servicesRejected = Lua::Str(error.what()) == "Lua runtime accessed from non-owner thread";
         }
 
         try {
             (void)RuntimeServices(global, strings, gc);
         } catch (const RuntimeOwnerThreadError& error) {
-            servicesConstructionRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+            servicesConstructionRejected = Lua::Str(error.what()) == "Lua runtime accessed from non-owner thread";
         }
 
         try {
             (void)VM::executeProto(services, state.get(), nullptr, 1);
         } catch (const RuntimeOwnerThreadError& error) {
-            vmRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+            vmRejected = Lua::Str(error.what()) == "Lua runtime accessed from non-owner thread";
         }
 
         try {
             (void)lua_gettop(publicState);
         } catch (const RuntimeOwnerThreadError& error) {
-            publicApiRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+            publicApiRejected = Lua::Str(error.what()) == "Lua runtime accessed from non-owner thread";
         }
 
         try {
             lua_checkexecution(publicState);
         } catch (const RuntimeOwnerThreadError& error) {
-            executionPollRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+            executionPollRejected = Lua::Str(error.what()) == "Lua runtime accessed from non-owner thread";
         }
 
         try {
             (void)lua_gethook(publicState);
         } catch (const RuntimeOwnerThreadError& error) {
-            debugApiRejected = std::string(error.what()) == "Lua runtime accessed from non-owner thread";
+            debugApiRejected = Lua::Str(error.what()) == "Lua runtime accessed from non-owner thread";
         }
 
         checkStackResult = lua_checkstack(publicState, 1);
@@ -622,7 +622,7 @@ void testGameServerSandboxProfileControlsLibraryExposure(TestSuite& suite) {
     try {
         (void)luaopen_io(reinterpret_cast<lua_State*>(restrictedState.get()));
     } catch (const RuntimeError& error) {
-        directOpenDenied = std::string(error.what()) == SandboxPolicy::libraryDeniedMessage();
+        directOpenDenied = Lua::Str(error.what()) == SandboxPolicy::libraryDeniedMessage();
     }
     ASSERT_TRUE(suite, directOpenDenied, "direct public opener cannot bypass disabled library exposure");
     ASSERT_EQ(suite, stackBeforeDeniedOpen, restrictedState->getTop(),
@@ -639,7 +639,7 @@ void testGameServerSandboxProfileControlsLibraryExposure(TestSuite& suite) {
     try {
         (void)luaopen_base(reinterpret_cast<lua_State*>(baseOnlyState.get()));
     } catch (const RuntimeError& error) {
-        combinedBaseOpenDenied = std::string(error.what()) == SandboxPolicy::libraryDeniedMessage();
+        combinedBaseOpenDenied = Lua::Str(error.what()) == SandboxPolicy::libraryDeniedMessage();
     }
     ASSERT_TRUE(suite, combinedBaseOpenDenied, "luaopen_base preflights the paired coroutine library");
     ASSERT_EQ(suite, baseOnlyTop, baseOnlyState->getTop(), "failed paired base open preserves the stack");
@@ -796,7 +796,7 @@ void testSandboxCapabilitiesRejectCapturedPrivilegedFunctions(TestSuite& suite) 
     ASSERT_EQ(suite, Lua::LUA_OK, runProtectedChunk(services, state.get(), probe),
               "captured privileged functions fail inside protected Lua calls");
 
-    static constexpr std::array<StrView, 19> expectedTrue = {
+    static constexpr Lua::Arr<StrView, 19> expectedTrue = {
         "sandbox_denied_loadfile",          "sandbox_denied_dofile",          "sandbox_denied_io_open",
         "sandbox_denied_io_tmpfile",        "sandbox_denied_file_read",       "sandbox_denied_os_remove",
         "sandbox_denied_os_rename",         "sandbox_denied_os_tmpname",      "sandbox_denied_io_popen",
@@ -920,8 +920,7 @@ void testVmTryExecuteProtoReturnsExecResultOnSuccess(TestSuite& suite) {
     L->popCallInfo();
 
     ASSERT_TRUE(suite, L->top().isString(), "tryExecuteProto leaves string result");
-    ASSERT_EQ(suite, std::string("vmexpected"), std::string(L->top().asString()->c_str()),
-              "tryExecuteProto executes concat");
+    ASSERT_EQ(suite, Lua::Str("vmexpected"), Lua::Str(L->top().asString()->c_str()), "tryExecuteProto executes concat");
 
     delete L;
 }
@@ -934,8 +933,8 @@ void testVmTryExecuteProtoReturnsRuntimeErrorOnFailure(TestSuite& suite) {
 
     ASSERT_TRUE(suite, !executed.has_value(), "null proto should return a RuntimeError");
     if (!executed) {
-        std::string message = executed.error().what();
-        ASSERT_TRUE(suite, message.find("null proto") != std::string::npos,
+        Lua::Str message = executed.error().what();
+        ASSERT_TRUE(suite, message.find("null proto") != Lua::Str::npos,
                     "RuntimeError should preserve null proto message");
     }
 
@@ -953,14 +952,14 @@ void testRuntimeErrorCaptureHelperMapsExpectedBoundary(TestSuite& suite) {
         VM::detail::captureRuntimeErrors<i32>([]() -> i32 { throw RuntimeError("runtime boundary"); });
     ASSERT_TRUE(suite, !runtimeFailure.has_value(), "runtime capture should map RuntimeError to unexpected");
     if (!runtimeFailure) {
-        ASSERT_TRUE(suite, std::string(runtimeFailure.error().what()).find("runtime boundary") != std::string::npos,
+        ASSERT_TRUE(suite, Lua::Str(runtimeFailure.error().what()).find("runtime boundary") != Lua::Str::npos,
                     "runtime capture should preserve RuntimeError messages");
     }
 
     auto luaFailure = VM::detail::captureRuntimeErrors<i32>([]() -> i32 { throw LuaError("lua boundary"); });
     ASSERT_TRUE(suite, !luaFailure.has_value(), "runtime capture should map LuaError to RuntimeError");
     if (!luaFailure) {
-        ASSERT_TRUE(suite, std::string(luaFailure.error().what()).find("lua boundary") != std::string::npos,
+        ASSERT_TRUE(suite, Lua::Str(luaFailure.error().what()).find("lua boundary") != Lua::Str::npos,
                     "runtime capture should preserve LuaError messages");
     }
 
@@ -968,7 +967,7 @@ void testRuntimeErrorCaptureHelperMapsExpectedBoundary(TestSuite& suite) {
         VM::detail::captureRuntimeErrors<i32>([]() -> i32 { throw std::logic_error("standard boundary"); });
     ASSERT_TRUE(suite, !stdFailure.has_value(), "runtime capture should map std::exception to RuntimeError");
     if (!stdFailure) {
-        ASSERT_TRUE(suite, std::string(stdFailure.error().what()).find("standard boundary") != std::string::npos,
+        ASSERT_TRUE(suite, Lua::Str(stdFailure.error().what()).find("standard boundary") != Lua::Str::npos,
                     "runtime capture should preserve std::exception messages");
     }
 
@@ -989,7 +988,7 @@ void testVmExecuteProtoKeepsThrowingForCompatibility(TestSuite& suite) {
     try {
         (void)VM::executeProto(services, L, nullptr, 1);
     } catch (const RuntimeError& error) {
-        threwRuntimeError = std::string(error.what()).find("null proto") != std::string::npos;
+        threwRuntimeError = Lua::Str(error.what()).find("null proto") != Lua::Str::npos;
     }
 
     ASSERT_TRUE(suite, threwRuntimeError, "legacy executeProto should still throw on runtime failure");

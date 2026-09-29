@@ -5,6 +5,7 @@
  * @brief 可变 Lua 5.1 分配器回调与用户数据所有权封装
  */
 
+#include "common/types.hpp"
 #include <cstddef>
 #include <cstdlib>
 #include <array>
@@ -26,8 +27,8 @@ namespace AllocatorDetail {
 #ifdef _MSC_VER
 /** @brief 调试构建中记录实现元数据分配的注册表。 */
 struct ImplementationAllocationRegistry {
-    std::mutex mutex;
-    std::vector<void*> allocations;
+    Mtx mutex;
+    Vec<void*> allocations;
 };
 
 inline ImplementationAllocationRegistry& implementationAllocationRegistry() {
@@ -37,14 +38,14 @@ inline ImplementationAllocationRegistry& implementationAllocationRegistry() {
 
 inline void trackImplementationAllocation(void* pointer) {
     auto& registry = implementationAllocationRegistry();
-    std::scoped_lock lock(registry.mutex);
+    ScopedLock lock(registry.mutex);
     registry.allocations.push_back(pointer);
 }
 
 inline bool releaseImplementationAllocation(void* pointer) noexcept {
     try {
         auto& registry = implementationAllocationRegistry();
-        std::scoped_lock lock(registry.mutex);
+        ScopedLock lock(registry.mutex);
         for (auto it = registry.allocations.begin(); it != registry.allocations.end(); ++it) {
             if (*it == pointer) {
                 registry.allocations.erase(it);
@@ -66,7 +67,7 @@ inline bool releaseImplementationAllocation(void*) noexcept {
 
 } // namespace AllocatorDetail
 
-using LuaAllocatorFunction = void* (*)(void* userData, void* pointer, std::size_t oldSize, std::size_t newSize);
+using LuaAllocatorFunction = void* (*)(void* userData, void* pointer, usize oldSize, usize newSize);
 
 /** @brief 封装 Lua 分配器回调及其用户数据的内存分配器。 */
 class LuaAllocator {
@@ -79,7 +80,7 @@ public:
         return function_ != nullptr;
     }
 
-    [[nodiscard]] void* allocate(std::size_t size) const noexcept {
+    [[nodiscard]] void* allocate(usize size) const noexcept {
         try {
             return function_ != nullptr ? function_(userData_, nullptr, 0, size) : nullptr;
         } catch (...) {
@@ -87,7 +88,7 @@ public:
         }
     }
 
-    [[nodiscard]] void* reallocate(void* pointer, std::size_t oldSize, std::size_t newSize) const noexcept {
+    [[nodiscard]] void* reallocate(void* pointer, usize oldSize, usize newSize) const noexcept {
         try {
             return function_ != nullptr ? function_(userData_, pointer, oldSize, newSize) : nullptr;
         } catch (...) {
@@ -95,7 +96,7 @@ public:
         }
     }
 
-    void deallocate(void* pointer, std::size_t oldSize) const noexcept {
+    void deallocate(void* pointer, usize oldSize) const noexcept {
         if (AllocatorDetail::releaseImplementationAllocation(pointer)) {
             ::operator delete(pointer);
             return;
@@ -140,8 +141,8 @@ public:
     template <typename U>
     LuaStdAllocator(const LuaStdAllocator<U>& other) noexcept : allocator_(other.getLuaAllocator()) {}
 
-    [[nodiscard]] T* allocate(std::size_t count) {
-        if (count > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
+    [[nodiscard]] T* allocate(usize count) {
+        if (count > std::numeric_limits<usize>::max() / sizeof(T)) {
             throw std::bad_array_new_length();
         }
         if (count == 0) {
@@ -180,7 +181,7 @@ public:
         return static_cast<T*>(memory);
     }
 
-    void deallocate(T* pointer, std::size_t count) noexcept {
+    void deallocate(T* pointer, usize count) noexcept {
         if (pointer == nullptr) {
             return;
         }
@@ -245,11 +246,11 @@ public:
     template <typename U>
     LuaSnapshotStdAllocator(const LuaSnapshotStdAllocator<U>& other) noexcept : allocator_(other.getLuaAllocator()) {}
 
-    [[nodiscard]] T* allocate(std::size_t count) {
+    [[nodiscard]] T* allocate(usize count) {
         return LuaStdAllocator<T>(&allocator_).allocate(count);
     }
 
-    void deallocate(T* pointer, std::size_t count) noexcept {
+    void deallocate(T* pointer, usize count) noexcept {
         LuaStdAllocator<T>(&allocator_).deallocate(pointer, count);
     }
 
@@ -317,9 +318,9 @@ template <typename Allocator> class LuaBasicString {
 public:
     using value_type = char;
     using allocator_type = Allocator;
-    using size_type = std::size_t;
+    using size_type = usize;
     using iterator = char*;
-    using const_iterator = const char*;
+    using const_iterator = CharPtr;
 
     LuaBasicString() noexcept(std::is_nothrow_default_constructible_v<allocator_type>) = default;
 
@@ -382,11 +383,11 @@ public:
         return data_;
     }
 
-    [[nodiscard]] const char* data() const noexcept {
+    [[nodiscard]] CharPtr data() const noexcept {
         return data_;
     }
 
-    [[nodiscard]] const char* c_str() const noexcept {
+    [[nodiscard]] CharPtr c_str() const noexcept {
         return data_;
     }
 
@@ -446,7 +447,7 @@ public:
         return *this;
     }
 
-    void append(const char* text, size_type count) {
+    void append(CharPtr text, size_type count) {
         if (count == 0) {
             return;
         }
@@ -565,7 +566,7 @@ private:
     }
 
     allocator_type allocator_{};
-    std::array<char, kInlineCapacity + 1> inlineData_{};
+    Arr<char, kInlineCapacity + 1> inlineData_{};
     char* data_ = inlineData_.data();
     size_type size_ = 0;
     size_type capacity_ = kInlineCapacity;
@@ -619,11 +620,11 @@ public:
         return size_ == 0;
     }
 
-    [[nodiscard]] std::size_t size() const noexcept {
+    [[nodiscard]] usize size() const noexcept {
         return size_;
     }
 
-    [[nodiscard]] std::size_t capacity() const noexcept {
+    [[nodiscard]] usize capacity() const noexcept {
         return capacity_;
     }
 
@@ -651,24 +652,24 @@ public:
         return data_ == nullptr ? nullptr : data_ + size_;
     }
 
-    T& operator[](std::size_t index) noexcept {
+    T& operator[](usize index) noexcept {
         return data_[index];
     }
 
-    const T& operator[](std::size_t index) const noexcept {
+    const T& operator[](usize index) const noexcept {
         return data_[index];
     }
 
-    void reserve(std::size_t requestedCapacity) {
+    void reserve(usize requestedCapacity) {
         if (requestedCapacity <= capacity_) {
             return;
         }
-        if (requestedCapacity > std::numeric_limits<std::size_t>::max() / sizeof(T)) {
+        if (requestedCapacity > std::numeric_limits<usize>::max() / sizeof(T)) {
             throw std::bad_array_new_length();
         }
 
-        const std::size_t oldBytes = capacity_ * sizeof(T);
-        const std::size_t newBytes = requestedCapacity * sizeof(T);
+        const usize oldBytes = capacity_ * sizeof(T);
+        const usize newBytes = requestedCapacity * sizeof(T);
         void* replacement = nullptr;
         if (allocator_ != nullptr && allocator_->isConfigured()) {
             replacement = allocator_->reallocate(data_, oldBytes, newBytes);
@@ -683,11 +684,11 @@ public:
         capacity_ = requestedCapacity;
     }
 
-    void resize(std::size_t requestedSize) {
+    void resize(usize requestedSize) {
         resize(requestedSize, T{});
     }
 
-    void resize(std::size_t requestedSize, const T& fillValue) {
+    void resize(usize requestedSize, const T& fillValue) {
         if (requestedSize <= size_) {
             size_ = requestedSize;
             return;
@@ -724,13 +725,13 @@ public:
     }
 
 private:
-    void ensureCapacity(std::size_t requestedSize) {
+    void ensureCapacity(usize requestedSize) {
         if (requestedSize <= capacity_) {
             return;
         }
-        std::size_t nextCapacity = capacity_ == 0 ? 1 : capacity_;
+        usize nextCapacity = capacity_ == 0 ? 1 : capacity_;
         while (nextCapacity < requestedSize) {
-            if (nextCapacity > std::numeric_limits<std::size_t>::max() / 2) {
+            if (nextCapacity > std::numeric_limits<usize>::max() / 2) {
                 nextCapacity = requestedSize;
                 break;
             }
@@ -743,7 +744,7 @@ private:
         if (data_ == nullptr) {
             return;
         }
-        const std::size_t bytes = capacity_ * sizeof(T);
+        const usize bytes = capacity_ * sizeof(T);
         if (allocator_ != nullptr && allocator_->isConfigured()) {
             allocator_->deallocate(data_, bytes);
         } else {
@@ -755,8 +756,8 @@ private:
     }
 
     T* data_ = nullptr;
-    std::size_t size_ = 0;
-    std::size_t capacity_ = 0;
+    usize size_ = 0;
+    usize capacity_ = 0;
     LuaAllocator* allocator_ = nullptr;
 };
 

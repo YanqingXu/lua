@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_framework.hpp
  * @brief Lua 项目测试框架适配层
  *
@@ -13,6 +13,7 @@
 #define LUA_TEST_FRAMEWORK_HPP
 
 // 引入独立的通用测试框架
+#include "common/types.hpp"
 #include "test_framework/test_framework.hpp"
 
 #include "core/value.hpp"
@@ -70,7 +71,7 @@ public:
 
 private:
     Lua::GarbageCollector& gc_;
-    std::vector<Lua::GCObject*> roots_;
+    Lua::Vec<Lua::GCObject*> roots_;
 };
 
 class LuaStdLibTestContext {
@@ -89,11 +90,11 @@ public:
 
     void clearStack() const;
 
-    Lua::Value getGlobal(const char* name) const;
+    Lua::Value getGlobal(Lua::CharPtr name) const;
 
-    bool ensureGlobalFunction(const char* name, TestSuite& suite, const std::string& message) const;
+    bool ensureGlobalFunction(Lua::CharPtr name, TestSuite& suite, const Lua::Str& message) const;
 
-    int invoke(const char* name, const std::function<void(Lua::LuaState*)>& pushArgs) const;
+    int invoke(Lua::CharPtr name, const Lua::Func<void(Lua::LuaState*)>& pushArgs) const;
 
 private:
     Lua::LuaState* state_;
@@ -120,11 +121,11 @@ void registerTestFrameworkContractTests();
         suite.addResult(LuaTest::TestResult(testName, bool_result, bool_result ? "" : "Values not equal"));            \
     } while (0)
 
-inline void SKIP_EXPECTED(TestSuite& suite, const std::string& testName, const std::string& reason) {
+inline void SKIP_EXPECTED(TestSuite& suite, const Lua::Str& testName, const Lua::Str& reason) {
     suite.addResult(TestResult::expectedSkip(testName, reason));
 }
 
-inline void SKIP_UNEXPECTED(TestSuite& suite, const std::string& testName, const std::string& reason) {
+inline void SKIP_UNEXPECTED(TestSuite& suite, const Lua::Str& testName, const Lua::Str& reason) {
     suite.addResult(TestResult::unexpectedSkip(testName, reason));
 }
 

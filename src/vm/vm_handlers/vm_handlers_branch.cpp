@@ -3,6 +3,7 @@
  * @brief 比较与分支操作码处理器
  */
 
+#include "common/types.hpp"
 #include "vm/vm_handlers/vm_handler_utils.hpp"
 
 namespace Lua::VM::handlers {

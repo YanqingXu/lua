@@ -152,13 +152,13 @@ $forbiddenPatterns = @(
 $warningPatterns = @(
     @{
         Name = "char pointer parse cursor"
-        Pattern = "\bchar\s*\*\s*(?:end|endptr)\b"
+        Pattern = "\b(?:char\s*\*\s*|(?:Lua::)?CharPtr(?:\s+const)?\s+)(?:end|endptr)\b"
         WarningOnly = $true
         SkipCommentLines = $true
     },
     @{
         Name = "const char pointer array"
-        Pattern = "const\s+char\s*\*\s+const\s+\w+\s*\["
+        Pattern = "\b(?:const\s+char\s*\*\s+const|(?:Lua::)?CharPtr\s+const|const\s+(?:Lua::)?CharPtr)\s+\w+\s*\["
         WarningOnly = $true
         SkipCommentLines = $true
     },

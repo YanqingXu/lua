@@ -8,6 +8,7 @@
  * @date 2026-01-23
  */
 
+#include "common/types.hpp"
 #include "lib/stringlib.hpp"
 #include "common/number_conversion.hpp"
 #include "lib/lib_registry.hpp"
@@ -43,8 +44,8 @@ namespace Lua {
  * @param funcName 函数名称（用于错误消息）
  * @return 字符串指针与长度
  */
-static inline const char* getStringArg(LuaState* L, i32 idx, const char* funcName, usize* len = nullptr) {
-    const char* str = L->toString(idx);
+static inline CharPtr getStringArg(LuaState* L, i32 idx, CharPtr funcName, usize* len = nullptr) {
+    CharPtr str = L->toString(idx);
     if (str == nullptr) {
         L->error(std::format("bad argument #{} to 'string.{}' (string expected)", idx, funcName).c_str());
     }
@@ -62,7 +63,7 @@ static inline const char* getStringArg(LuaState* L, i32 idx, const char* funcNam
  * @param funcName 函数名称（用于错误消息）
  * @return 数值
  */
-static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
+static inline f64 getNumberArg(LuaState* L, i32 idx, CharPtr funcName) {
     const Value& value = L->at(idx);
     if (value.isNumber()) {
         return value.asNumber();
@@ -80,20 +81,19 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* funcName) {
     { L->error(std::format("bad argument #{} to 'string.{}' (number expected)", idx, funcName).c_str()); }
 }
 
-static i32 getIntegerArg(LuaState* L, i32 idx, const char* funcName,
-                         IntegerConversion mode = IntegerConversion::Truncate) {
+static i32 getIntegerArg(LuaState* L, i32 idx, CharPtr funcName, IntegerConversion mode = IntegerConversion::Truncate) {
     const auto converted = checkedLuaInteger(getNumberArg(L, idx, funcName), mode);
     if (!converted) {
-        const char* detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
-                             : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
-                                                                                        : "number out of range";
+        CharPtr detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
+                         : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
+                                                                                    : "number out of range";
         L->error(std::format("bad argument #{} to 'string.{}' ({})", idx, funcName, detail).c_str());
     }
     return *converted;
 }
 
-static inline const char* getStringLikeArg(LuaState* L, i32 idx, const char* funcName, usize* len = nullptr) {
-    const char* str = L->toString(idx);
+static inline CharPtr getStringLikeArg(LuaState* L, i32 idx, CharPtr funcName, usize* len = nullptr) {
+    CharPtr str = L->toString(idx);
     if (str == nullptr) {
         L->error(std::format("bad argument #{} to 'string.{}' (string expected)", idx, funcName).c_str());
     }
@@ -130,7 +130,7 @@ static inline bool isSupportedFormatSpecifier(char ch) {
     }
 }
 
-[[noreturn]] static void formatError(LuaState* L, const char* message) {
+[[noreturn]] static void formatError(LuaState* L, CharPtr message) {
     L->error(std::format("invalid option '%{}' to 'format'", message).c_str());
 }
 
@@ -144,7 +144,7 @@ static usize stringOutputLimit(LuaState* L) {
     return std::min(policy.maxStringBytes, policy.maxOutputBytes);
 }
 
-static void ensureStringOutput(LuaState* L, usize current, usize addition, const char* functionName) {
+static void ensureStringOutput(LuaState* L, usize current, usize addition, CharPtr functionName) {
     const usize limit = stringOutputLimit(L);
     if (addition > limit || current > limit - addition) {
         L->error(std::format("string.{}: result exceeds resource limit", functionName).c_str());
@@ -153,13 +153,12 @@ static void ensureStringOutput(LuaState* L, usize current, usize addition, const
 }
 
 template <typename String>
-static void appendStringOutput(LuaState* L, String& output, const char* bytes, usize count, const char* functionName) {
+static void appendStringOutput(LuaState* L, String& output, CharPtr bytes, usize count, CharPtr functionName) {
     ensureStringOutput(L, output.size(), count, functionName);
     output.append(bytes, count);
 }
 
-template <typename String>
-static void pushStringOutput(LuaState* L, String& output, char byte, const char* functionName) {
+template <typename String> static void pushStringOutput(LuaState* L, String& output, char byte, CharPtr functionName) {
     ensureStringOutput(L, output.size(), 1, functionName);
     output.push_back(byte);
 }
@@ -178,7 +177,7 @@ static void appendPrintfFormatted(LuaState* L, String& out, const Format& format
     out.append(buffer.data(), static_cast<usize>(required));
 }
 
-static LuaString quoteLuaString(LuaState* L, const char* str, usize len) {
+static LuaString quoteLuaString(LuaState* L, CharPtr str, usize len) {
     const usize limit = stringOutputLimit(L);
     if (limit < 2 || len > (limit - 2) / 4) {
         L->error("string.format: result exceeds resource limit");
@@ -264,7 +263,7 @@ i32 str_sub(LuaState* L) {
     }
 
     usize len;
-    const char* s = getStringArg(L, 1, "sub", &len);
+    CharPtr s = getStringArg(L, 1, "sub", &len);
     i32 start = getIntegerArg(L, 2, "sub");
     i32 end = (L->getTop() >= 3) ? getIntegerArg(L, 3, "sub") : static_cast<i32>(len);
 
@@ -299,7 +298,7 @@ i32 str_upper(LuaState* L) {
     }
 
     usize len;
-    const char* s = getStringArg(L, 1, "upper", &len);
+    CharPtr s = getStringArg(L, 1, "upper", &len);
     ensureStringOutput(L, 0, len, "upper");
     LuaString result(s, s + len, LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     std::transform(result.begin(), result.end(), result.begin(),
@@ -316,7 +315,7 @@ i32 str_lower(LuaState* L) {
     }
 
     usize len;
-    const char* s = getStringArg(L, 1, "lower", &len);
+    CharPtr s = getStringArg(L, 1, "lower", &len);
     ensureStringOutput(L, 0, len, "lower");
     LuaString result(s, s + len, LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     std::transform(result.begin(), result.end(), result.begin(),
@@ -333,7 +332,7 @@ i32 str_reverse(LuaState* L) {
     }
 
     usize len;
-    const char* s = getStringArg(L, 1, "reverse", &len);
+    CharPtr s = getStringArg(L, 1, "reverse", &len);
     ensureStringOutput(L, 0, len, "reverse");
     LuaString result(s, s + len, LuaStdAllocator<char>(L->getGlobalState().getAllocator()));
     std::reverse(result.begin(), result.end());
@@ -349,7 +348,7 @@ i32 str_rep(LuaState* L) {
     }
 
     usize len;
-    const char* s = getStringArg(L, 1, "rep", &len);
+    CharPtr s = getStringArg(L, 1, "rep", &len);
     i32 n = getIntegerArg(L, 2, "rep");
 
     if (n <= 0) {
@@ -389,7 +388,7 @@ i32 str_byte(LuaState* L) {
     }
 
     usize len;
-    const char* s = getStringArg(L, 1, "byte", &len);
+    CharPtr s = getStringArg(L, 1, "byte", &len);
 
     i32 start = (L->getTop() >= 2) ? getIntegerArg(L, 2, "byte") : 1;
     i32 startPos = luaStringPosition(start, len);
@@ -451,7 +450,7 @@ i32 str_char(LuaState* L) {
 // =====================================================================
 
 /** @brief 纯文本搜索，供 plain=true 的 string.find 使用。 */
-static i32 plainFind(LuaState* L, const char* s, usize slen, const char* pattern, usize plen, usize init) {
+static i32 plainFind(LuaState* L, CharPtr s, usize slen, CharPtr pattern, usize plen, usize init) {
     if (plen == 0)
         return static_cast<i32>(init);
     if (init + plen > slen)
@@ -471,18 +470,18 @@ static i32 plainFind(LuaState* L, const char* s, usize slen, const char* pattern
 
 static constexpr i32 LUA_MAXCAPTURES = 32;
 static constexpr char L_ESC = '%';
-static constexpr ptrdiff_t CAP_UNFINISHED = -1;
-static constexpr ptrdiff_t CAP_POSITION = -2;
+static constexpr isize CAP_UNFINISHED = -1;
+static constexpr isize CAP_POSITION = -2;
 
 struct MatchCapture {
-    const char* init;
-    ptrdiff_t len;
+    CharPtr init;
+    isize len;
 };
 
 struct MatchState {
-    const char* src_init;
-    const char* src_end;
-    const char* p_end;
+    CharPtr src_init;
+    CharPtr src_end;
+    CharPtr p_end;
     LuaState* L;
     i32 level;
     usize steps;
@@ -499,22 +498,22 @@ static void patternStep(MatchState* ms, usize units = 1) {
 }
 
 struct PatternCursor {
-    const char* current = nullptr;
-    const char* end = nullptr;
+    CharPtr current = nullptr;
+    CharPtr end = nullptr;
 };
 
-using MatchResult = Opt<const char*>;
+using MatchResult = Opt<CharPtr>;
 
 /** @brief 模式匹配辅助函数的前置声明。 */
-static const char* lmatch(MatchState* ms, const char* s, const char* p);
+static CharPtr lmatch(MatchState* ms, CharPtr s, CharPtr p);
 
-static MatchResult tryMatch(MatchState* ms, PatternCursor source, const char* pattern) {
+static MatchResult tryMatch(MatchState* ms, PatternCursor source, CharPtr pattern) {
     patternStep(ms);
     if (source.current == nullptr || source.current > source.end) {
         return std::nullopt;
     }
 
-    if (const char* result = lmatch(ms, source.current, pattern)) {
+    if (CharPtr result = lmatch(ms, source.current, pattern)) {
         return result;
     }
     return std::nullopt;
@@ -562,7 +561,7 @@ static i32 matchclass(i32 c, i32 cl) {
     return res ? 1 : 0;
 }
 
-static const char* classend(const char* p, const char* p_end) {
+static CharPtr classend(CharPtr p, CharPtr p_end) {
     if (p >= p_end) {
         return p;
     }
@@ -588,14 +587,14 @@ static const char* classend(const char* p, const char* p_end) {
     }
 }
 
-static i32 singlematch(i32 c, const char* p, const char* ep) {
+static i32 singlematch(i32 c, CharPtr p, CharPtr ep) {
     switch (*p) {
     case '.':
         return 1;
     case L_ESC:
         return matchclass(c, static_cast<unsigned char>(*(p + 1)));
     case '[': {
-        const char* endclass = ep - 1;
+        CharPtr endclass = ep - 1;
         i32 sig = 1;
         if (p[1] == '^') {
             sig = 0;
@@ -621,7 +620,7 @@ static i32 singlematch(i32 c, const char* p, const char* ep) {
     }
 }
 
-static const char* matchbalance(MatchState* ms, const char* s, const char* p) {
+static CharPtr matchbalance(MatchState* ms, CharPtr s, CharPtr p) {
     if (p >= ms->p_end - 1)
         return nullptr;
     if (*s != *p)
@@ -649,7 +648,7 @@ static i32 check_capture(MatchState* ms, i32 l) {
     return l;
 }
 
-static const char* match_capture(MatchState* ms, const char* s, i32 l) {
+static CharPtr match_capture(MatchState* ms, CharPtr s, i32 l) {
     l = check_capture(ms, l);
     if (l < 0)
         return nullptr;
@@ -659,7 +658,7 @@ static const char* match_capture(MatchState* ms, const char* s, i32 l) {
     return nullptr;
 }
 
-static const char* max_expand(MatchState* ms, const char* s, const char* p, const char* ep) {
+static CharPtr max_expand(MatchState* ms, CharPtr s, CharPtr p, CharPtr ep) {
     i32 i = 0;
     while (s + i < ms->src_end && singlematch(static_cast<unsigned char>(*(s + i)), p, ep)) {
         patternStep(ms);
@@ -667,7 +666,7 @@ static const char* max_expand(MatchState* ms, const char* s, const char* p, cons
     }
     while (i >= 0) {
         patternStep(ms);
-        const char* res = lmatch(ms, s + i, ep + 1);
+        CharPtr res = lmatch(ms, s + i, ep + 1);
         if (res)
             return res;
         i--;
@@ -675,10 +674,10 @@ static const char* max_expand(MatchState* ms, const char* s, const char* p, cons
     return nullptr;
 }
 
-static const char* min_expand(MatchState* ms, const char* s, const char* p, const char* ep) {
+static CharPtr min_expand(MatchState* ms, CharPtr s, CharPtr p, CharPtr ep) {
     for (;;) {
         patternStep(ms);
-        const char* res = lmatch(ms, s, ep + 1);
+        CharPtr res = lmatch(ms, s, ep + 1);
         if (res)
             return res;
         if (s < ms->src_end && singlematch(static_cast<unsigned char>(*s), p, ep))
@@ -688,24 +687,24 @@ static const char* min_expand(MatchState* ms, const char* s, const char* p, cons
     }
 }
 
-static const char* start_capture(MatchState* ms, const char* s, const char* p, ptrdiff_t what) {
+static CharPtr start_capture(MatchState* ms, CharPtr s, CharPtr p, isize what) {
     i32 level = ms->level;
     if (level >= LUA_MAXCAPTURES)
         return nullptr;
     ms->capture[level].init = s;
     ms->capture[level].len = what;
     ms->level = level + 1;
-    const char* res = lmatch(ms, s, p);
+    CharPtr res = lmatch(ms, s, p);
     if (!res)
         ms->level--;
     return res;
 }
 
-static const char* end_capture(MatchState* ms, const char* s, const char* p) {
+static CharPtr end_capture(MatchState* ms, CharPtr s, CharPtr p) {
     for (i32 l = ms->level - 1; l >= 0; l--) {
         if (ms->capture[l].len == CAP_UNFINISHED) {
             ms->capture[l].len = s - ms->capture[l].init;
-            const char* res = lmatch(ms, s, p);
+            CharPtr res = lmatch(ms, s, p);
             if (!res)
                 ms->capture[l].len = CAP_UNFINISHED;
             return res;
@@ -714,7 +713,7 @@ static const char* end_capture(MatchState* ms, const char* s, const char* p) {
     ms->L->error("invalid pattern capture");
 }
 
-static const char* lmatch(MatchState* ms, const char* s, const char* p) {
+static CharPtr lmatch(MatchState* ms, CharPtr s, CharPtr p) {
 init:
     patternStep(ms);
     if (p >= ms->p_end)
@@ -741,7 +740,7 @@ init:
             goto init;
         }
         case 'f': {
-            const char* ep2;
+            CharPtr ep2;
             i32 previous;
             i32 current;
             p += 2;
@@ -768,13 +767,13 @@ init:
     }
     default:
     dflt: {
-        const char* ep = classend(p, ms->p_end);
+        CharPtr ep = classend(p, ms->p_end);
         i32 m = (s < ms->src_end) && singlematch(static_cast<unsigned char>(*s), p, ep);
         if (ep < ms->p_end) {
             switch (*ep) {
             case '?': {
                 if (m) {
-                    const char* res = lmatch(ms, s + 1, ep + 1);
+                    CharPtr res = lmatch(ms, s + 1, ep + 1);
                     if (res)
                         return res;
                 }
@@ -799,7 +798,7 @@ init:
 }
 
 /** @brief 压入一个捕获结果；没有捕获时压入完整匹配。 */
-static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e) {
+static void push_onecapture(MatchState* ms, i32 i, CharPtr s, CharPtr e) {
     LuaState* L = ms->L;
     if (i >= ms->level) {
         if (i == 0) {
@@ -808,7 +807,7 @@ static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e)
             L->error("invalid capture index");
         }
     } else {
-        ptrdiff_t cl = ms->capture[i].len;
+        isize cl = ms->capture[i].len;
         if (cl == CAP_UNFINISHED) {
             L->error("unfinished capture");
         } else if (cl == CAP_POSITION) {
@@ -820,7 +819,7 @@ static void push_onecapture(MatchState* ms, i32 i, const char* s, const char* e)
 }
 
 /** @brief 返回要压入的捕获数量，至少为 1。 */
-static i32 push_captures(MatchState* ms, const char* s, const char* e) {
+static i32 push_captures(MatchState* ms, CharPtr s, CharPtr e) {
     i32 nlevels = (ms->level == 0) ? 1 : ms->level;
     ms->L->getStack().checkLimit(ms->L->getAbsoluteTop() + static_cast<usize>(nlevels));
     for (i32 i = 0; i < nlevels; i++)
@@ -829,7 +828,7 @@ static i32 push_captures(MatchState* ms, const char* s, const char* e) {
 }
 
 /** @brief 为字符串 s 上的模式 p 准备 MatchState。 */
-static void prepareMatchState(MatchState* ms, LuaState* L, const char* s, usize slen, const char* p, usize plen) {
+static void prepareMatchState(MatchState* ms, LuaState* L, CharPtr s, usize slen, CharPtr p, usize plen) {
     ms->L = L;
     ms->src_init = s;
     ms->src_end = s + slen;
@@ -849,8 +848,8 @@ i32 str_find(LuaState* L) {
     }
 
     usize slen, plen;
-    const char* s = getStringArg(L, 1, "find", &slen);
-    const char* pattern = getStringArg(L, 2, "find", &plen);
+    CharPtr s = getStringArg(L, 1, "find", &slen);
+    CharPtr pattern = getStringArg(L, 2, "find", &plen);
 
     i32 init = (L->getTop() >= 3) ? getIntegerArg(L, 3, "find") : 1;
     bool plain = (L->getTop() >= 4) ? L->toBoolean(4) : false;
@@ -870,7 +869,7 @@ i32 str_find(LuaState* L) {
         return 1;
     }
 
-    const char* p = pattern;
+    CharPtr p = pattern;
     bool anchor = false;
     if (*p == '^') {
         anchor = true;
@@ -910,15 +909,15 @@ i32 str_match(LuaState* L) {
     }
 
     usize slen, plen;
-    const char* s = getStringArg(L, 1, "match", &slen);
-    const char* pattern = getStringArg(L, 2, "match", &plen);
+    CharPtr s = getStringArg(L, 1, "match", &slen);
+    CharPtr pattern = getStringArg(L, 2, "match", &plen);
 
     i32 init = (L->getTop() >= 3) ? getIntegerArg(L, 3, "match") : 1;
     usize initPos = adjustPosition(init, slen);
     if (initPos > slen)
         initPos = slen;
 
-    const char* p = pattern;
+    CharPtr p = pattern;
     bool anchor = false;
     if (*p == '^') {
         anchor = true;
@@ -949,7 +948,7 @@ i32 str_match(LuaState* L) {
 
 enum class GsubReplacementKind { String, Table, Function };
 
-static Value captureToValue(MatchState* ms, i32 i, const char* s, const char* e, LuaState* L) {
+static Value captureToValue(MatchState* ms, i32 i, CharPtr s, CharPtr e, LuaState* L) {
     if (i >= ms->level) {
         if (i == 0) {
             return Value(L->getGlobalState().getStringPool().intern(s, static_cast<usize>(e - s)));
@@ -957,7 +956,7 @@ static Value captureToValue(MatchState* ms, i32 i, const char* s, const char* e,
         L->error("invalid capture index");
     }
 
-    ptrdiff_t cl = ms->capture[i].len;
+    isize cl = ms->capture[i].len;
     if (cl == CAP_UNFINISHED) {
         L->error("unfinished capture");
     }
@@ -967,8 +966,7 @@ static Value captureToValue(MatchState* ms, i32 i, const char* s, const char* e,
     return Value(L->getGlobalState().getStringPool().intern(ms->capture[i].init, static_cast<usize>(cl)));
 }
 
-static void addStringReplacement(MatchState* ms, LuaString& result, const char* s, const char* e, const char* repl,
-                                 usize rlen) {
+static void addStringReplacement(MatchState* ms, LuaString& result, CharPtr s, CharPtr e, CharPtr repl, usize rlen) {
     for (usize i = 0; i < rlen; i++) {
         if (repl[i] != L_ESC) {
             pushStringOutput(ms->L, result, repl[i], "gsub");
@@ -1022,14 +1020,14 @@ static bool addValueReplacement(LuaState* L, LuaString& result, const Value& val
     L->error("string.gsub: invalid replacement value");
 }
 
-static Value getTableReplacement(MatchState* ms, Table* table, const char* s, const char* e, LuaState* L) {
+static Value getTableReplacement(MatchState* ms, Table* table, CharPtr s, CharPtr e, LuaState* L) {
     Value key = captureToValue(ms, 0, s, e, L);
     Value result;
     VM::detail::gettable(L, Value(table), key, result);
     return result;
 }
 
-static Value getFunctionReplacement(MatchState* ms, const Value& func, const char* s, const char* e, LuaState* L) {
+static Value getFunctionReplacement(MatchState* ms, const Value& func, CharPtr s, CharPtr e, LuaState* L) {
     usize savedTop = L->getAbsoluteTop();
     try {
         L->pushValue(func);
@@ -1053,11 +1051,11 @@ i32 str_gsub(LuaState* L) {
     }
 
     usize slen, plen;
-    const char* s = getStringArg(L, 1, "gsub", &slen);
-    const char* pattern = getStringArg(L, 2, "gsub", &plen);
+    CharPtr s = getStringArg(L, 1, "gsub", &slen);
+    CharPtr pattern = getStringArg(L, 2, "gsub", &plen);
     Value replValue = L->at(3);
     GsubReplacementKind replKind;
-    const char* repl = nullptr;
+    CharPtr repl = nullptr;
     usize rlen = 0;
 
     if (replValue.isTable()) {
@@ -1072,7 +1070,7 @@ i32 str_gsub(LuaState* L) {
 
     i32 maxn = (L->getTop() >= 4) ? getIntegerArg(L, 4, "gsub") : static_cast<i32>(slen + 1);
 
-    const char* p = pattern;
+    CharPtr p = pattern;
     bool anchor = false;
     if (*p == '^') {
         anchor = true;
@@ -1092,7 +1090,7 @@ i32 str_gsub(LuaState* L) {
         ms.level = 0;
         MatchResult e = tryMatch(&ms, PatternCursor{s + srcPos, s + slen}, p);
         if (e.has_value()) {
-            const char* matchEnd = e.value();
+            CharPtr matchEnd = e.value();
             count++;
             bool replaced = true;
             switch (replKind) {
@@ -1189,9 +1187,9 @@ static i32 gmatch_aux(LuaState* L) {
 
     GCString* subject = sVal.asString();
     GCString* patString = pVal.asString();
-    const char* s = subject->c_str();
+    CharPtr s = subject->c_str();
     usize slen = subject->getLength();
-    const char* pattern = patString->c_str();
+    CharPtr pattern = patString->c_str();
     usize plen = patString->getLength();
     const auto convertedPosition = checkedLuaInteger(posVal.asNumber(), IntegerConversion::Exact);
     if (!convertedPosition.has_value() || *convertedPosition < 0) {
@@ -1206,7 +1204,7 @@ static i32 gmatch_aux(LuaState* L) {
         ms.level = 0;
         MatchResult e = tryMatch(&ms, PatternCursor{s + i, s + slen}, pattern);
         if (e.has_value()) {
-            const char* matchEnd = e.value();
+            CharPtr matchEnd = e.value();
             // 推进位置：若为空匹配，则向前移动 1
             usize newpos = (matchEnd == s + i) ? i + 1 : static_cast<usize>(matchEnd - s);
             setUpval(L, 2, Value(static_cast<f64>(newpos)));
@@ -1232,11 +1230,11 @@ i32 str_gmatch(LuaState* L) {
     }
 
     usize slen, plen;
-    const char* s = getStringArg(L, 1, "gmatch", &slen);
-    const char* p = getStringArg(L, 2, "gmatch", &plen);
+    CharPtr s = getStringArg(L, 1, "gmatch", &slen);
+    CharPtr p = getStringArg(L, 2, "gmatch", &plen);
 
     /** @brief 去除锚点，因为 gmatch 会忽略起始锚点。 */
-    const char* pat = p;
+    CharPtr pat = p;
     usize patLen = plen;
     if (patLen > 0 && *pat == '^') {
         pat++;
@@ -1261,7 +1259,7 @@ i32 str_format(LuaState* L) {
     }
 
     usize fmtLen = 0;
-    const char* fmt = getStringArg(L, 1, "format", &fmtLen);
+    CharPtr fmt = getStringArg(L, 1, "format", &fmtLen);
 
     const LuaStdAllocator<char> stringAllocator(L->getGlobalState().getAllocator());
     LuaString result(stringAllocator);
@@ -1271,8 +1269,8 @@ i32 str_format(LuaState* L) {
     result.reserve(fmtLen);
 
     i32 argIdx = 2;
-    const char* p = fmt;
-    const char* fmtEnd = fmt + fmtLen;
+    CharPtr p = fmt;
+    CharPtr fmtEnd = fmt + fmtLen;
 
     while (p < fmtEnd) {
         if (*p == '%') {
@@ -1325,7 +1323,7 @@ i32 str_format(LuaState* L) {
 
             if (spec == 'q') {
                 usize len = 0;
-                const char* arg = getStringLikeArg(L, argIdx++, "format", &len);
+                CharPtr arg = getStringLikeArg(L, argIdx++, "format", &len);
                 const LuaString quoted = quoteLuaString(L, arg, len);
                 appendStringOutput(L, result, quoted.data(), quoted.size(), "format");
                 p++;
@@ -1343,7 +1341,7 @@ i32 str_format(LuaState* L) {
             switch (spec) {
             case 's': {
                 usize argLen = 0;
-                const char* arg = getStringLikeArg(L, argIdx++, "format", &argLen);
+                CharPtr arg = getStringLikeArg(L, argIdx++, "format", &argLen);
                 usize outLen = argLen;
                 if (!precision.empty()) {
                     i32 limit = precision.size() == 1 ? 0 : std::atoi(precision.c_str() + 1);
@@ -1416,7 +1414,7 @@ public:
         maxDepth_ = state_->getGlobalState().getCompilationPolicy().maxNesting;
     }
 
-    void bytes(const char* data, usize count) {
+    void bytes(CharPtr data, usize count) {
         if (count > limit_ || output_.size() > limit_ - count) {
             state_->error("string.dump: result exceeds resource limit");
         }

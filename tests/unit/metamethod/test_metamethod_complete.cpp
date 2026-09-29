@@ -14,6 +14,7 @@
  * @date 2025-11-22
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "core/metatable.hpp"
 #include "core/table.hpp"
@@ -308,9 +309,9 @@ static i32 custom_concat(LuaState* L) {
     f64 left = 0.0;
     f64 right = 0.0;
     if (getWrappedNumber(v1, left) && getWrappedNumber(v2, right)) {
-        std::string s1 = std::to_string(static_cast<int>(left));
-        std::string s2 = std::to_string(static_cast<int>(right));
-        std::string result = s1 + s2;
+        Lua::Str s1 = std::to_string(static_cast<int>(left));
+        Lua::Str s2 = std::to_string(static_cast<int>(right));
+        Lua::Str result = s1 + s2;
 
         StringPool& pool = L->getGlobalState().getStringPool();
         GCString* str = pool.intern(result);
@@ -474,7 +475,7 @@ void testOtherMetamethods(TestSuite& suite) {
     ASSERT_TRUE(suite, concatSuccess, "__concat should dispatch through the left operand's metatable");
     ASSERT_TRUE(suite, concatResult.isString(), "__concat should return a string");
     if (concatResult.isString()) {
-        ASSERT_EQ(suite, std::string("1234"), std::string(concatResult.asString()->c_str()),
+        ASSERT_EQ(suite, Lua::Str("1234"), Lua::Str(concatResult.asString()->c_str()),
                   "__concat should receive both operands in order");
     }
 

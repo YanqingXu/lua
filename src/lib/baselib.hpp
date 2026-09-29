@@ -26,7 +26,7 @@ namespace Lua {
 /** @brief Lua 基础库模块。 */
 class BaseLibModule : public LibModule {
 public:
-    const char* getName() const override {
+    CharPtr getName() const override {
         return "base";
     }
 

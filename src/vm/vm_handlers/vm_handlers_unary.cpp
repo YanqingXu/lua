@@ -3,6 +3,7 @@
  * @brief 一元运算与拼接操作码处理器
  */
 
+#include "common/types.hpp"
 #include "vm/vm_handlers/vm_handler_utils.hpp"
 #include "common/lua_error.hpp"
 #include "vm/vm_handlers/vm_diagnostics.hpp"
@@ -24,8 +25,7 @@ HandlerStatus handleUnaryMinus(OpExecutionContext& context, Instruction inst) {
     try {
         detail::unaryMinus(state, result, val);
     } catch (const RuntimeError& error) {
-        if (std::string(error.what()).find("attempt to perform arithmetic on a non-number value") ==
-            std::string::npos) {
+        if (Str(error.what()).find("attempt to perform arithmetic on a non-number value") == Str::npos) {
             throw;
         }
         Str sourceName = diagnostics::describeRegister(context.proto, b, context.instructionPc).value_or(Str());

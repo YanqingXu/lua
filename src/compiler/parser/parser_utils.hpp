@@ -7,6 +7,7 @@
  * 提供不依赖Parser对象状态的Token语义值访问等共享解析辅助能力。
  */
 
+#include "common/types.hpp"
 #include "token.hpp"
 
 #include <variant>

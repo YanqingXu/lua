@@ -9,6 +9,7 @@
  * @updated 2025-12-18 - 采用流式API改进注册方式
  */
 
+#include "common/types.hpp"
 #include "lib/baselib.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
@@ -51,16 +52,16 @@ namespace Lua {
 
 static Str makeLuaChunkId(StrView chunkName);
 
-static i32 checkedIntegerArgument(LuaState* L, i32 index, const char* functionName,
+static i32 checkedIntegerArgument(LuaState* L, i32 index, CharPtr functionName,
                                   IntegerConversion mode = IntegerConversion::Truncate) {
     if (!L->isNumber(index)) {
         L->error(std::format("bad argument #{} to '{}' (number expected)", index, functionName).c_str());
     }
     const auto converted = checkedLuaInteger(L->toNumber(index), mode);
     if (!converted) {
-        const char* detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
-                             : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
-                                                                                        : "number out of range";
+        CharPtr detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
+                         : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
+                                                                                    : "number out of range";
         L->error(std::format("bad argument #{} to '{}' ({})", index, functionName, detail).c_str());
     }
     return *converted;
@@ -90,7 +91,7 @@ i32 luaB_print(LuaState* L) {
     Str line;
 
     for (i32 i = 1; i <= n; i++) {
-        const char* s = nullptr;
+        CharPtr s = nullptr;
         Str formatted;
 
         // 尝试将值转换为字符串
@@ -140,7 +141,7 @@ i32 luaB_type(LuaState* L) {
     }
 
     i32 t = L->type(1);
-    const char* typeName = L->typeName(t);
+    CharPtr typeName = L->typeName(t);
 
     // 创建字符串并压入栈
     GCString* str = L->getGlobalState().getStringPool().intern(typeName);
@@ -158,7 +159,7 @@ i32 luaB_tostring(LuaState* L) {
         L->error("tostring: missing argument");
     }
 
-    const char* s = nullptr;
+    CharPtr s = nullptr;
     Str formatted;
     Value original = L->at(1);
 
@@ -243,7 +244,7 @@ i32 luaB_tonumber(LuaState* L) {
 
     // 尝试从字符串转换
     if (L->isString(1) || (hasBase && L->isNumber(1))) {
-        const char* s = L->toString(1);
+        CharPtr s = L->toString(1);
         if (!s || *s == '\0') {
             L->pushNil();
             return 1;
@@ -399,7 +400,7 @@ i32 luaB_error(LuaState* L) {
     }
 
     if (level > 0) {
-        const char* message = L->toString(1);
+        CharPtr message = L->toString(1);
         if (message != nullptr) {
             Str location = sourceLocationForErrorLevel(L, level);
             if (!location.empty()) {
@@ -790,7 +791,7 @@ i32 luaB_select(LuaState* L) {
 
     // 检查是否是 "#"
     if (L->isString(1)) {
-        const char* s = L->toString(1);
+        CharPtr s = L->toString(1);
         if (s && std::strcmp(s, "#") == 0) {
             L->pushNumber(static_cast<f64>(n - 1));
             return 1;
@@ -919,7 +920,7 @@ private:
     usize stringBytes_ = 0;
     usize debugEntries_ = 0;
 
-    static void consumeCount(usize count, usize& total, usize limit, const char* message) {
+    static void consumeCount(usize count, usize& total, usize limit, CharPtr message) {
         if (count > limit || total > limit - count) {
             throw std::runtime_error(message);
         }
@@ -1898,7 +1899,7 @@ i32 luaB_collectgarbage(LuaState* L) {
     auto& gc = L->getGlobalState().getGC();
 
     // 获取操作类型（默认为"collect"）
-    const char* opt = "collect";
+    CharPtr opt = "collect";
     if (L->getTop() >= 1) {
         Value v = L->at(1);
         if (v.isString()) {

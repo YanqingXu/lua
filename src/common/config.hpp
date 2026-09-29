@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file config.hpp
  * @brief Lua解释器配置选项
  *
@@ -36,12 +36,12 @@ namespace Lua {
 /**
  * @brief Lua版本号（兼容Lua 5.1.5）
  */
-constexpr const char* LUA_VERSION = "Lua 5.1 (C++ Implementation)";
+constexpr CharPtr LUA_VERSION = "Lua 5.1 (C++ Implementation)";
 
 /**
  * @brief Lua发布版本
  */
-constexpr const char* LUA_RELEASE = "Lua 5.1.5 (C++ Implementation)";
+constexpr CharPtr LUA_RELEASE = "Lua 5.1.5 (C++ Implementation)";
 
 /**
  * @brief Lua版本号（数值形式）
@@ -51,7 +51,7 @@ constexpr i32 LUA_VERSION_NUM = 501;
 /**
  * @brief 版权信息
  */
-constexpr const char* LUA_COPYRIGHT = "Copyright (C) 2025 Lua C++ Implementation Team";
+constexpr CharPtr LUA_COPYRIGHT = "Copyright (C) 2025 Lua C++ Implementation Team";
 
 /** @} */
 

@@ -220,7 +220,7 @@ private:
     LuaAllocator* allocator_ = nullptr;
     char* externalData_ = nullptr;
     bool callbackOwned_ = false;
-    std::array<char, kInlineStorageBytes> inlineData_{};
+    Arr<char, kInlineStorageBytes> inlineData_{};
 };
 
 } // namespace Lua

@@ -3,6 +3,7 @@
  * @brief 垃圾回收策略的收集入口与描述信息实现
  */
 
+#include "common/types.hpp"
 #include "gc/gc_strategy.hpp"
 
 #include "gc/garbage_collector.hpp"
@@ -13,11 +14,11 @@ usize MarkSweepGC::collect(GCContext& context) const {
     return context.collector.collectMarkSweep(context.stringPool, context.currentState);
 }
 
-const char* MarkSweepGC::name() const noexcept {
+CharPtr MarkSweepGC::name() const noexcept {
     return "mark-sweep";
 }
 
-const char* MarkSweepGC::summary() const noexcept {
+CharPtr MarkSweepGC::summary() const noexcept {
     return "stop-the-world tri-color mark and sweep";
 }
 
@@ -25,11 +26,11 @@ usize IncrementalGC::collect(GCContext& context) const {
     return context.collector.collectIncrementalCycle(context.stringPool, context.currentState);
 }
 
-const char* IncrementalGC::name() const noexcept {
+CharPtr IncrementalGC::name() const noexcept {
     return "incremental";
 }
 
-const char* IncrementalGC::summary() const noexcept {
+CharPtr IncrementalGC::summary() const noexcept {
     return "phased mark/atomic/sweep/finalize collection driven by GC debt and step budget";
 }
 

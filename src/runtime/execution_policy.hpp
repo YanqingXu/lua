@@ -32,7 +32,7 @@ enum class ExecutionStopReason : u8 {
  * EngineContext 析构后的迟到请求安全地成为无操作，而不会访问悬空指针。
  */
 struct ExecutionCancellationState {
-    std::atomic<bool> requested{false};
+    Atom<bool> requested{false};
 };
 
 /** @brief 可从宿主侧请求取消执行的共享句柄。 */
@@ -41,7 +41,7 @@ public:
     ExecutionCancellationHandle() noexcept = default;
 
     void requestCancellation() const noexcept {
-        if (const std::shared_ptr<ExecutionCancellationState> state = state_.lock()) {
+        if (const Ptr<ExecutionCancellationState> state = state_.lock()) {
             state->requested.store(true, std::memory_order_relaxed);
         }
     }
@@ -51,10 +51,9 @@ public:
     }
 
 private:
-    explicit ExecutionCancellationHandle(const std::shared_ptr<ExecutionCancellationState>& state) noexcept
-        : state_(state) {}
+    explicit ExecutionCancellationHandle(const Ptr<ExecutionCancellationState>& state) noexcept : state_(state) {}
 
-    std::weak_ptr<ExecutionCancellationState> state_;
+    WPtr<ExecutionCancellationState> state_;
 
     friend class ExecutionPolicy;
 };
@@ -258,7 +257,7 @@ public:
     }
 
 private:
-    std::shared_ptr<ExecutionCancellationState> cancellationState_ = std::make_shared<ExecutionCancellationState>();
+    Ptr<ExecutionCancellationState> cancellationState_ = std::make_shared<ExecutionCancellationState>();
     InstructionCount initialInstructions_ = UnlimitedInstructions;
     InstructionCount remainingInstructions_ = UnlimitedInstructions;
     NativeWorkCount initialNativeWork_ = UnlimitedNativeWork;

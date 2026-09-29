@@ -3,6 +3,7 @@
  * @brief VM 闭包与可变参数调用帧辅助函数
  */
 
+#include "common/types.hpp"
 #include "vm/vm_internal.hpp"
 
 #include "common/lua_error.hpp"

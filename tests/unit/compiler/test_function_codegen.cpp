@@ -3,6 +3,7 @@
  * @brief 测试函数定义和调用的代码生成
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -21,7 +22,7 @@ void testSimpleFunctionDef(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: function add(a, b) return a + b end
-    const char* code = "function add(a, b) return a + b end";
+    Lua::CharPtr code = "function add(a, b) return a + b end";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -50,7 +51,7 @@ void testLocalFunctionDef(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: local function foo() end
-    const char* code = "local function foo() end";
+    Lua::CharPtr code = "local function foo() end";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -70,7 +71,7 @@ void testFunctionExpr(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: local f = function(x) return x * 2 end
-    const char* code = "local f = function(x) return x * 2 end";
+    Lua::CharPtr code = "local f = function(x) return x * 2 end";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -93,7 +94,7 @@ void testFunctionCall(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: local result = add(1, 2)
-    const char* code = "local result = add(1, 2)";
+    Lua::CharPtr code = "local result = add(1, 2)";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -124,7 +125,7 @@ void testVarargFunction(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
     // 测试: function foo(...) end
-    const char* code = "function foo(...) end";
+    Lua::CharPtr code = "function foo(...) end";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -145,7 +146,7 @@ void testVarargFunction(TestSuite& suite) {
 void testDebugMetadata(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = 42\nprint(x)\n";
+    Lua::CharPtr code = "local x = 42\nprint(x)\n";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -159,23 +160,22 @@ void testDebugMetadata(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated with debug metadata");
     ASSERT_TRUE(suite, proto->getSource() != nullptr, "Proto source populated");
     if (proto->getSource() != nullptr) {
-        ASSERT_TRUE(suite, std::string(proto->getSource()->c_str()) == "test_debug_metadata.lua",
-                    "Proto source matches");
+        ASSERT_TRUE(suite, Lua::Str(proto->getSource()->c_str()) == "test_debug_metadata.lua", "Proto source matches");
     }
 
     ASSERT_TRUE(suite, proto->getInstructionCount() > 0, "Has instructions for debug metadata");
     ASSERT_TRUE(suite, proto->getLine(0) > 0, "Instruction line info populated");
     ASSERT_TRUE(suite, proto->getLocVarCount() >= 1, "Local variable metadata populated");
     if (proto->getLocVarCount() >= 1) {
-        ASSERT_TRUE(suite, std::string(proto->getLocVar(0).varname->c_str()) == "x", "Local variable name recorded");
+        ASSERT_TRUE(suite, Lua::Str(proto->getLocVar(0).varname->c_str()) == "x", "Local variable name recorded");
     }
 }
 
 void testAssignMultiReturnCall(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local ok, err\n"
-                       "ok, err = pcall(function() error('boom') end)\n";
+    Lua::CharPtr code = "local ok, err\n"
+                        "ok, err = pcall(function() error('boom') end)\n";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {

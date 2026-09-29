@@ -3,6 +3,7 @@
  * @brief 名称绑定器实现
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/name_binder.hpp"
 
 namespace Lua {

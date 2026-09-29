@@ -6,6 +6,7 @@
  * @date 2025-11-12
  */
 
+#include "common/types.hpp"
 #include "vm/state/global_state.hpp"
 #if LUA_CPP_ENABLE_DEBUGGER
 #include "debugger/debug_runtime.hpp"
@@ -284,7 +285,7 @@ void GlobalState::resetRuntimeReferencesForClearAll() noexcept {
  */
 void GlobalState::initMetamethodNames() {
     // 元方法名称数组（与TMS枚举顺序一致）
-    static constexpr std::array<StrView, static_cast<usize>(TMS::TM_N)> metamethodNames{
+    static constexpr Arr<StrView, static_cast<usize>(TMS::TM_N)> metamethodNames{
         {"__index", "__newindex", "__gc", "__mode", "__eq", "__add", "__sub", "__mul", "__div", "__mod", "__pow",
          "__unm", "__len", "__lt", "__le", "__concat", "__call"}};
 
@@ -314,9 +315,9 @@ GCString* GlobalState::getMetamethodName(TMS event) const noexcept {
  */
 void GlobalState::initReservedWords() {
     // Lua 5.1的21个保留字（按字母顺序）
-    static constexpr std::array<StrView, 21> reservedWords{
-        {"and",   "break", "do",  "else", "elseif", "end",    "false", "for",  "function", "if",   "in",
-         "local", "nil",   "not", "or",   "repeat", "return", "then",  "true", "until",    "while"}};
+    static constexpr Arr<StrView, 21> reservedWords{{"and", "break",    "do",     "else", "elseif", "end",   "false",
+                                                     "for", "function", "if",     "in",   "local",  "nil",   "not",
+                                                     "or",  "repeat",   "return", "then", "true",   "until", "while"}};
 
     // 创建并固定所有保留字字符串
     for (StrView word : reservedWords) {

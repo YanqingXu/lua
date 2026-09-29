@@ -6,6 +6,7 @@
  * @date 2025-11-12
  */
 
+#include "common/types.hpp"
 #include "vm/state/lua_state.hpp"
 #include "common/features.hpp"
 #include "lua.h"
@@ -30,7 +31,7 @@ namespace Lua {
 
 namespace {
 
-const char* hookEventName(DebugHookEvent event) {
+CharPtr hookEventName(DebugHookEvent event) {
     switch (event) {
     case DebugHookEvent::Call:
         return "call";
@@ -1021,7 +1022,7 @@ i32 LuaState::pcall(i32 nargs, i32 nresults, i32 errfunc) {
     }
 }
 
-std::expected<i32, RuntimeError> LuaState::tryPCall(i32 nargs, i32 nresults, i32 errfunc) {
+Expect<i32, RuntimeError> LuaState::tryPCall(i32 nargs, i32 nresults, i32 errfunc) {
     const i32 status = pcall(nargs, nresults, errfunc);
     if (status == LUA_OK) {
         return status;
@@ -1029,12 +1030,12 @@ std::expected<i32, RuntimeError> LuaState::tryPCall(i32 nargs, i32 nresults, i32
 
     try {
         if (getTop() > 0) {
-            return std::unexpected(RuntimeError(top()));
+            return Unexpect<RuntimeError>(RuntimeError(top()));
         }
     } catch (...) {
     }
 
-    return std::unexpected(RuntimeError("pcall failed"));
+    return Unexpect<RuntimeError>(RuntimeError("pcall failed"));
 }
 
 i32 LuaState::getTop() const {
@@ -1198,8 +1199,8 @@ i32 LuaState::type(i32 idx) const {
     }
 }
 
-const char* LuaState::typeName(i32 tp) const {
-    static constexpr std::array<StrView, 9> typeNames{
+CharPtr LuaState::typeName(i32 tp) const {
+    static constexpr Arr<StrView, 9> typeNames{
         {"nil", "boolean", "lightuserdata", "number", "string", "table", "function", "userdata", "thread"}};
     if (tp >= 0 && static_cast<usize>(tp) < typeNames.size()) {
         return typeNames[static_cast<usize>(tp)].data();
@@ -1250,7 +1251,7 @@ Opt<StrView> LuaState::tryToString(i32 idx) {
     }
 }
 
-const char* LuaState::toString(i32 idx) {
+CharPtr LuaState::toString(i32 idx) {
     if (!tryToString(idx).has_value()) {
         return nullptr;
     }
@@ -1341,7 +1342,7 @@ bool LuaState::setMetatable(i32 idx) {
 // 错误处理
 // =====================================================================
 
-void LuaState::error(const char* msg) {
+void LuaState::error(CharPtr msg) {
     setStatus(ThreadStatus::ErrRun);
     throw RuntimeError(msg);
 }

@@ -5,6 +5,7 @@
  * @brief 代码生成实现分片共享的底层操作
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/codegen_state.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 #include "compiler/opcode.hpp"

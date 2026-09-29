@@ -3,6 +3,7 @@
  * @brief 垃圾回收器清扫阶段实现
  */
 
+#include "common/types.hpp"
 #include "gc/garbage_collector.hpp"
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"

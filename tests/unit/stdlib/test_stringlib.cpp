@@ -9,6 +9,7 @@
  * @date 2026-01-23
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "lib/stringlib.hpp"
 #include "lib/lib_manager.hpp"
@@ -30,10 +31,10 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "String Library";
+constexpr Lua::CharPtr kSuiteName = "String Library";
 
 /// Helper: compile and execute Lua code with all standard libs
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -58,25 +59,25 @@ bool runLua(LuaState* L, const char* code) {
 }
 
 /// Helper: get global number
-double getGlobalNumber(LuaState* L, const char* name) {
+Lua::f64 getGlobalNumber(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     return v.isNumber() ? v.asNumber() : -9999.0;
 }
 
 /// Helper: get global string
-std::string getGlobalStr(LuaState* L, const char* name) {
+Lua::Str getGlobalStr(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
-    return v.isString() ? std::string(v.asString()->c_str()) : "";
+    return v.isString() ? Lua::Str(v.asString()->c_str()) : "";
 }
 
 /// Helper: get global string including embedded NUL bytes
-std::string getGlobalBytes(LuaState* L, const char* name) {
+Lua::Str getGlobalBytes(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     if (!v.isString()) {
         return "";
     }
     GCString* str = v.asString();
-    return std::string(str->c_str(), str->getLength());
+    return Lua::Str(str->c_str(), str->getLength());
 }
 
 /// Helper: create state with all standard libraries
@@ -87,7 +88,7 @@ LuaState* createFullState() {
 }
 
 // Helper function to call a string library function
-i32 callStringFunc(LuaState* L, const char* funcName, const std::function<void(LuaState*)>& pushArgs) {
+i32 callStringFunc(LuaState* L, Lua::CharPtr funcName, const Lua::Func<void(LuaState*)>& pushArgs) {
     // Get string table
     Value stringTable = L->getGlobal("string");
     if (!stringTable.isTable()) {
@@ -171,7 +172,7 @@ void testStringSub(TestSuite& suite) {
     Value result = L->top();
     ASSERT_TRUE(suite, result.isString(), "sub returns string");
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "ell", "sub('hello', 2, 4) == 'ell'");
     }
 
@@ -183,7 +184,7 @@ void testStringSub(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "llo", "sub('hello', -3, -1) == 'llo'");
     }
 
@@ -194,7 +195,7 @@ void testStringSub(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "llo", "sub('hello', 3) == 'llo'");
     }
 
@@ -206,7 +207,7 @@ void testStringSub(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str.empty(), "sub('123456789', 0, 0) == ''");
     }
 
@@ -217,7 +218,7 @@ void testStringSub(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "123456789", "sub('123456789', -10, 10) clamps to full string");
     }
 }
@@ -235,7 +236,7 @@ void testStringCase(TestSuite& suite) {
         L, "upper", [&](LuaState* s) { s->pushString(s->getGlobalState().getStringPool().intern("Hello World")); });
     Value result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "HELLO WORLD", "upper('Hello World') == 'HELLO WORLD'");
     }
 
@@ -244,7 +245,7 @@ void testStringCase(TestSuite& suite) {
         L, "lower", [&](LuaState* s) { s->pushString(s->getGlobalState().getStringPool().intern("Hello World")); });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "hello world", "lower('Hello World') == 'hello world'");
     }
 }
@@ -262,7 +263,7 @@ void testStringReverseRep(TestSuite& suite) {
                              [&](LuaState* s) { s->pushString(s->getGlobalState().getStringPool().intern("hello")); });
     Value result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "olleh", "reverse('hello') == 'olleh'");
     }
 
@@ -273,7 +274,7 @@ void testStringReverseRep(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "ababab", "rep('ab', 3) == 'ababab'");
     }
 
@@ -284,7 +285,7 @@ void testStringReverseRep(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "", "rep('test', 0) == ''");
     }
 }
@@ -332,7 +333,7 @@ void testStringByteChar(TestSuite& suite) {
     });
     Value result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "ABC", "char(65, 66, 67) == 'ABC'");
     }
 }
@@ -380,7 +381,7 @@ void testStringGsub(TestSuite& suite) {
     // Should return "hell0 w0rld" and count=2
     Value result = L->at(-2); // Result string
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "hell0 w0rld", "gsub replaces all occurrences");
     }
     Value count = L->top(); // Count
@@ -402,7 +403,7 @@ void testStringFormat(TestSuite& suite) {
     });
     Value result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "Hello World", "format('Hello %s', 'World') == 'Hello World'");
     }
 
@@ -413,7 +414,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "Number: 42", "format('Number: %d', 42) == 'Number: 42'");
     }
 
@@ -424,7 +425,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "[    3.14]", "format width+precision for %f");
     }
 
@@ -435,7 +436,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "+0042", "format sign+zero padding for %d");
     }
 
@@ -446,7 +447,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "1.23e+03", "format('%.2e', 1234) == '1.23e+03'");
     }
 
@@ -457,7 +458,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "1235", "format('%.4g', 1234.5678) == '1235'");
     }
 
@@ -469,7 +470,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "0xff 011", "format supports %#x and %#o");
     }
 
@@ -480,7 +481,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "A", "format('%c', 65) == 'A'");
     }
 
@@ -491,8 +492,8 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str(result.asString()->getData());
-        std::string expected = "\"line\\";
+        Lua::Str str(result.asString()->getData());
+        Lua::Str expected = "\"line\\";
         expected.push_back('\n');
         expected += "\\\"quoted\\\"\"";
         ASSERT_TRUE(suite, str == expected, "format('%q', s) quotes and escapes");
@@ -500,7 +501,7 @@ void testStringFormat(TestSuite& suite) {
 
     // Test 10: Lua 5.1 %q preserves high-bit bytes and appends raw %s data
     ret = callStringFunc(L, "format", [&](LuaState* s) {
-        std::string raw;
+        Lua::Str raw;
         raw.push_back('"');
         raw.push_back(static_cast<char>(0xED));
         raw += "lo\"\n\\";
@@ -511,12 +512,12 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string raw;
+        Lua::Str raw;
         raw.push_back('"');
         raw.push_back(static_cast<char>(0xED));
         raw += "lo\"\n\\";
 
-        std::string quoted;
+        Lua::Str quoted;
         quoted.push_back('"');
         quoted += "\\\"";
         quoted.push_back(static_cast<char>(0xED));
@@ -526,7 +527,7 @@ void testStringFormat(TestSuite& suite) {
         quoted += "\\\\";
         quoted.push_back('"');
 
-        std::string str(result.asString()->getData());
+        Lua::Str str(result.asString()->getData());
         ASSERT_TRUE(suite, str == quoted + raw, "format('%q%s', binary, binary) follows Lua 5.1 quoting");
     }
 
@@ -535,7 +536,7 @@ void testStringFormat(TestSuite& suite) {
                          [&](LuaState* s) { s->pushString(s->getGlobalState().getStringPool().intern("100%% done")); });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "100% done", "format handles %% escape");
     }
 
@@ -546,7 +547,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "value=12.5", "%s accepts number arguments");
     }
 
@@ -559,7 +560,7 @@ void testStringFormat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "07/2026", "format numeric specifiers accept numeric strings");
     }
 
@@ -571,7 +572,7 @@ void testStringFormat(TestSuite& suite) {
             s->pushNumber(1.0);
         });
     } catch (const std::runtime_error& e) {
-        notEnoughArgs = std::string(e.what()) == "string.format: not enough arguments";
+        notEnoughArgs = Lua::Str(e.what()) == "string.format: not enough arguments";
     }
     ASSERT_TRUE(suite, notEnoughArgs, "format throws when arguments are missing");
 
@@ -583,7 +584,7 @@ void testStringFormat(TestSuite& suite) {
             s->pushNumber(1.0);
         });
     } catch (const std::runtime_error& e) {
-        invalidOption = std::string(e.what()) == "invalid option '%p' to 'format'";
+        invalidOption = Lua::Str(e.what()) == "invalid option '%p' to 'format'";
     }
     ASSERT_TRUE(suite, invalidOption, "format throws on unsupported specifier");
 }
@@ -609,7 +610,7 @@ void testStringGmatchBasic(TestSuite& suite) {
     )");
     ASSERT_TRUE(suite, ok, "gmatch basic word iteration runs");
     ASSERT_TRUE(suite, L->getGlobal("gAlias").asBoolean(), "gfind aliases gmatch");
-    ASSERT_EQ(suite, std::string("hello,world,foo,"), getGlobalStr(L, "gResult"), "gmatch(%a+) collects all words");
+    ASSERT_EQ(suite, Lua::Str("hello,world,foo,"), getGlobalStr(L, "gResult"), "gmatch(%a+) collects all words");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"), "gmatch(%a+) finds 3 words");
 
     delete L;
@@ -630,7 +631,7 @@ void testStringGmatchDigits(TestSuite& suite) {
         gCount = count
     )");
     ASSERT_TRUE(suite, ok, "gmatch digit iteration runs");
-    ASSERT_EQ(suite, std::string("123,456,789,"), getGlobalStr(L, "gResult"), "gmatch(%d+) collects all numbers");
+    ASSERT_EQ(suite, Lua::Str("123,456,789,"), getGlobalStr(L, "gResult"), "gmatch(%d+) collects all numbers");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"), "gmatch(%d+) finds 3 numbers");
 
     delete L;
@@ -654,8 +655,8 @@ void testStringGmatchCaptures(TestSuite& suite) {
         gCount = count
     )lua");
     ASSERT_TRUE(suite, ok, "gmatch capture pairs runs");
-    ASSERT_EQ(suite, std::string("name,age,city,"), getGlobalStr(L, "gKeys"), "gmatch captures keys correctly");
-    ASSERT_EQ(suite, std::string("John,30,NYC,"), getGlobalStr(L, "gVals"), "gmatch captures values correctly");
+    ASSERT_EQ(suite, Lua::Str("name,age,city,"), getGlobalStr(L, "gKeys"), "gmatch captures keys correctly");
+    ASSERT_EQ(suite, Lua::Str("John,30,NYC,"), getGlobalStr(L, "gVals"), "gmatch captures values correctly");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"), "gmatch finds 3 pairs");
 
     delete L;
@@ -676,7 +677,7 @@ void testStringGmatchSingleChar(TestSuite& suite) {
         gCount = count
     )");
     ASSERT_TRUE(suite, ok, "gmatch single char runs");
-    ASSERT_EQ(suite, std::string("abc"), getGlobalStr(L, "gResult"), "gmatch(.) matches each character");
+    ASSERT_EQ(suite, Lua::Str("abc"), getGlobalStr(L, "gResult"), "gmatch(.) matches each character");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"), "gmatch(.) finds 3 characters");
 
     delete L;
@@ -753,7 +754,7 @@ void testStringFindPattern(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "find with capture runs");
     ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gStart3"), "find capture start=1");
     ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gEnd3"), "find capture end=4");
-    ASSERT_EQ(suite, std::string("key"), getGlobalStr(L, "gCap3"), "find capture='key'");
+    ASSERT_EQ(suite, Lua::Str("key"), getGlobalStr(L, "gCap3"), "find capture='key'");
 
     delete L;
 }
@@ -770,7 +771,7 @@ void testStringMatchPattern(TestSuite& suite) {
         gResult = string.match("hello123", "%d+")
     )");
     ASSERT_TRUE(suite, ok, "match %d+ runs");
-    ASSERT_EQ(suite, std::string("123"), getGlobalStr(L, "gResult"), "match(%d+) returns '123'");
+    ASSERT_EQ(suite, Lua::Str("123"), getGlobalStr(L, "gResult"), "match(%d+) returns '123'");
 
     // Test 2: match with captures
     ok = runLua(L, R"lua(
@@ -779,8 +780,8 @@ void testStringMatchPattern(TestSuite& suite) {
         gVal = v
     )lua");
     ASSERT_TRUE(suite, ok, "match captures runs");
-    ASSERT_EQ(suite, std::string("name"), getGlobalStr(L, "gKey"), "match key='name'");
-    ASSERT_EQ(suite, std::string("John"), getGlobalStr(L, "gVal"), "match val='John'");
+    ASSERT_EQ(suite, Lua::Str("name"), getGlobalStr(L, "gKey"), "match key='name'");
+    ASSERT_EQ(suite, Lua::Str("John"), getGlobalStr(L, "gVal"), "match val='John'");
 
     // Test 3: match returns nil on no match
     ok = runLua(L, R"(
@@ -807,7 +808,7 @@ void testStringGsubPattern(TestSuite& suite) {
         gCount = n
     )");
     ASSERT_TRUE(suite, ok, "gsub pattern %d+ runs");
-    ASSERT_EQ(suite, std::string("abc NUM def NUM"), getGlobalStr(L, "gResult"), "gsub(%d+, NUM) replaces numbers");
+    ASSERT_EQ(suite, Lua::Str("abc NUM def NUM"), getGlobalStr(L, "gResult"), "gsub(%d+, NUM) replaces numbers");
     ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gCount"), "gsub replaced 2 times");
 
     // Test 2: gsub with capture substitution
@@ -817,7 +818,7 @@ void testStringGsubPattern(TestSuite& suite) {
         gCount2 = n
     )lua");
     ASSERT_TRUE(suite, ok, "gsub capture substitution runs");
-    ASSERT_EQ(suite, std::string("[hello] [world]"), getGlobalStr(L, "gResult2"), "gsub with capture substitution");
+    ASSERT_EQ(suite, Lua::Str("[hello] [world]"), getGlobalStr(L, "gResult2"), "gsub with capture substitution");
     ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gCount2"), "gsub replaced 2 words");
 
     // Test 3: gsub with max replacements
@@ -827,7 +828,7 @@ void testStringGsubPattern(TestSuite& suite) {
         gCount3 = n
     )");
     ASSERT_TRUE(suite, ok, "gsub max replacements runs");
-    ASSERT_EQ(suite, std::string("bba"), getGlobalStr(L, "gResult3"), "gsub with n=2 replaces first 2 only");
+    ASSERT_EQ(suite, Lua::Str("bba"), getGlobalStr(L, "gResult3"), "gsub with n=2 replaces first 2 only");
     ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gCount3"), "gsub count=2");
 
     delete L;
@@ -842,7 +843,7 @@ void testStringGsubTableReplacement(TestSuite& suite) {
         gCount = n
     )lua");
     ASSERT_TRUE(suite, ok, "gsub table replacement runs");
-    ASSERT_EQ(suite, std::string("A b c D"), getGlobalStr(L, "gResult"),
+    ASSERT_EQ(suite, Lua::Str("A b c D"), getGlobalStr(L, "gResult"),
               "gsub table uses first capture as lookup key and preserves false/nil matches");
     ASSERT_EQ(suite, 4.0, getGlobalNumber(L, "gCount"), "gsub table replacement counts all matches");
 
@@ -851,7 +852,7 @@ void testStringGsubTableReplacement(TestSuite& suite) {
         gResult2 = r
     )lua");
     ASSERT_TRUE(suite, ok, "gsub table replacement without captures runs");
-    ASSERT_EQ(suite, std::string("FOO bar"), getGlobalStr(L, "gResult2"),
+    ASSERT_EQ(suite, Lua::Str("FOO bar"), getGlobalStr(L, "gResult2"),
               "gsub table uses whole match when there are no captures");
 
     ok = runLua(L, R"lua(
@@ -859,7 +860,7 @@ void testStringGsubTableReplacement(TestSuite& suite) {
         gResult3 = r
     )lua");
     ASSERT_TRUE(suite, ok, "gsub table raw replacement values run");
-    ASSERT_EQ(suite, std::string("%17"), getGlobalStr(L, "gResult3"),
+    ASSERT_EQ(suite, Lua::Str("%17"), getGlobalStr(L, "gResult3"),
               "gsub table replacement values are raw and numbers stringify");
 
     ok = runLua(L, R"lua(
@@ -868,7 +869,7 @@ void testStringGsubTableReplacement(TestSuite& suite) {
         gResult4 = r
     )lua");
     ASSERT_TRUE(suite, ok, "gsub table replacement __index runs");
-    ASSERT_EQ(suite, std::string("a ALO b HI"), getGlobalStr(L, "gResult4"),
+    ASSERT_EQ(suite, Lua::Str("a ALO b HI"), getGlobalStr(L, "gResult4"),
               "gsub table replacement uses __index metamethod");
 
     ok = runLua(L, R"lua(
@@ -899,9 +900,9 @@ void testStringGsubFunctionReplacement(TestSuite& suite) {
         gCount = n
     )lua");
     ASSERT_TRUE(suite, ok, "gsub function replacement runs");
-    ASSERT_EQ(suite, std::string("x:1 y=2 z:3"), getGlobalStr(L, "gResult"),
+    ASSERT_EQ(suite, Lua::Str("x:1 y=2 z:3"), getGlobalStr(L, "gResult"),
               "gsub function uses captures and preserves false return matches");
-    ASSERT_EQ(suite, std::string("x1y2z3"), getGlobalStr(L, "gCalls"), "gsub function receives all captures");
+    ASSERT_EQ(suite, Lua::Str("x1y2z3"), getGlobalStr(L, "gCalls"), "gsub function receives all captures");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gCount"), "gsub function replacement counts all matches");
 
     ok = runLua(L, R"lua(
@@ -909,7 +910,7 @@ void testStringGsubFunctionReplacement(TestSuite& suite) {
         gResult2 = r
     )lua");
     ASSERT_TRUE(suite, ok, "gsub function replacement without captures runs");
-    ASSERT_EQ(suite, std::string("[a][b][c]"), getGlobalStr(L, "gResult2"),
+    ASSERT_EQ(suite, Lua::Str("[a][b][c]"), getGlobalStr(L, "gResult2"),
               "gsub function receives whole match when there are no captures");
 
     ok = runLua(L, R"lua(
@@ -917,7 +918,7 @@ void testStringGsubFunctionReplacement(TestSuite& suite) {
         gResult3 = r
     )lua");
     ASSERT_TRUE(suite, ok, "gsub function raw replacement values run");
-    ASSERT_EQ(suite, std::string("%1%1"), getGlobalStr(L, "gResult3"),
+    ASSERT_EQ(suite, Lua::Str("%1%1"), getGlobalStr(L, "gResult3"),
               "gsub function replacement strings are not capture-expanded again");
 
     ok = runLua(L, R"lua(
@@ -925,7 +926,7 @@ void testStringGsubFunctionReplacement(TestSuite& suite) {
         gResult4 = r
     )lua");
     ASSERT_TRUE(suite, ok, "gsub replacement whole match capture without explicit captures runs");
-    ASSERT_EQ(suite, std::string("aabbcc"), getGlobalStr(L, "gResult4"),
+    ASSERT_EQ(suite, Lua::Str("aabbcc"), getGlobalStr(L, "gResult4"),
               "gsub replacement %1 falls back to whole match when there are no explicit captures");
 
     ok = runLua(L, R"lua(
@@ -974,8 +975,8 @@ void testStringBinarySafety(TestSuite& suite) {
     )lua");
     ASSERT_TRUE(suite, ok, "binary-safe string operations run");
     ASSERT_EQ(suite, 5.0, getGlobalNumber(L, "gLen"), "string.len counts embedded NUL bytes");
-    ASSERT_EQ(suite, std::string("A\0B\0C", 5), getGlobalBytes(L, "gSub"), "string.sub preserves embedded NUL bytes");
-    ASSERT_EQ(suite, std::string("AZBZC"), getGlobalBytes(L, "gGsub"), "string.gsub can replace embedded NUL bytes");
+    ASSERT_EQ(suite, Lua::Str("A\0B\0C", 5), getGlobalBytes(L, "gSub"), "string.sub preserves embedded NUL bytes");
+    ASSERT_EQ(suite, Lua::Str("AZBZC"), getGlobalBytes(L, "gGsub"), "string.gsub can replace embedded NUL bytes");
     ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gCount"), "string.gsub counts NUL replacements");
     ASSERT_EQ(suite, 2.0, getGlobalNumber(L, "gFindStart"), "plain string.find can locate embedded NUL sequence start");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gFindEnd"), "plain string.find can locate embedded NUL sequence end");
@@ -1005,9 +1006,9 @@ void testStringDump(TestSuite& suite) {
         gDumpPrivateMarker = string.sub(dumped, 13, 16)
     )lua");
     ASSERT_TRUE(suite, ok, "string.dump returns for Lua function");
-    ASSERT_EQ(suite, std::string("string"), getGlobalStr(L, "gDumpType"), "string.dump returns a string");
+    ASSERT_EQ(suite, Lua::Str("string"), getGlobalStr(L, "gDumpType"), "string.dump returns a string");
     ASSERT_TRUE(suite, getGlobalNumber(L, "gDumpLen") > 12.0, "string.dump returns a non-trivial binary chunk");
-    ASSERT_EQ(suite, std::string("\x1bLua", 4), getGlobalBytes(L, "gDumpPrefix"),
+    ASSERT_EQ(suite, Lua::Str("\x1bLua", 4), getGlobalBytes(L, "gDumpPrefix"),
               "string.dump chunk starts with Lua signature");
     ASSERT_EQ(suite, 81.0, getGlobalNumber(L, "gDumpVersion"), "string.dump writes Lua 5.1 chunk version");
     ASSERT_EQ(suite, 0.0, getGlobalNumber(L, "gDumpFormat"), "string.dump writes official format 0");
@@ -1018,7 +1019,7 @@ void testStringDump(TestSuite& suite) {
     ASSERT_EQ(suite, 8.0, getGlobalNumber(L, "gDumpNumberSize"), "string.dump writes 8-byte lua_Number size");
     ASSERT_EQ(suite, 0.0, getGlobalNumber(L, "gDumpNumberIntegral"),
               "string.dump writes floating-point lua_Number flag");
-    ASSERT_EQ(suite, std::string("LC++", 4), getGlobalBytes(L, "gDumpPrivateMarker"),
+    ASSERT_EQ(suite, Lua::Str("LC++", 4), getGlobalBytes(L, "gDumpPrivateMarker"),
               "string.dump writes the project-local LC++ marker for locvar register metadata");
 
     ok = runLua(L, R"lua(
@@ -1032,7 +1033,7 @@ void testStringDump(TestSuite& suite) {
         gDumpOpenVarargLast = values[3]
     )lua");
     ASSERT_TRUE(suite, ok, "string.dump open-vararg function round-trips through the verifier");
-    ASSERT_EQ(suite, std::string("head"), getGlobalStr(L, "gDumpOpenVarargMarker"),
+    ASSERT_EQ(suite, Lua::Str("head"), getGlobalStr(L, "gDumpOpenVarargMarker"),
               "dumped open-vararg function preserves its fixed result");
     ASSERT_EQ(suite, 3.0, getGlobalNumber(L, "gDumpOpenVarargCount"),
               "dumped open-vararg function preserves every dynamic result");
@@ -1046,7 +1047,7 @@ void testStringDump(TestSuite& suite) {
         gDumpNestedSource = debug.getinfo(restoredNested, "S").source
     )lua");
     ASSERT_TRUE(suite, ok, "string.dump nested source inheritance round-trip runs");
-    ASSERT_EQ(suite, std::string("@debugger/dumped_source.lua"), getGlobalStr(L, "gDumpNestedSource"),
+    ASSERT_EQ(suite, Lua::Str("@debugger/dumped_source.lua"), getGlobalStr(L, "gDumpNestedSource"),
               "dumped nested Proto inherits its parent source when the child source field is omitted");
 
     ok = runLua(L, R"lua(
@@ -1073,7 +1074,7 @@ void testStringResourceAndIntegerBoundaries(TestSuite& suite) {
                 state->pushNumber(3);
             });
         } catch (const std::exception& error) {
-            rejected = std::string(error.what()).find("result exceeds resource limit") != std::string::npos;
+            rejected = Lua::Str(error.what()).find("result exceeds resource limit") != Lua::Str::npos;
         }
         L->getGlobalState().getResourcePolicy().maxOutputBytes = oldOutputLimit;
         ASSERT_TRUE(suite, rejected, "string.rep checks multiplication and output limit before allocation");
@@ -1092,7 +1093,7 @@ void testStringResourceAndIntegerBoundaries(TestSuite& suite) {
                 state->pushString(pool.intern("a*a*a*a*b"));
             });
         } catch (const RuntimeError& error) {
-            rejected = std::string(error.what()).find("pattern step limit exceeded") != std::string::npos;
+            rejected = Lua::Str(error.what()).find("pattern step limit exceeded") != Lua::Str::npos;
         }
         L->getGlobalState().getResourcePolicy().maxPatternSteps = oldPatternLimit;
         ASSERT_TRUE(suite, rejected, "pattern matching stops at the per-context step limit");
@@ -1110,7 +1111,7 @@ void testStringResourceAndIntegerBoundaries(TestSuite& suite) {
                 state->pushString(state->getGlobalState().getStringPool().intern("native-work"));
             });
         } catch (const RuntimeError& error) {
-            stopped = std::string(error.what()) == "execution native work budget exceeded";
+            stopped = Lua::Str(error.what()) == "execution native work budget exceeded";
         }
         L->getGlobalState().getExecutionPolicy().reset();
         ASSERT_TRUE(suite, stopped, "string transforms consume the independent native-work budget");
@@ -1123,7 +1124,7 @@ void testStringResourceAndIntegerBoundaries(TestSuite& suite) {
         const usize oldOutputLimit = L->getGlobalState().getResourcePolicy().maxOutputBytes;
         L->getGlobalState().getResourcePolicy().maxOutputBytes = 5;
 
-        std::string gsubError;
+        Lua::Str gsubError;
         try {
             (void)callStringFunc(L, "gsub", [&](LuaState* state) {
                 state->pushString(pool.intern("aaaa"));
@@ -1142,18 +1143,18 @@ void testStringResourceAndIntegerBoundaries(TestSuite& suite) {
                 state->pushString(pool.intern("abc"));
             });
         } catch (const RuntimeError& error) {
-            formatRejected = std::string(error.what()).find("result exceeds resource limit") != std::string::npos;
+            formatRejected = Lua::Str(error.what()).find("result exceeds resource limit") != Lua::Str::npos;
         }
 
         L->getGlobalState().getResourcePolicy().maxOutputBytes = oldOutputLimit;
 
         ASSERT_TRUE(suite, !gsubError.empty(), "string.gsub rejects output growth beyond the configured limit");
-        ASSERT_TRUE(suite, gsubError.find("result exceeds resource limit") != std::string::npos,
-                    std::string("string.gsub reports its stable resource error; actual: ") + gsubError);
+        ASSERT_TRUE(suite, gsubError.find("result exceeds resource limit") != Lua::Str::npos,
+                    Lua::Str("string.gsub reports its stable resource error; actual: ") + gsubError);
         ASSERT_TRUE(suite, formatRejected, "string.format checks the output limit before append growth");
     }
 
-    const auto rejects = [](const char* functionName, const std::function<void(LuaState*)>& args) {
+    const auto rejects = [](Lua::CharPtr functionName, const Lua::Func<void(LuaState*)>& args) {
         LuaStdLibTestContext ctx(openStringLib);
         try {
             (void)callStringFunc(ctx.getState(), functionName, args);

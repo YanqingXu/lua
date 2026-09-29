@@ -37,7 +37,7 @@ struct AppOptions {
 };
 
 /** @brief 解析命令行参数视图。 */
-AppOptions parseArgs(std::span<char* const> argv);
+AppOptions parseArgs(Span<char* const> argv);
 /** @brief 解析传统 argc/argv 命令行参数。 */
 AppOptions parseArgs(int argc, char** argv);
 /** @brief 根据已解析配置运行命令行程序。 */

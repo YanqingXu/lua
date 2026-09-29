@@ -417,8 +417,8 @@ public:
      * @brief 获取只读指令视图
      * @return 指令 span
      */
-    std::span<const Instruction> getInstructionSpan() const noexcept {
-        return std::span<const Instruction>(code_.data(), code_.size());
+    Span<const Instruction> getInstructionSpan() const noexcept {
+        return Span<const Instruction>(code_.data(), code_.size());
     }
 
     /**

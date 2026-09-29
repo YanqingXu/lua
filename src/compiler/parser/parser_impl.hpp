@@ -7,6 +7,7 @@
  * 声明Parser::Impl的内部状态、AST构造、Token流、诊断恢复和各语法分片接口。
  */
 
+#include "common/types.hpp"
 #include "parser.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "runtime/compilation_policy.hpp"
@@ -24,7 +25,7 @@ public:
     Impl(const Str& source, ParserOptions options);
     Impl(const Str& source, RuntimeServices& services, ParserOptions options);
 
-    [[nodiscard]] std::expected<Chunk, ParseError> parse();
+    [[nodiscard]] Expect<Chunk, ParseError> parse();
     [[nodiscard]] const Vec<ParseError>& diagnostics() const noexcept;
 
 private:

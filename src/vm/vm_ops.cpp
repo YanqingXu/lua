@@ -3,6 +3,7 @@
  * @brief VM 表、算术、比较、一元运算与拼接辅助函数
  */
 
+#include "common/types.hpp"
 #include "vm/vm_internal.hpp"
 
 #include "common/lua_error.hpp"
@@ -39,7 +40,7 @@ bool tryToNumber(LuaState* L, const Value& val, f64& result) {
 }
 
 struct ConcatOperandText {
-    std::array<char, 64> numberBuffer{};
+    Arr<char, 64> numberBuffer{};
     StrView view;
 };
 
@@ -67,8 +68,8 @@ void checkStringConcatLength(usize left, usize right) {
 }
 
 int luaStringCompare(const GCString* left, const GCString* right) {
-    const char* l = left->c_str();
-    const char* r = right->c_str();
+    CharPtr l = left->c_str();
+    CharPtr r = right->c_str();
     usize ll = left->getLength();
     usize lr = right->getLength();
 

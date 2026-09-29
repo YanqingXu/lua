@@ -4,6 +4,7 @@
  */
 
 #include "debugger/debug_runtime.hpp"
+#include "common/types.hpp"
 #include "debugger/stack_inspector.hpp"
 
 #include "core/function.hpp"
@@ -44,16 +45,17 @@ public:
         try {
             promise_.set_value(operation_(inspector));
         } catch (const std::exception& error) {
-            promise_.set_value(std::unexpected(
+            promise_.set_value(Unexpect<DebugError>(
                 DebugError{DebugErrorCode::RuntimeFailure, Str("debug inspection failed: ") + error.what()}));
         } catch (...) {
-            promise_.set_value(std::unexpected(DebugError{DebugErrorCode::RuntimeFailure, "debug inspection failed"}));
+            promise_.set_value(
+                Unexpect<DebugError>(DebugError{DebugErrorCode::RuntimeFailure, "debug inspection failed"}));
         }
     }
 
     void cancel(DebugError error) noexcept override {
         try {
-            promise_.set_value(std::unexpected(std::move(error)));
+            promise_.set_value(Unexpect<DebugError>(std::move(error)));
         } catch (...) {
         }
     }
@@ -89,15 +91,14 @@ struct RegisteredDebugState {
 };
 
 struct DebugControllerState {
-    DebugControllerState(DebugResourceLimits limits, std::atomic<u8>& flags)
-        : inspector(breakpoints, limits), maxStates(limits.maxStates),
-          maxLogMessageLength(limits.maxLogMessageLength),
+    DebugControllerState(DebugResourceLimits limits, Atom<u8>& flags)
+        : inspector(breakpoints, limits), maxStates(limits.maxStates), maxLogMessageLength(limits.maxLogMessageLength),
           maxLogMessagesPerSecond(limits.maxLogMessagesPerSecond), instructionFlags(&flags) {}
 
-    mutable std::mutex mutex;
+    mutable Mtx mutex;
     std::condition_variable condition;
-    std::atomic<bool> pauseRequested = false;
-    std::atomic<bool> terminateRequested = false;
+    Atom<bool> pauseRequested = false;
+    Atom<bool> terminateRequested = false;
     DebugSessionState state = DebugSessionState::Detached;
     Opt<DebugStopReason> stopReason;
     Opt<DebugTerminationReason> terminationReason;
@@ -109,7 +110,7 @@ struct DebugControllerState {
     BreakpointManager breakpoints;
     StackInspector inspector;
     std::deque<UPtr<DebugOwnerCommand>> commands;
-    std::atomic<u64> breakpointEpoch = 1;
+    Atom<u64> breakpointEpoch = 1;
     u64 ownerBreakpointEpoch = 0;
     const Proto* suppressedProto = nullptr;
     i32 suppressedLine = 0;
@@ -135,7 +136,7 @@ struct DebugControllerState {
     usize droppedLogMessages = 0;
     u64 totalDroppedLogMessages = 0;
     DebugWritePolicy writePolicy;
-    std::atomic<u8>* instructionFlags = nullptr;
+    Atom<u8>* instructionFlags = nullptr;
 };
 
 namespace {
@@ -188,8 +189,8 @@ Str exceptionId(DebugExceptionCategory category) {
 }
 
 DebugState snapshotStateLocked(const DebugControllerState& state, const RegisteredDebugState& registered) {
-    return {registered.id, registered.threadId, registered.name, registered.label, registered.status,
-            registered.id == state.selectedState};
+    return {registered.id,    registered.threadId, registered.name,
+            registered.label, registered.status,   registered.id == state.selectedState};
 }
 
 RegisteredDebugState* findThreadLocked(DebugControllerState& state, ThreadId thread) noexcept {
@@ -342,7 +343,7 @@ struct EvaluatedBreakpointBehavior {
 };
 
 EvaluatedBreakpointBehavior evaluateBreakpointBehavior(DebugControllerState& state, LuaState& luaState,
-                                                        const BreakpointBehavior& behavior) {
+                                                       const BreakpointBehavior& behavior) {
     EvaluatedBreakpointBehavior result;
     if (behavior.condition.empty() && behavior.logMessage.empty()) {
         return result;
@@ -369,8 +370,8 @@ EvaluatedBreakpointBehavior evaluateBreakpointBehavior(DebugControllerState& sta
     if (!frames || frames->empty()) {
         result.conditionError = !behavior.condition.empty();
         result.logError = !behavior.logMessage.empty();
-        result.error = frames ? DebugError{DebugErrorCode::InvalidReference, "breakpoint has no live Lua frame"}
-                              : frames.error();
+        result.error =
+            frames ? DebugError{DebugErrorCode::InvalidReference, "breakpoint has no live Lua frame"} : frames.error();
         return result;
     }
     const FrameId frame = frames->front().id;
@@ -383,8 +384,8 @@ EvaluatedBreakpointBehavior evaluateBreakpointBehavior(DebugControllerState& sta
             result.error = condition.error();
             return result;
         }
-        result.conditionMatched = condition->type != "nil" &&
-                                  !(condition->type == "boolean" && condition->value == "false");
+        result.conditionMatched =
+            condition->type != "nil" && !(condition->type == "boolean" && condition->value == "false");
         if (!result.conditionMatched) {
             return result;
         }
@@ -441,8 +442,8 @@ EvaluatedBreakpointBehavior evaluateBreakpointBehavior(DebugControllerState& sta
         }
         if (rendered.size() > state.maxLogMessageLength) {
             result.logError = true;
-            result.error = DebugError{DebugErrorCode::ResourceLimit,
-                                      "rendered log point exceeds the configured byte limit"};
+            result.error =
+                DebugError{DebugErrorCode::ResourceLimit, "rendered log point exceeds the configured byte limit"};
             return result;
         }
     }
@@ -460,8 +461,8 @@ void publishDebugOutput(DebugControllerState& state, Str message) noexcept {
         const auto now = std::chrono::steady_clock::now();
         if (now - state.logWindowStart >= std::chrono::seconds(1)) {
             if (state.droppedLogMessages != 0) {
-                suppressed = "[YanLua] suppressed " + std::to_string(state.droppedLogMessages) +
-                             " log point messages\n";
+                suppressed =
+                    "[YanLua] suppressed " + std::to_string(state.droppedLogMessages) + " log point messages\n";
             }
             state.logWindowStart = now;
             state.logMessagesInWindow = 0;
@@ -572,8 +573,9 @@ DebugSafepointResult waitForSafepointRequest(const Ptr<DebugControllerState>& st
                 state->selectedState = registered->id;
             }
         }
-        const Value* exceptionValue =
-            state->stopReason == DebugStopReason::Exception && state->exceptionValue ? &*state->exceptionValue : nullptr;
+        const Value* exceptionValue = state->stopReason == DebugStopReason::Exception && state->exceptionValue
+                                          ? &*state->exceptionValue
+                                          : nullptr;
         state->inspector.beginPause(*pausedState, state->pauseGeneration, state->pausedThread,
                                     pausedThreadNameLocked(*state, pausedState), exceptionValue);
     }
@@ -632,7 +634,7 @@ DebugResult<T> enqueueOwnerCommand(const Ptr<DebugControllerState>& state,
     {
         std::lock_guard lock(state->mutex);
         if (state->activeSessionId == 0 || state->state != DebugSessionState::Suspended) {
-            return std::unexpected(
+            return Unexpect<DebugError>(
                 DebugError{DebugErrorCode::InvalidState, "debug inspection requires a suspended session"});
         }
         state->commands.push_back(std::move(command));
@@ -640,7 +642,7 @@ DebugResult<T> enqueueOwnerCommand(const Ptr<DebugControllerState>& state,
     state->condition.notify_all();
 
     if (result.wait_for(std::chrono::seconds(5)) != std::future_status::ready) {
-        return std::unexpected(DebugError{DebugErrorCode::Timeout, "debug owner-thread command timed out", true});
+        return Unexpect<DebugError>(DebugError{DebugErrorCode::Timeout, "debug owner-thread command timed out", true});
     }
     return result.get();
 }
@@ -727,7 +729,7 @@ DebugResult<DebugSession> DebugController::attachSession(Ptr<IDebugEventSink> si
     {
         std::lock_guard lock(state_->mutex);
         if (state_->activeSessionId != 0) {
-            return std::unexpected(invalidState("a debugger session is already attached"));
+            return Unexpect<DebugError>(invalidState("a debugger session is already attached"));
         }
 
         sessionId = state_->nextSessionId++;
@@ -755,7 +757,7 @@ DebugResult<void> DebugController::configurationDone() {
     {
         std::lock_guard lock(state_->mutex);
         if (state_->activeSessionId == 0 || state_->state != DebugSessionState::Starting) {
-            return std::unexpected(invalidState("configurationDone requires a starting debug session"));
+            return Unexpect<DebugError>(invalidState("configurationDone requires a starting debug session"));
         }
         state_->state = DebugSessionState::Running;
         sink = state_->sink.lock();
@@ -772,11 +774,11 @@ DebugResult<void> DebugController::pause(ThreadId thread) {
     {
         std::lock_guard lock(state_->mutex);
         if (state_->activeSessionId == 0 || state_->state != DebugSessionState::Running) {
-            return std::unexpected(invalidState("pause requires a running debug session"));
+            return Unexpect<DebugError>(invalidState("pause requires a running debug session"));
         }
         if ((!state_->statesByPointer.empty() && findThreadLocked(*state_, thread) == nullptr) ||
             (state_->statesByPointer.empty() && thread != mainThreadId())) {
-            return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "unknown debug thread"});
+            return Unexpect<DebugError>(DebugError{DebugErrorCode::InvalidReference, "unknown debug thread"});
         }
         state_->pauseRequested.store(true, std::memory_order_release);
         state_->state = DebugSessionState::PauseRequested;
@@ -795,10 +797,11 @@ DebugResult<void> DebugController::continueExecution(ThreadId thread) {
     {
         std::lock_guard lock(state_->mutex);
         if (state_->activeSessionId == 0 || state_->state != DebugSessionState::Suspended) {
-            return std::unexpected(invalidState("continue requires a suspended debug session"));
+            return Unexpect<DebugError>(invalidState("continue requires a suspended debug session"));
         }
         if (thread != state_->pausedThread) {
-            return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "thread is not the paused execution unit"});
+            return Unexpect<DebugError>(
+                DebugError{DebugErrorCode::InvalidReference, "thread is not the paused execution unit"});
         }
         state_->pauseRequested.store(false, std::memory_order_release);
         state_->stopReason.reset();
@@ -821,10 +824,11 @@ DebugResult<void> DebugController::stepExecution(ThreadId thread, DebugStepMode 
     {
         std::lock_guard lock(state_->mutex);
         if (state_->activeSessionId == 0 || state_->state != DebugSessionState::Suspended) {
-            return std::unexpected(invalidState("step requires a suspended debug session"));
+            return Unexpect<DebugError>(invalidState("step requires a suspended debug session"));
         }
         if (thread != state_->pausedThread) {
-            return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "thread is not the paused execution unit"});
+            return Unexpect<DebugError>(
+                DebugError{DebugErrorCode::InvalidReference, "thread is not the paused execution unit"});
         }
         state_->pauseRequested.store(false, std::memory_order_release);
         state_->stopReason.reset();
@@ -845,7 +849,7 @@ DebugResult<void> DebugController::stepExecution(ThreadId thread, DebugStepMode 
 DebugResult<void> DebugController::setExceptionBreakpoints(bool breakOnAll) {
     std::lock_guard lock(state_->mutex);
     if (state_->activeSessionId == 0 || state_->state == DebugSessionState::Terminated) {
-        return std::unexpected(invalidState("exception breakpoints require an active debug session"));
+        return Unexpect<DebugError>(invalidState("exception breakpoints require an active debug session"));
     }
     state_->breakOnAllExceptions = breakOnAll;
     if (!breakOnAll) {
@@ -857,11 +861,12 @@ DebugResult<void> DebugController::setExceptionBreakpoints(bool breakOnAll) {
 DebugResult<DebugExceptionInfo> DebugController::exceptionInfo(ThreadId thread) {
     std::lock_guard lock(state_->mutex);
     if (thread != state_->pausedThread) {
-        return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "thread is not the paused execution unit"});
+        return Unexpect<DebugError>(
+            DebugError{DebugErrorCode::InvalidReference, "thread is not the paused execution unit"});
     }
     if (state_->state != DebugSessionState::Suspended || state_->stopReason != DebugStopReason::Exception ||
         !state_->exception) {
-        return std::unexpected(invalidState("exceptionInfo requires an exception suspension"));
+        return Unexpect<DebugError>(invalidState("exceptionInfo requires an exception suspension"));
     }
     return *state_->exception;
 }
@@ -872,7 +877,7 @@ DebugResult<void> DebugController::terminateExecution() {
     {
         std::lock_guard lock(state_->mutex);
         if (state_->activeSessionId == 0 || state_->state == DebugSessionState::Terminated) {
-            return std::unexpected(invalidState("terminate requires an active non-terminated debug session"));
+            return Unexpect<DebugError>(invalidState("terminate requires an active non-terminated debug session"));
         }
         state_->pauseRequested.store(false, std::memory_order_release);
         state_->terminateRequested.store(true, std::memory_order_release);
@@ -905,7 +910,7 @@ Opt<RegisteredSource> DebugController::source(SourceId sourceId) const {
 }
 
 DebugResult<Vec<BreakpointBinding>> DebugController::setBreakpoints(SourceId sourceId,
-                                                                    std::span<const SourceBreakpoint> requested) {
+                                                                    Span<const SourceBreakpoint> requested) {
     DebugResult<Vec<BreakpointBinding>> result = state_->breakpoints.setBreakpoints(sourceId, requested);
     if (result) {
         state_->breakpointEpoch.fetch_add(1, std::memory_order_release);
@@ -915,8 +920,7 @@ DebugResult<Vec<BreakpointBinding>> DebugController::setBreakpoints(SourceId sou
     return result;
 }
 
-DebugResult<Vec<BreakpointBinding>>
-DebugController::setFunctionBreakpoints(std::span<const FunctionBreakpoint> requested) {
+DebugResult<Vec<BreakpointBinding>> DebugController::setFunctionBreakpoints(Span<const FunctionBreakpoint> requested) {
     DebugResult<Vec<BreakpointBinding>> result = state_->breakpoints.setFunctionBreakpoints(requested);
     if (result) {
         state_->breakpointEpoch.fetch_add(1, std::memory_order_release);
@@ -929,11 +933,11 @@ DebugController::setFunctionBreakpoints(std::span<const FunctionBreakpoint> requ
 DebugResult<Vec<DebugThread>> DebugController::threads() {
     std::lock_guard lock(state_->mutex);
     if (state_->activeSessionId == 0) {
-        return std::unexpected(invalidState("threads require an active debug session"));
+        return Unexpect<DebugError>(invalidState("threads require an active debug session"));
     }
     if (state_->statesByPointer.empty()) {
-        const DebugThreadState status = state_->state == DebugSessionState::Suspended ? DebugThreadState::Paused
-                                                                                     : DebugThreadState::Running;
+        const DebugThreadState status =
+            state_->state == DebugSessionState::Suspended ? DebugThreadState::Paused : DebugThreadState::Running;
         return Vec<DebugThread>{{mainThreadId(), "main", status}};
     }
     Vec<DebugThread> result;
@@ -950,7 +954,7 @@ DebugResult<Vec<DebugThread>> DebugController::threads() {
 DebugResult<Vec<DebugState>> DebugController::states() const {
     std::lock_guard lock(state_->mutex);
     if (state_->activeSessionId == 0) {
-        return std::unexpected(invalidState("states require an active debug session"));
+        return Unexpect<DebugError>(invalidState("states require an active debug session"));
     }
     Vec<DebugState> result;
     result.reserve(state_->statesByPointer.size());
@@ -966,10 +970,10 @@ DebugResult<Vec<DebugState>> DebugController::states() const {
 DebugResult<void> DebugController::selectState(StateId stateId) {
     std::lock_guard lock(state_->mutex);
     if (state_->activeSessionId == 0) {
-        return std::unexpected(invalidState("state selection requires an active debug session"));
+        return Unexpect<DebugError>(invalidState("state selection requires an active debug session"));
     }
     if (findStateLocked(*state_, stateId) == nullptr) {
-        return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "unknown debug state"});
+        return Unexpect<DebugError>(DebugError{DebugErrorCode::InvalidReference, "unknown debug state"});
     }
     state_->selectedState = stateId;
     return {};
@@ -993,25 +997,23 @@ DebugResult<Vec<DebugVariable>> DebugController::variables(VariableReference ref
 
 DebugResult<DebugVariable> DebugController::evaluate(FrameId frame, StrView expression) {
     const Str copiedExpression(expression);
-    return enqueueOwnerCommand<DebugVariable>(
-        state_, [frame, copiedExpression](StackInspector& inspector) {
-            return inspector.evaluate(frame, copiedExpression);
-        });
+    return enqueueOwnerCommand<DebugVariable>(state_, [frame, copiedExpression](StackInspector& inspector) {
+        return inspector.evaluate(frame, copiedExpression);
+    });
 }
 
 DebugResult<DebugVariable> DebugController::evaluateWithSideEffects(FrameId frame, StrView expression) {
     {
         std::lock_guard lock(state_->mutex);
         if (!state_->writePolicy.allowSideEffectEvaluation) {
-            return std::unexpected(DebugError{DebugErrorCode::PermissionDenied,
-                                              "side-effecting evaluation is disabled for this debug session"});
+            return Unexpect<DebugError>(DebugError{DebugErrorCode::PermissionDenied,
+                                                   "side-effecting evaluation is disabled for this debug session"});
         }
     }
     const Str copiedExpression(expression);
-    return enqueueOwnerCommand<DebugVariable>(
-        state_, [frame, copiedExpression](StackInspector& inspector) {
-            return inspector.evaluateWithSideEffects(frame, copiedExpression);
-        });
+    return enqueueOwnerCommand<DebugVariable>(state_, [frame, copiedExpression](StackInspector& inspector) {
+        return inspector.evaluateWithSideEffects(frame, copiedExpression);
+    });
 }
 
 DebugResult<DebugVariable> DebugController::setVariable(VariableReference reference, StrView name,
@@ -1019,22 +1021,21 @@ DebugResult<DebugVariable> DebugController::setVariable(VariableReference refere
     {
         std::lock_guard lock(state_->mutex);
         if (!state_->writePolicy.allowVariableWrite) {
-            return std::unexpected(DebugError{DebugErrorCode::PermissionDenied,
-                                              "variable writes are disabled for this debug session"});
+            return Unexpect<DebugError>(
+                DebugError{DebugErrorCode::PermissionDenied, "variable writes are disabled for this debug session"});
         }
     }
     const Str copiedName(name);
     const Str copiedValue(valueExpression);
-    return enqueueOwnerCommand<DebugVariable>(
-        state_, [reference, copiedName, copiedValue](StackInspector& inspector) {
-            return inspector.setVariable(reference, copiedName, copiedValue);
-        });
+    return enqueueOwnerCommand<DebugVariable>(state_, [reference, copiedName, copiedValue](StackInspector& inspector) {
+        return inspector.setVariable(reference, copiedName, copiedValue);
+    });
 }
 
 DebugResult<void> DebugController::configureWritePolicy(DebugWritePolicy policy) {
     std::lock_guard lock(state_->mutex);
     if (state_->activeSessionId != 0 && state_->state != DebugSessionState::Starting) {
-        return std::unexpected(invalidState("write policy can only change before configurationDone"));
+        return Unexpect<DebugError>(invalidState("write policy can only change before configurationDone"));
     }
     state_->writePolicy = policy;
     return {};
@@ -1052,7 +1053,8 @@ DebugResult<void> DebugController::notifySuspended(DebugStopReason reason) {
         std::lock_guard lock(state_->mutex);
         if (state_->activeSessionId == 0 ||
             (state_->state != DebugSessionState::Running && state_->state != DebugSessionState::PauseRequested)) {
-            return std::unexpected(invalidState("a safepoint can suspend only a running or pause-pending session"));
+            return Unexpect<DebugError>(
+                invalidState("a safepoint can suspend only a running or pause-pending session"));
         }
         state_->pauseRequested.store(false, std::memory_order_release);
         state_->pauseGeneration = PauseGeneration{state_->pauseGeneration.value() + 1};
@@ -1073,7 +1075,7 @@ DebugResult<void> DebugController::confirmResumed() {
     {
         std::lock_guard lock(state_->mutex);
         if (state_->activeSessionId == 0 || state_->state != DebugSessionState::ResumeRequested) {
-            return std::unexpected(invalidState("resume confirmation requires a pending resume"));
+            return Unexpect<DebugError>(invalidState("resume confirmation requires a pending resume"));
         }
         state_->state = DebugSessionState::Running;
         sink = state_->sink.lock();
@@ -1153,8 +1155,8 @@ DebugSafepointResult DebugController::instructionSafepoint(LuaState& pausedState
                     activation->behavior == nullptr ? emptyBehavior : *activation->behavior;
                 EvaluatedBreakpointBehavior evaluated = evaluateBreakpointBehavior(*state_, pausedState, behavior);
                 if (evaluated.error) {
-                    const Str prefix = evaluated.conditionError ? "[YanLua breakpoint condition] "
-                                                                : "[YanLua log point] ";
+                    const Str prefix =
+                        evaluated.conditionError ? "[YanLua breakpoint condition] " : "[YanLua log point] ";
                     publishDebugOutput(*state_, prefix + evaluated.error->message + "\n");
                     if (evaluated.conditionError) {
                         shouldStop = true;
@@ -1224,7 +1226,7 @@ DebugSafepointResult DebugController::semanticSafepoint(LuaState& pausedState, D
 }
 
 DebugSafepointResult DebugController::exceptionSafepoint(LuaState& pausedState, DebugExceptionCategory category,
-                                                          StrView description, const Value* errorObject) {
+                                                         StrView description, const Value* errorObject) {
     Ptr<IDebugEventSink> sink;
     bool shouldBreak = false;
     {
@@ -1251,9 +1253,8 @@ DebugSafepointResult DebugController::exceptionSafepoint(LuaState& pausedState, 
             // Debug client failures cannot unwind through exception propagation.
         }
     }
-    return waitForSafepointRequest(state_, shouldBreak ? Opt<DebugStopReason>{DebugStopReason::Exception}
-                                                       : Opt<DebugStopReason>{},
-                                   &pausedState);
+    return waitForSafepointRequest(
+        state_, shouldBreak ? Opt<DebugStopReason>{DebugStopReason::Exception} : Opt<DebugStopReason>{}, &pausedState);
 }
 
 void DebugController::registerProto(const Proto& root) {
@@ -1299,9 +1300,9 @@ StateId DebugController::registerState(LuaState& luaState, StrView name, StrView
         registered.id = StateId{state_->nextStateId++};
         registered.threadId = ThreadId{state_->nextThreadId++};
         registered.state = &luaState;
-        registered.name = name.empty() ? (registered.id.value() == 1 ? "main" : "coroutine " +
-                                                                           std::to_string(registered.id.value()))
-                                       : Str(name);
+        registered.name =
+            name.empty() ? (registered.id.value() == 1 ? "main" : "coroutine " + std::to_string(registered.id.value()))
+                         : Str(name);
         registered.label = label.empty() ? registered.name : Str(label);
         const auto [iterator, inserted] = state_->statesByPointer.emplace(&luaState, std::move(registered));
         if (!inserted) {

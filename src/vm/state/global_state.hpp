@@ -459,12 +459,12 @@ private:
     /**
      * @brief 基础类型的元表数组（索引对应ValueType枚举值）
      */
-    std::array<Table*, kMetatableCount> metatables_{}; // 9种基础类型
+    Arr<Table*, kMetatableCount> metatables_{}; // 9种基础类型
 
     /**
      * @brief 元方法名称数组（17个元方法）
      */
-    std::array<GCString*, static_cast<usize>(TMS::TM_N)> tmname_{};
+    Arr<GCString*, static_cast<usize>(TMS::TM_N)> tmname_{};
 
     /**
      * @brief 内存错误消息（固定字符串，防止在内存不足时被GC回收）

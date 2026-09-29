@@ -5,6 +5,7 @@
  * @brief Lua 测试辅助库模块及其打开接口
  */
 
+#include "common/types.hpp"
 #include "lib/lib_module.hpp"
 
 namespace Lua {
@@ -12,7 +13,7 @@ namespace Lua {
 /** @brief 向测试环境注册辅助函数的标准库模块。 */
 class TestLibModule : public LibModule {
 public:
-    const char* getName() const override {
+    CharPtr getName() const override {
         return "T";
     }
 

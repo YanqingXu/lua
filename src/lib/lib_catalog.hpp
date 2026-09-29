@@ -25,7 +25,7 @@ struct LibCatalogEntry {
 };
 
 /** @brief 获取完整的标准库目录只读视图。 */
-std::span<const LibCatalogEntry> getStandardLibraryCatalog();
+Span<const LibCatalogEntry> getStandardLibraryCatalog();
 
 /** @brief 按标识查找标准库目录项。 */
 Opt<std::reference_wrapper<const LibCatalogEntry>> findStandardLibrary(StrView id);

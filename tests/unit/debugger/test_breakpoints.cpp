@@ -3,6 +3,7 @@
  * @brief Breakpoint replacement, binding, and VM-hit integration tests.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "compiler/codegen/codegen.hpp"
@@ -26,7 +27,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Debugger Breakpoints";
+constexpr Lua::CharPtr kSuiteName = "Debugger Breakpoints";
 
 Proto* compileBreakpointChunk(RuntimeServices& services, StrView source, StrView sourceName) {
     Parser parser{Str(source), services};
@@ -75,7 +76,7 @@ public:
     }
 
 private:
-    mutable std::mutex mutex_;
+    mutable Lua::Mtx mutex_;
     Vec<BreakpointBinding> changed_;
     Vec<Str> output_;
 };
@@ -99,7 +100,7 @@ void testBreakpointPendingBindingAndReplacement(TestSuite& suite) {
     BreakpointManager manager;
     const SourceId sourceId = manager.registerFilePath("c:/game/scripts/breakpoints.lua");
 
-    const std::array initialRequests{SourceBreakpoint{1}, SourceBreakpoint{999}};
+    const Lua::Arr<SourceBreakpoint, 2> initialRequests{SourceBreakpoint{1}, SourceBreakpoint{999}};
     auto initial = manager.setBreakpoints(sourceId, initialRequests);
     ASSERT_TRUE(suite, initial && initial->size() == 2, "setBreakpoints accepts a replace-all source list");
     ASSERT_TRUE(suite, initial && !initial->at(0).verified,
@@ -118,14 +119,13 @@ void testBreakpointPendingBindingAndReplacement(TestSuite& suite) {
     for (const DebugCodeLocation& location : index.allLocations()) {
         if (location.line == 3) {
             ++lineThreeLocations;
-            everyLineThreePcMatches =
-                everyLineThreePcMatches && manager.match(*location.proto, location.pc) != nullptr;
+            everyLineThreePcMatches = everyLineThreePcMatches && manager.match(*location.proto, location.pc) != nullptr;
         }
     }
     ASSERT_TRUE(suite, lineThreeLocations > 1, "Fixture exposes multiple bytecode PCs on one source line");
     ASSERT_TRUE(suite, everyLineThreePcMatches, "Binding covers every PC for the verified source line");
 
-    const std::array replacements{SourceBreakpoint{8}};
+    const Lua::Arr<SourceBreakpoint, 1> replacements{SourceBreakpoint{8}};
     auto replaced = manager.setBreakpoints(sourceId, replacements);
     ASSERT_TRUE(suite, replaced && replaced->size() == 1 && replaced->front().verified,
                 "Replacing a loaded source returns its current verified binding");
@@ -142,7 +142,7 @@ void testBreakpointPendingBindingAndReplacement(TestSuite& suite) {
     ASSERT_TRUE(suite, oldLineRemoved, "Replace-all removes every old instruction binding immediately");
     ASSERT_TRUE(suite, replacementPresent, "Replacement breakpoint is installed immediately");
 
-    const std::array<SourceBreakpoint, 0> noBreakpoints{};
+    const Lua::Arr<SourceBreakpoint, 0> noBreakpoints{};
     auto cleared = manager.setBreakpoints(sourceId, noBreakpoints);
     ASSERT_TRUE(suite, cleared && cleared->empty(), "Empty replace-all list clears the source breakpoints");
     bool allCleared = true;
@@ -165,7 +165,7 @@ void testBreakpointNestedProtoAndInvalidSource(TestSuite& suite) {
     BreakpointManager manager;
     [[maybe_unused]] const Vec<BreakpointBinding> initialChanges = manager.registerProto(*proto);
     const SourceId sourceId = manager.registerFilePath("nested_breakpoint.lua");
-    const std::array requests{SourceBreakpoint{3}};
+    const Lua::Arr<SourceBreakpoint, 1> requests{SourceBreakpoint{3}};
     auto bound = manager.setBreakpoints(sourceId, requests);
 
     ASSERT_TRUE(suite, bound && bound->front().verified && bound->front().line == 3,
@@ -194,7 +194,7 @@ void testAdvancedBreakpointBindingAndHitSemantics(TestSuite& suite) {
     const SourceId sourceId = manager.registerFilePath("advanced_breakpoints.lua");
     [[maybe_unused]] const Vec<BreakpointBinding> firstChanges = manager.registerProto(*first);
 
-    const std::array counted{SourceBreakpoint{2, {}, "2", {}}};
+    const Lua::Arr<SourceBreakpoint, 1> counted{SourceBreakpoint{2, {}, "2", {}}};
     auto countedBindings = manager.setBreakpoints(sourceId, counted);
     ASSERT_TRUE(suite, countedBindings && countedBindings->front().verified,
                 "A positive decimal hit condition is accepted");
@@ -228,19 +228,21 @@ void testAdvancedBreakpointBindingAndHitSemantics(TestSuite& suite) {
                     "Registering another Proto for the same source preserves the logical hit counter");
     }
 
-    const std::array invalid{SourceBreakpoint{2, {}, "twice", {}}};
+    const Lua::Arr<SourceBreakpoint, 1> invalid{SourceBreakpoint{2, {}, "twice", {}}};
     auto invalidBindings = manager.setBreakpoints(sourceId, invalid);
-    ASSERT_TRUE(suite, invalidBindings && !invalidBindings->front().verified &&
-                           invalidBindings->front().message.find("positive decimal") != Str::npos,
+    ASSERT_TRUE(suite,
+                invalidBindings && !invalidBindings->front().verified &&
+                    invalidBindings->front().message.find("positive decimal") != Str::npos,
                 "Invalid hit conditions are returned as unverified bindings with a stable reason");
 
-    const std::array functions{FunctionBreakpoint{"worker", {}, {}}};
+    const Lua::Arr<FunctionBreakpoint, 1> functions{FunctionBreakpoint{"worker", {}, {}}};
     auto functionBindings = manager.setFunctionBreakpoints(functions);
-    ASSERT_TRUE(suite, functionBindings && functionBindings->front().verified &&
-                           functionBindings->front().functionName == Opt<Str>{"worker"},
+    ASSERT_TRUE(suite,
+                functionBindings && functionBindings->front().verified &&
+                    functionBindings->front().functionName == Opt<Str>{"worker"},
                 "Function breakpoints bind through the compiler-emitted function name");
 
-    const std::array sourceAtEntry{SourceBreakpoint{2}};
+    const Lua::Arr<SourceBreakpoint, 1> sourceAtEntry{SourceBreakpoint{2}};
     auto sourceBindings = manager.setBreakpoints(sourceId, sourceAtEntry);
     ASSERT_TRUE(suite, sourceBindings && sourceBindings->front().verified,
                 "A source breakpoint can coexist with a function breakpoint");
@@ -268,14 +270,14 @@ void testBreakpointLoopHitsWithoutConsecutiveDuplicates(TestSuite& suite) {
     Function* function = createBreakpointFunction(services, state.get(), proto);
 
     const SourceId sourceId = controller.registerFilePath("debugger/loop_breakpoint.lua");
-    const std::array requests{SourceBreakpoint{3}};
+    const Lua::Arr<SourceBreakpoint, 1> requests{SourceBreakpoint{3}};
     auto pending = controller.setBreakpoints(sourceId, requests);
     Ptr<BreakpointEventSink> sink = makePtr<BreakpointEventSink>();
     auto attached = controller.attachSession(sink);
     DebugSession session = std::move(*attached);
     const bool configured = controller.configurationDone().has_value();
 
-    std::atomic<bool> executionDone = false;
+    Lua::Atom<bool> executionDone = false;
     usize hitCount = 0;
     bool timedOut = false;
     std::thread control([&]() {
@@ -325,7 +327,7 @@ void testHotReloadRetiresAndRebindsProtoLocations(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     BreakpointManager manager;
     const SourceId sourceId = manager.registerFilePath("hot_reload.lua");
-    const std::array requested{SourceBreakpoint{2}};
+    const Lua::Arr<SourceBreakpoint, 1> requested{SourceBreakpoint{2}};
     auto pending = manager.setBreakpoints(sourceId, requested);
 
     Proto* first = compileBreakpointChunk(services, "local value = 1\nreturn value\n", "@hot_reload.lua");
@@ -337,9 +339,8 @@ void testHotReloadRetiresAndRebindsProtoLocations(TestSuite& suite) {
         firstBound = firstBound || manager.match(*location.proto, location.pc) != nullptr;
     }
 
-    Proto* second = compileBreakpointChunk(services,
-                                           "local value = 2\n-- inserted by reload\nreturn value\n",
-                                           "@hot_reload.lua");
+    Proto* second =
+        compileBreakpointChunk(services, "local value = 2\n-- inserted by reload\nreturn value\n", "@hot_reload.lua");
     auto secondChanges = manager.registerProto(*second);
     const Opt<u64> secondIdentity = manager.sourceContentIdentity(sourceId);
     bool oldRetired = true;
@@ -366,11 +367,13 @@ void testHotReloadRetiresAndRebindsProtoLocations(TestSuite& suite) {
                 "The initial source version resolves a pending breakpoint");
     ASSERT_TRUE(suite, firstIdentity && secondIdentity && *firstIdentity != *secondIdentity,
                 "Bytecode, line metadata, and constants produce a stable changed source content identity");
-    ASSERT_TRUE(suite, oldRetired && !secondChanges.empty() && secondChanges.front().verified &&
-                           secondChanges.front().line == 3 && secondBoundAtMovedLine,
+    ASSERT_TRUE(suite,
+                oldRetired && !secondChanges.empty() && secondChanges.front().verified &&
+                    secondChanges.front().line == 3 && secondBoundAtMovedLine,
                 "Reload retires old Proto PCs, rebinds the new source line, and reports breakpoint changed");
-    ASSERT_TRUE(suite, newRetired && !strippedChanges.empty() && !strippedChanges.front().verified &&
-                           strippedChanges.front().message.find("no line information") != Str::npos,
+    ASSERT_TRUE(suite,
+                newRetired && !strippedChanges.empty() && !strippedChanges.front().verified &&
+                    strippedChanges.front().message.find("no line information") != Str::npos,
                 "A stripped reload removes stale PCs and reports why the breakpoint cannot be rebound");
 }
 
@@ -391,7 +394,7 @@ void testLogPointInterpolationAndRateLimit(TestSuite& suite) {
     SourceBreakpoint logPoint;
     logPoint.line = 3;
     logPoint.logMessage = "index={index} total={total}";
-    const std::array requests{logPoint};
+    const Lua::Arr<SourceBreakpoint, 1> requests{logPoint};
     auto pending = controller.setBreakpoints(sourceId, requests);
     Ptr<BreakpointEventSink> sink = makePtr<BreakpointEventSink>();
     auto attached = controller.attachSession(sink);
@@ -429,8 +432,7 @@ void registerDebuggerBreakpointTests() {
                           testAdvancedBreakpointBindingAndHitSemantics);
     registry.registerTest(kSuiteName, "Loop Hits Without Consecutive Duplicates",
                           testBreakpointLoopHitsWithoutConsecutiveDuplicates);
-    registry.registerTest(kSuiteName, "Log Point Interpolation And Rate Limit",
-                          testLogPointInterpolationAndRateLimit);
+    registry.registerTest(kSuiteName, "Log Point Interpolation And Rate Limit", testLogPointInterpolationAndRateLimit);
     registry.registerTest(kSuiteName, "Hot Reload Retires And Rebinds Proto Locations",
                           testHotReloadRetiresAndRebindsProtoLocations);
 }

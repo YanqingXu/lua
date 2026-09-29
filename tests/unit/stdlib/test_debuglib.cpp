@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "compiler/codegen/codegen.hpp"
@@ -21,9 +22,9 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Debug Library";
+constexpr Lua::CharPtr kSuiteName = "Debug Library";
 
-int invokeDebug(LuaState* L, const char* name, const std::function<void(LuaState*)>& pushArgs) {
+int invokeDebug(LuaState* L, Lua::CharPtr name, const Lua::Func<void(LuaState*)>& pushArgs) {
     Value debugValue = L->getGlobal("debug");
     if (!debugValue.isTable()) {
         return -1;
@@ -45,7 +46,7 @@ int invokeDebug(LuaState* L, const char* name, const std::function<void(LuaState
     return funcValue.asFunction()->getCFunction()(L);
 }
 
-bool runLuaChunk(LuaState* L, const char* source, const char* chunkName) {
+bool runLuaChunk(LuaState* L, Lua::CharPtr source, Lua::CharPtr chunkName) {
     try {
         Parser parser(source);
         auto parsed = parser.parse();
@@ -70,19 +71,19 @@ bool runLuaChunk(LuaState* L, const char* source, const char* chunkName) {
     }
 }
 
-std::string getStringField(LuaState* L, Table* table, const char* key) {
+Lua::Str getStringField(LuaState* L, Table* table, Lua::CharPtr key) {
     GCString* fieldKey = L->getGlobalState().getStringPool().intern(key);
     Value field = table->get(Value(fieldKey));
-    return field.isString() ? std::string(field.asString()->c_str()) : "";
+    return field.isString() ? Lua::Str(field.asString()->c_str()) : "";
 }
 
-double getNumberField(LuaState* L, Table* table, const char* key) {
+Lua::f64 getNumberField(LuaState* L, Table* table, Lua::CharPtr key) {
     GCString* fieldKey = L->getGlobalState().getStringPool().intern(key);
     Value field = table->get(Value(fieldKey));
     return field.isNumber() ? field.asNumber() : -9999.0;
 }
 
-Value getField(LuaState* L, Table* table, const char* key) {
+Value getField(LuaState* L, Table* table, Lua::CharPtr key) {
     GCString* fieldKey = L->getGlobalState().getStringPool().intern(key);
     return table->get(Value(fieldKey));
 }
@@ -98,7 +99,7 @@ void testDebugTableRegistration(TestSuite& suite) {
     }
 
     Table* debugTable = debugValue.asTable();
-    auto checkFunction = [&](const char* name, const char* message) {
+    auto checkFunction = [&](Lua::CharPtr name, Lua::CharPtr message) {
         Value field = debugTable->get(Value(L->getGlobalState().getStringPool().intern(name)));
         ASSERT_TRUE(suite, field.isFunction(), message);
     };
@@ -137,10 +138,10 @@ static i32 dummyClosure(LuaState* L) {
     return 0;
 }
 
-std::vector<std::string> g_hookEvents;
+Lua::Vec<Lua::Str> g_hookEvents;
 
 static i32 captureHook(LuaState* L) {
-    std::string event = L->isString(1) ? L->toString(1) : "";
+    Lua::Str event = L->isString(1) ? L->toString(1) : "";
     if (!L->isNil(2) && L->isNumber(2)) {
         event += ":" + std::to_string(static_cast<i32>(L->toNumber(2)));
     }
@@ -148,9 +149,9 @@ static i32 captureHook(LuaState* L) {
     return 0;
 }
 
-bool hasHookEventPrefix(const std::string& prefix) {
+bool hasHookEventPrefix(const Lua::Str& prefix) {
     return std::any_of(g_hookEvents.begin(), g_hookEvents.end(),
-                       [&](const std::string& event) { return event.rfind(prefix, 0) == 0; });
+                       [&](const Lua::Str& event) { return event.rfind(prefix, 0) == 0; });
 }
 
 void testGetAndSetUpvalue(TestSuite& suite) {
@@ -188,7 +189,7 @@ void testGetAndSetUpvalue(TestSuite& suite) {
     Value updated = upvalue->getValue(L->getStack());
     ASSERT_TRUE(suite, updated.isString(), "upvalue updated to string");
     if (updated.isString()) {
-        ASSERT_TRUE(suite, std::string(updated.asString()->c_str()) == "patched", "setupvalue writes new value");
+        ASSERT_TRUE(suite, Lua::Str(updated.asString()->c_str()) == "patched", "setupvalue writes new value");
     }
 }
 
@@ -263,11 +264,11 @@ void testGetInfoFromLuaStack(TestSuite& suite) {
         ASSERT_TRUE(suite, nups.isNumber(), "stack getinfo nups exported");
 
         if (source.isString()) {
-            ASSERT_TRUE(suite, std::string(source.asString()->c_str()) == "test_debuglib_stack.lua",
+            ASSERT_TRUE(suite, Lua::Str(source.asString()->c_str()) == "test_debuglib_stack.lua",
                         "stack getinfo source matches chunk name");
         }
         if (what.isString()) {
-            ASSERT_TRUE(suite, std::string(what.asString()->c_str()) == "Lua", "stack getinfo what is Lua");
+            ASSERT_TRUE(suite, Lua::Str(what.asString()->c_str()) == "Lua", "stack getinfo what is Lua");
         }
         if (currentLine.isNumber()) {
             ASSERT_TRUE(suite, currentLine.asNumber() > 0.0, "stack getinfo currentline is populated");
@@ -330,21 +331,21 @@ void testGetInfoNameInference(TestSuite& suite) {
         return;
     }
 
-    auto assertNamedResult = [&](const char* nameKey, const char* whatKey, const char* expectedName,
-                                 const char* expectedWhat, const char* label) {
+    auto assertNamedResult = [&](Lua::CharPtr nameKey, Lua::CharPtr whatKey, Lua::CharPtr expectedName,
+                                 Lua::CharPtr expectedWhat, Lua::CharPtr label) {
         Value nameValue = L->getGlobal(nameKey);
         Value whatValue = L->getGlobal(whatKey);
 
-        ASSERT_TRUE(suite, nameValue.isString(), std::string(label).append(" name exported").c_str());
-        ASSERT_TRUE(suite, whatValue.isString(), std::string(label).append(" namewhat exported").c_str());
+        ASSERT_TRUE(suite, nameValue.isString(), Lua::Str(label).append(" name exported").c_str());
+        ASSERT_TRUE(suite, whatValue.isString(), Lua::Str(label).append(" namewhat exported").c_str());
 
         if (nameValue.isString()) {
-            ASSERT_TRUE(suite, std::string(nameValue.asString()->c_str()) == expectedName,
-                        std::string(label).append(" name matches").c_str());
+            ASSERT_TRUE(suite, Lua::Str(nameValue.asString()->c_str()) == expectedName,
+                        Lua::Str(label).append(" name matches").c_str());
         }
         if (whatValue.isString()) {
-            ASSERT_TRUE(suite, std::string(whatValue.asString()->c_str()) == expectedWhat,
-                        std::string(label).append(" namewhat matches").c_str());
+            ASSERT_TRUE(suite, Lua::Str(whatValue.asString()->c_str()) == expectedWhat,
+                        Lua::Str(label).append(" namewhat matches").c_str());
         }
     };
 
@@ -362,7 +363,7 @@ void testGetInfoNameInference(TestSuite& suite) {
         ASSERT_TRUE(suite, !invalidOk.asBoolean(), "invalid option call fails");
     }
     if (invalidErr.isString()) {
-        ASSERT_TRUE(suite, std::string(invalidErr.asString()->c_str()).find("invalid option") != std::string::npos,
+        ASSERT_TRUE(suite, Lua::Str(invalidErr.asString()->c_str()).find("invalid option") != Lua::Str::npos,
                     "invalid option message mentions invalid option");
     }
 
@@ -383,7 +384,7 @@ void testGetInfoNameInference(TestSuite& suite) {
             ASSERT_TRUE(suite, name.isNil(), "function getinfo('n') leaves name unset");
             ASSERT_TRUE(suite, namewhat.isString(), "function getinfo('n') exports namewhat");
             if (namewhat.isString()) {
-                ASSERT_TRUE(suite, std::string(namewhat.asString()->c_str()).empty(),
+                ASSERT_TRUE(suite, Lua::Str(namewhat.asString()->c_str()).empty(),
                             "function getinfo('n') uses empty namewhat");
             }
         }
@@ -410,12 +411,11 @@ void testTracebackFromLua(TestSuite& suite) {
         Value trace = L->getGlobal("g_trace");
         ASSERT_TRUE(suite, trace.isString(), "traceback returns string");
         if (trace.isString()) {
-            std::string text = trace.asString()->c_str();
-            ASSERT_TRUE(suite, text.find("trace message") != std::string::npos, "traceback keeps message");
-            ASSERT_TRUE(suite, text.find("stack traceback:") != std::string::npos, "traceback includes header");
-            ASSERT_TRUE(suite, text.find("test_debuglib_trace.lua") != std::string::npos,
-                        "traceback includes chunk name");
-            ASSERT_TRUE(suite, text.find(": in function 'level2'") != std::string::npos,
+            Lua::Str text = trace.asString()->c_str();
+            ASSERT_TRUE(suite, text.find("trace message") != Lua::Str::npos, "traceback keeps message");
+            ASSERT_TRUE(suite, text.find("stack traceback:") != Lua::Str::npos, "traceback includes header");
+            ASSERT_TRUE(suite, text.find("test_debuglib_trace.lua") != Lua::Str::npos, "traceback includes chunk name");
+            ASSERT_TRUE(suite, text.find(": in function 'level2'") != Lua::Str::npos,
                         "traceback includes Lua function frame");
         }
     }
@@ -463,26 +463,25 @@ void testGetLocalAndSetLocal(TestSuite& suite) {
     ASSERT_TRUE(suite, result.isNumber(), "setlocal affected return value");
 
     if (localName1.isString()) {
-        ASSERT_TRUE(suite, std::string(localName1.asString()->c_str()) == "a", "local #1 is parameter a");
+        ASSERT_TRUE(suite, Lua::Str(localName1.asString()->c_str()) == "a", "local #1 is parameter a");
     }
     if (localValue1.isNumber()) {
         ASSERT_EQ(suite, 7.0, localValue1.asNumber(), "local #1 value matches");
     }
     if (localName2.isString()) {
-        ASSERT_TRUE(suite, std::string(localName2.asString()->c_str()) == "b", "local #2 is parameter b");
+        ASSERT_TRUE(suite, Lua::Str(localName2.asString()->c_str()) == "b", "local #2 is parameter b");
     }
     if (localValue2.isNumber()) {
         ASSERT_EQ(suite, 8.0, localValue2.asNumber(), "local #2 value matches");
     }
     if (localName3.isString()) {
-        ASSERT_TRUE(suite, std::string(localName3.asString()->c_str()) == "sum", "local #3 is local sum");
+        ASSERT_TRUE(suite, Lua::Str(localName3.asString()->c_str()) == "sum", "local #3 is local sum");
     }
     if (localValue3.isNumber()) {
         ASSERT_EQ(suite, 15.0, localValue3.asNumber(), "local #3 value matches before mutation");
     }
     if (setlocalName.isString()) {
-        ASSERT_TRUE(suite, std::string(setlocalName.asString()->c_str()) == "sum",
-                    "setlocal returns mutated local name");
+        ASSERT_TRUE(suite, Lua::Str(setlocalName.asString()->c_str()) == "sum", "setlocal returns mutated local name");
     }
     if (result.isNumber()) {
         ASSERT_EQ(suite, 99.0, result.asNumber(), "setlocal updates the live local slot");
@@ -499,7 +498,7 @@ void testGetLocalAndSetLocal(TestSuite& suite) {
         ASSERT_EQ(suite, 1, ret, "debug.getlocal(function) returns one value");
         ASSERT_TRUE(suite, L->top().isString(), "debug.getlocal(function) returns a name");
         if (L->top().isString()) {
-            ASSERT_TRUE(suite, std::string(L->top().asString()->c_str()) == "a",
+            ASSERT_TRUE(suite, Lua::Str(L->top().asString()->c_str()) == "a",
                         "function local metadata returns first parameter");
         }
 
@@ -555,7 +554,7 @@ void testDebugMetatableWrappers(TestSuite& suite) {
                           "test_debuglib_metatable.lua");
     ASSERT_TRUE(suite, ok, "debug metatable chunk runs");
 
-    auto assertGlobalTrue = [&](const char* name, const char* message) {
+    auto assertGlobalTrue = [&](Lua::CharPtr name, Lua::CharPtr message) {
         Value value = L->getGlobal(name);
         ASSERT_TRUE(suite, value.isBoolean() && value.asBoolean(), message);
     };
@@ -685,7 +684,7 @@ void testHookLifecycle(TestSuite& suite) {
         ASSERT_TRUE(suite, L->at(-3).asFunction() == hookFunc, "gethook returns installed function");
     }
     if (L->at(-2).isString()) {
-        ASSERT_TRUE(suite, std::string(L->at(-2).asString()->c_str()) == "crl", "gethook returns installed mask");
+        ASSERT_TRUE(suite, Lua::Str(L->at(-2).asString()->c_str()) == "crl", "gethook returns installed mask");
     }
     if (L->at(-1).isNumber()) {
         ASSERT_EQ(suite, 2.0, L->at(-1).asNumber(), "gethook returns installed count");
@@ -700,7 +699,7 @@ void testHookLifecycle(TestSuite& suite) {
     ASSERT_TRUE(suite, L->at(-2).isString(), "cleared hook mask returns string");
     ASSERT_TRUE(suite, L->at(-1).isNumber(), "cleared hook count returns number");
     if (L->at(-2).isString()) {
-        ASSERT_TRUE(suite, std::string(L->at(-2).asString()->c_str()).empty(), "cleared hook mask is empty");
+        ASSERT_TRUE(suite, Lua::Str(L->at(-2).asString()->c_str()).empty(), "cleared hook mask is empty");
     }
     if (L->at(-1).isNumber()) {
         ASSERT_EQ(suite, 0.0, L->at(-1).asNumber(), "cleared hook count is zero");
@@ -755,7 +754,7 @@ void testThreadHookAndTraceback(TestSuite& suite) {
     ASSERT_TRUE(suite, L->at(-2).isString(), "thread gethook returns mask");
     ASSERT_TRUE(suite, L->at(-1).isNumber(), "thread gethook returns count");
     if (L->at(-2).isString()) {
-        ASSERT_TRUE(suite, std::string(L->at(-2).asString()->c_str()) == "cr", "thread gethook mask matches");
+        ASSERT_TRUE(suite, Lua::Str(L->at(-2).asString()->c_str()) == "cr", "thread gethook mask matches");
     }
     if (L->at(-1).isNumber()) {
         ASSERT_EQ(suite, 1.0, L->at(-1).asNumber(), "thread gethook count matches");
@@ -787,8 +786,8 @@ void testThreadHookAndTraceback(TestSuite& suite) {
             ASSERT_EQ(suite, 12.0, resumeValue2.asNumber(), "second coroutine resume returned expected value");
         }
         if (threadTrace.isString()) {
-            std::string text = threadTrace.asString()->c_str();
-            ASSERT_TRUE(suite, text.find("test_debuglib_thread.lua") != std::string::npos,
+            Lua::Str text = threadTrace.asString()->c_str();
+            ASSERT_TRUE(suite, text.find("test_debuglib_thread.lua") != Lua::Str::npos,
                         "thread traceback includes coroutine chunk name");
         }
     }
@@ -822,10 +821,10 @@ void testFailedThreadTraceback(TestSuite& suite) {
                 "failed coroutine resume reports false and leaves the coroutine dead");
     ASSERT_TRUE(suite, trace.isString(), "failed coroutine traceback returns a string");
     if (trace.isString()) {
-        const std::string text = trace.asString()->c_str();
-        ASSERT_TRUE(suite, text.find("stack traceback:") != std::string::npos,
+        const Lua::Str text = trace.asString()->c_str();
+        ASSERT_TRUE(suite, text.find("stack traceback:") != Lua::Str::npos,
                     "failed coroutine traceback includes the traceback header");
-        ASSERT_TRUE(suite, text.find("failed_trace_leaf") != std::string::npos,
+        ASSERT_TRUE(suite, text.find("failed_trace_leaf") != Lua::Str::npos,
                     "failed coroutine traceback retains the leaf frame");
     }
 

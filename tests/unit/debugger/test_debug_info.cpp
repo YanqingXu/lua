@@ -3,6 +3,7 @@
  * @brief Debug source normalization and Proto metadata contract tests.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "compiler/codegen/codegen.hpp"
@@ -20,7 +21,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Debugger Debug Info";
+constexpr Lua::CharPtr kSuiteName = "Debugger Debug Info";
 
 Proto* generateProto(StrView source, StrView sourceName) {
     RuntimeServices services = RuntimeServices::fromSingletons();
@@ -130,7 +131,7 @@ void testDebuggerCompiledProtoMetadataIsComplete(TestSuite& suite) {
     DebugInfoIndex index(*root);
     ASSERT_EQ(suite, protos.size(), index.protoStatuses().size(), "Debug index covers the complete Proto tree");
 
-    const std::optional<i32> firstLine = index.resolveExecutableLine("@c:/game/scripts/debug_info.lua", 1);
+    const Lua::Opt<i32> firstLine = index.resolveExecutableLine("@c:/game/scripts/debug_info.lua", 1);
     ASSERT_TRUE(suite, firstLine.has_value(), "Breakpoint resolver finds the first executable line");
     if (firstLine) {
         ASSERT_TRUE(suite, *firstLine >= 2, "Comment-only line is not reported as executable");
@@ -143,7 +144,7 @@ void testDebuggerCompiledProtoMetadataIsComplete(TestSuite& suite) {
     bool nestedLocationBelongsToChild = false;
     for (const DebugCodeLocation& location : nestedLocations) {
         nestedLocationBelongsToChild = nestedLocationBelongsToChild || location.proto != root;
-        const std::optional<DebugCodeLocation> reverse = index.locationForPc(*location.proto, location.pc);
+        const Lua::Opt<DebugCodeLocation> reverse = index.locationForPc(*location.proto, location.pc);
         ASSERT_TRUE(suite, reverse.has_value() && reverse->line == location.line,
                     "Each source-to-PC mapping can be reversed safely");
     }

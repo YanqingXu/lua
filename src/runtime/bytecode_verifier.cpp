@@ -3,6 +3,7 @@
  * @brief 字节码原型树验证器的实现
  */
 
+#include "common/types.hpp"
 #include "runtime/bytecode_verifier.hpp"
 
 #include "compiler/opcode.hpp"
@@ -19,9 +20,9 @@ class Verifier {
 public:
     explicit Verifier(const BytecodeVerifierLimits& limits) : limits_(limits) {}
 
-    std::expected<void, Str> run(const Proto& root) {
+    Expect<void, Str> run(const Proto& root) {
         if (!verifyProto(root, 1)) {
-            return std::unexpected(error_);
+            return Unexpect<Str>(error_);
         }
         return {};
     }
@@ -33,9 +34,9 @@ private:
     usize constantCount_ = 0;
     usize debugEntryCount_ = 0;
     Str error_;
-    std::vector<const Proto*> protoStack_;
+    Vec<const Proto*> protoStack_;
 
-    bool fail(const char* message, usize pc = std::numeric_limits<usize>::max()) {
+    bool fail(CharPtr message, usize pc = std::numeric_limits<usize>::max()) {
         error_ = "bytecode verification failed: ";
         if (!protoStack_.empty()) {
             const Proto& proto = *protoStack_.back();
@@ -54,7 +55,7 @@ private:
         return false;
     }
 
-    bool addWithin(usize value, usize& total, usize limit, const char* message) {
+    bool addWithin(usize value, usize& total, usize limit, CharPtr message) {
         if (value > limit || total > limit - value) {
             return fail(message);
         }
@@ -87,7 +88,7 @@ private:
         return verifyRegister(operand, maxStack, pc);
     }
 
-    bool verifyTarget(i64 target, const std::vector<u8>& dataWords, usize pc) {
+    bool verifyTarget(i64 target, const Vec<u8>& dataWords, usize pc) {
         if (target < 0 || static_cast<u64>(target) >= static_cast<u64>(dataWords.size())) {
             return fail("control-flow target out of range", pc);
         }
@@ -97,7 +98,7 @@ private:
         return true;
     }
 
-    bool verifyJumpAt(const Proto& proto, usize jumpPc, const std::vector<u8>& dataWords, usize ownerPc) {
+    bool verifyJumpAt(const Proto& proto, usize jumpPc, const Vec<u8>& dataWords, usize ownerPc) {
         if (jumpPc >= proto.getInstructionCount() || dataWords[jumpPc] != 0 ||
             GET_OPCODE(proto.getInstruction(jumpPc)) != OpCode::JMP) {
             return fail("test instruction is not followed by JMP", ownerPc);
@@ -154,7 +155,7 @@ private:
             }
         }
 
-        std::vector<u8> dataWords(codeCount, 0);
+        Vec<u8> dataWords(codeCount, 0);
         for (usize pc = 0; pc < codeCount; ++pc) {
             const Instruction instruction = proto.getInstruction(pc);
             const OpCode opcode = GET_OPCODE(instruction);
@@ -223,7 +224,7 @@ private:
         return true;
     }
 
-    bool verifyInstruction(const Proto& proto, usize pc, const std::vector<u8>& dataWords, usize maxStack) {
+    bool verifyInstruction(const Proto& proto, usize pc, const Vec<u8>& dataWords, usize maxStack) {
         const Instruction instruction = proto.getInstruction(pc);
         const OpCode opcode = GET_OPCODE(instruction);
         const i32 a = GETARG_A(instruction);
@@ -324,7 +325,7 @@ private:
 
 } // namespace
 
-std::expected<void, Str> BytecodeVerifier::verify(const Proto& root, const BytecodeVerifierLimits& limits) {
+Expect<void, Str> BytecodeVerifier::verify(const Proto& root, const BytecodeVerifierLimits& limits) {
     return Verifier(limits).run(root);
 }
 

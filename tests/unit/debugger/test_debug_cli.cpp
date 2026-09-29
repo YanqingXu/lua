@@ -3,6 +3,7 @@
  * @brief Scripted internal CLI end-to-end debugger test.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "compiler/codegen/codegen.hpp"
@@ -26,7 +27,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Debugger Internal CLI";
+constexpr Lua::CharPtr kSuiteName = "Debugger Internal CLI";
 
 Str readFixture(const std::filesystem::path& path) {
     std::ifstream input(path, std::ios::binary);
@@ -59,11 +60,11 @@ void testDebugCliScriptedEndToEnd(TestSuite& suite) {
     DebugSession session = std::move(*attached);
     const auto breakpoint = cli.execute("break tests/lua/debugger/basic_breakpoint.lua:4");
     const auto run = cli.execute("run");
-    std::atomic<bool> executionDone = false;
+    Lua::Atom<bool> executionDone = false;
     bool timedOut = false;
-    DebugResult<Str> backtrace = std::unexpected(DebugError{});
-    DebugResult<Str> locals = std::unexpected(DebugError{});
-    DebugResult<Str> continued = std::unexpected(DebugError{});
+    DebugResult<Str> backtrace = Lua::Unexpect<DebugError>(DebugError{});
+    DebugResult<Str> locals = Lua::Unexpect<DebugError>(DebugError{});
+    DebugResult<Str> continued = Lua::Unexpect<DebugError>(DebugError{});
 
     std::thread control([&]() {
         const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
@@ -95,8 +96,9 @@ void testDebugCliScriptedEndToEnd(TestSuite& suite) {
     ASSERT_FALSE(suite, timedOut, "Scripted CLI session reaches the breakpoint within timeout");
     ASSERT_TRUE(suite, backtrace && backtrace->find("line=5") != Str::npos,
                 "CLI backtrace reports the resolved executable line");
-    ASSERT_TRUE(suite, locals && locals->find("greeting = \"hello\" : string") != Str::npos &&
-                           locals->find("count = 2 : number") != Str::npos,
+    ASSERT_TRUE(suite,
+                locals && locals->find("greeting = \"hello\" : string") != Str::npos &&
+                    locals->find("count = 2 : number") != Str::npos,
                 "CLI locals command renders stable local names and values");
     ASSERT_TRUE(suite, continued && *continued == "continued", "CLI continue resumes the suspended VM");
     ASSERT_TRUE(suite, executed && state->top().isString() && state->top().asString()->view() == "hello 2",

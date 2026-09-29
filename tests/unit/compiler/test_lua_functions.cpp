@@ -3,6 +3,7 @@
  * @brief 测试Lua函数文件的编译
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -16,10 +17,10 @@
 using namespace Lua;
 using namespace LuaTest;
 
-std::string readFile(const char* filename) {
+Lua::Str readFile(Lua::CharPtr filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        throw std::runtime_error(std::string("Cannot open file: ") + filename);
+        throw std::runtime_error(Lua::Str("Cannot open file: ") + filename);
     }
     std::stringstream buffer;
     buffer << file.rdbuf();
@@ -27,7 +28,7 @@ std::string readFile(const char* filename) {
 }
 
 void testLuaFunctionFile(TestSuite& suite) {
-    std::string code = readFile("tests/lua/functions/test_functions.lua");
+    Lua::Str code = readFile("tests/lua/functions/test_functions.lua");
     ASSERT_TRUE(suite, !code.empty(), "File loaded");
 
     RuntimeServices services = RuntimeServices::fromSingletons();

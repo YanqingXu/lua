@@ -6,6 +6,7 @@
  * Covers literals, name reads, paren expressions, RK encoding, and runtime correctness.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -23,7 +24,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "ValueResult Pipeline";
+constexpr Lua::CharPtr kSuiteName = "ValueResult Pipeline";
 
 LuaState* createFullState() {
     LuaState* L = LuaState::newState();
@@ -31,7 +32,7 @@ LuaState* createFullState() {
     return L;
 }
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -55,7 +56,7 @@ bool runLua(LuaState* L, const char* code) {
     }
 }
 
-Proto* generateProto(const char* code) {
+Proto* generateProto(Lua::CharPtr code) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
@@ -67,17 +68,17 @@ Proto* generateProto(const char* code) {
     return codegen.generate(chunk);
 }
 
-int countOpcode(const char* code, OpCode op) {
+int countOpcode(Lua::CharPtr code, OpCode op) {
     Proto* proto = generateProto(code);
     int count = 0;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == op)
             count++;
     }
     return count;
 }
 
-bool hasOpcode(const char* code, OpCode op) {
+bool hasOpcode(Lua::CharPtr code, OpCode op) {
     return countOpcode(code, op) > 0;
 }
 
@@ -112,7 +113,7 @@ void testValueLocalReadBytecode(TestSuite& suite) {
     // local a = 1; local b = a -> might need MOVE or not depending on reg
     Proto* proto = generateProto("local a = 1\nlocal b = a");
     bool foundMove = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::MOVE) {
             foundMove = true;
             break;
@@ -129,7 +130,7 @@ void testValueGlobalReadBytecode(TestSuite& suite) {
 
 void testValueUpvalueReadBytecode(TestSuite& suite) {
     // upvalue read generates GETUPVAL in the inner proto
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local a = 1
         local f = function() return a end
     )";
@@ -138,7 +139,7 @@ void testValueUpvalueReadBytecode(TestSuite& suite) {
     ASSERT_TRUE(suite, outerProto->getSubProtoCount() > 0, "inner function proto exists");
     Proto* innerProto = outerProto->getSubProto(0);
     bool found = false;
-    for (size_t i = 0; i < innerProto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < innerProto->getInstructionCount(); i++) {
         if (GET_OPCODE(innerProto->getInstruction(i)) == OpCode::GETUPVAL)
             found = true;
     }
@@ -152,10 +153,10 @@ void testValueUpvalueReadBytecode(TestSuite& suite) {
 
 void testValueRKConstantEncoding(TestSuite& suite) {
     // a + 1 -> ADD uses RK for the constant 1
-    const char* code = "local a = 10\nlocal b = a + 1";
+    Lua::CharPtr code = "local a = 10\nlocal b = a + 1";
     Proto* proto = generateProto(code);
     bool foundAdd = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
         if (GET_OPCODE(inst) == OpCode::ADD) {
             foundAdd = true;
@@ -175,20 +176,20 @@ void testValueRKConstantEncoding(TestSuite& suite) {
 
 void testValueParenSingleBytecode(TestSuite& suite) {
     // (a) should be same as a
-    const char* code = "local a = 10\nlocal b = (a)";
+    Lua::CharPtr code = "local a = 10\nlocal b = (a)";
     ASSERT_TRUE(suite, hasOpcode(code, OpCode::MOVE), "parenthesized local generates MOVE");
 }
 
 void testValueParenCallSingle(TestSuite& suite) {
     // (f()) should collapse multret to single value
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local function f() return 1, 2, 3 end
         local x = (f())
     )";
     Proto* proto = generateProto(code);
     // The CALL in the outer proto should have C=2 (1 return value)
     bool foundCall = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
         if (GET_OPCODE(inst) == OpCode::CALL) {
             foundCall = true;
@@ -205,7 +206,7 @@ void testValueParenCallSingle(TestSuite& suite) {
 // =====================================================================
 
 void testValueFunctionExprBytecode(TestSuite& suite) {
-    const char* code = "local f = function(x) return x end";
+    Lua::CharPtr code = "local f = function(x) return x end";
     ASSERT_TRUE(suite, hasOpcode(code, OpCode::CLOSURE), "function expression generates CLOSURE");
 }
 
@@ -381,7 +382,7 @@ void testValueBlockLocalShadowEndsRuntime(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "block local shadow does not leak after do-end");
 
     Value result = L->getGlobal("block_shadow_result");
-    ASSERT_TRUE(suite, result.isString() && std::string(result.asString()->c_str()) == "global",
+    ASSERT_TRUE(suite, result.isString() && Lua::Str(result.asString()->c_str()) == "global",
                 "name after do-end resolves to global function");
     delete L;
 }
@@ -482,7 +483,7 @@ void testWhileBreakPatchesBeforeFollowingJumpBytecode(TestSuite& suite) {
     )");
 
     bool foundUnpatchedJump = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
         if (GET_OPCODE(inst) == OpCode::JMP && GETARG_sBx(inst) == NO_JUMP) {
             foundUnpatchedJump = true;

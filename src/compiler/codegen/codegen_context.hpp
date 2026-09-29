@@ -216,7 +216,7 @@ public:
      * @param patchToHere 将跳转回填到当前位置的回调
      */
     void leaveBlock(LocalVarScope& localScope, RegisterAllocator& registers, i32 currentPc,
-                    const std::function<void(i32)>& patchToHere) {
+                    const Func<void(i32)>& patchToHere) {
         UPtr<BlockInfo> bl = takeCurrentBlock();
 
         localScope.closeLocals(bl->activeVarCount, currentPc);

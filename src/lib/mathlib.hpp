@@ -37,7 +37,7 @@ namespace Lua {
  */
 class MathLibModule : public LibModule {
 public:
-    const char* getName() const override {
+    CharPtr getName() const override {
         return "math";
     }
 

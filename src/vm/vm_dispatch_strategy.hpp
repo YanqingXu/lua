@@ -30,21 +30,21 @@ public:
     virtual ~DispatchStrategy() = default;
 
     virtual ExecResult run(VMContext& context) = 0;
-    virtual const char* name() const noexcept = 0;
+    virtual CharPtr name() const noexcept = 0;
 };
 
 /** @brief 基于 switch 语句的操作码调度策略。 */
 class SwitchDispatch final : public DispatchStrategy {
 public:
     ExecResult run(VMContext& context) override;
-    const char* name() const noexcept override;
+    CharPtr name() const noexcept override;
 };
 
 /** @brief 基于处理器表的操作码调度策略。 */
 class TableDispatch final : public DispatchStrategy {
 public:
     ExecResult run(VMContext& context) override;
-    const char* name() const noexcept override;
+    CharPtr name() const noexcept override;
 };
 
 DispatchStrategy& defaultDispatchStrategy() noexcept;

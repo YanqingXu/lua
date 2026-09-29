@@ -3,6 +3,7 @@
  * @brief 作用域管理器实现
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/scope_manager.hpp"
 #include "compiler/codegen/codegen.hpp"
 

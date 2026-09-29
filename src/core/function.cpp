@@ -3,6 +3,7 @@
  * @brief 函数对象实现
  */
 
+#include "common/types.hpp"
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
@@ -24,8 +25,7 @@ Proto::Proto(LuaAllocator* allocator)
       constantMap_(0, ConstantKeyHash{}, std::equal_to<ConstantKey>{}, ConstantMapAllocator(allocator)),
       code_(allocator), subProtos_(allocator), lineInfo_(allocator), locvars_(allocator), upvalueNames_(allocator),
       source_(nullptr), debugName_(nullptr), linedefined_(0), lastlinedefined_(0), gclist_(nullptr), nups_(0),
-      numParams_(0), isVararg_(0),
-      maxStackSize_(0) {}
+      numParams_(0), isVararg_(0), maxStackSize_(0) {}
 
 Proto::~Proto() {
     // 常量表中的GC对象由GC系统管理，这里不需要手动删除

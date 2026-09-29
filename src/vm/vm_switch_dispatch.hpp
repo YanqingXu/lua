@@ -5,6 +5,7 @@
  * @brief 虚拟机基于 switch 语句的调度后端操作码专用内联入口
  */
 
+#include "common/types.hpp"
 #include "vm/vm_handlers.hpp"
 
 #include <utility>
@@ -171,7 +172,7 @@ struct SwitchHandlerEntry {
     SwitchOpHandler handler;
 };
 
-inline constexpr std::array<SwitchHandlerEntry, static_cast<usize>(NUM_OPCODES)> kSwitchHandlers = {{
+inline constexpr Arr<SwitchHandlerEntry, static_cast<usize>(NUM_OPCODES)> kSwitchHandlers = {{
     {OpCode::MOVE, execOpMove},
     {OpCode::LOADK, execOpLoadK},
     {OpCode::LOADBOOL, execOpLoadBool},

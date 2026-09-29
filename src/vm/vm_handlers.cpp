@@ -3,6 +3,7 @@
  * @brief VM 调度策略使用的操作码命令处理器注册表
  */
 
+#include "common/types.hpp"
 #include "vm/vm_handlers.hpp"
 #include "common/lua_error.hpp"
 #include "vm/vm_handlers/vm_handler_utils.hpp"

@@ -8,6 +8,7 @@
  * @date 2026-04-10
  */
 
+#include "common/types.hpp"
 #include "lib/debuglib.hpp"
 
 #include "lua.h"
@@ -48,7 +49,7 @@ GCString* internString(LuaState* L, StrView value) {
     return L->getGlobalState().getStringPool().intern(value);
 }
 
-GCString* internString(LuaState* L, const char* value) {
+GCString* internString(LuaState* L, CharPtr value) {
     return internString(L, value ? StrView(value) : StrView(""));
 }
 
@@ -56,15 +57,15 @@ GCString* internEmptyString(LuaState* L) {
     return internString(L, "");
 }
 
-void setField(Table* table, LuaState* L, const char* key, const Value& value) {
+void setField(Table* table, LuaState* L, CharPtr key, const Value& value) {
     table->set(Value(internString(L, key)), value);
 }
 
-void setStringField(Table* table, LuaState* L, const char* key, StrView value) {
+void setStringField(Table* table, LuaState* L, CharPtr key, StrView value) {
     setField(table, L, key, Value(internString(L, value)));
 }
 
-void setNumberField(Table* table, LuaState* L, const char* key, i32 value) {
+void setNumberField(Table* table, LuaState* L, CharPtr key, i32 value) {
     setField(table, L, key, Value(static_cast<LuaNumber>(value)));
 }
 
@@ -482,7 +483,7 @@ bool findRegisterSetter(Proto* proto, i32 pc, i32 reg, i32& setterPc, Instructio
     return false;
 }
 
-const char* inferObjectName(LuaState* L, Proto* proto, i32 pc, i32 reg, GCString*& outName, i32 depth = 0) {
+CharPtr inferObjectName(LuaState* L, Proto* proto, i32 pc, i32 reg, GCString*& outName, i32 depth = 0) {
     if (proto == nullptr || reg < 0 || pc < 0 || depth > 16) {
         return nullptr;
     }
@@ -568,7 +569,7 @@ void populateInfoN(Table* info, LuaState* L, LuaState* ownerL, const DebugFrameR
     }
 
     GCString* name = nullptr;
-    const char* nameWhat = inferObjectName(L, callerProto, callerPc, targetReg, name);
+    CharPtr nameWhat = inferObjectName(L, callerProto, callerPc, targetReg, name);
     if (nameWhat == nullptr) {
         return;
     }
@@ -624,7 +625,7 @@ Str describeFunction(Function* func) {
     return std::format("function <{}:{}>", source, proto->getLineDefined());
 }
 
-bool inferFrameCallName(LuaState* ownerL, usize stackIndex, const char*& outNameWhat, GCString*& outName) {
+bool inferFrameCallName(LuaState* ownerL, usize stackIndex, CharPtr& outNameWhat, GCString*& outName) {
     LuaVector<CallInfo>& frames = ownerL->getCallStack();
     if (stackIndex == 0 || stackIndex >= frames.size()) {
         return false;
@@ -657,7 +658,7 @@ bool inferFrameCallName(LuaState* ownerL, usize stackIndex, const char*& outName
     return outNameWhat != nullptr && outName != nullptr;
 }
 
-Str describeNamedCall(const char* nameWhat, GCString* name) {
+Str describeNamedCall(CharPtr nameWhat, GCString* name) {
     if (nameWhat == nullptr || name == nullptr) {
         return "";
     }
@@ -669,7 +670,7 @@ Str describeNamedCall(const char* nameWhat, GCString* name) {
 }
 
 Str describeCFunctionAtFrame(LuaState* ownerL, usize stackIndex) {
-    const char* nameWhat = nullptr;
+    CharPtr nameWhat = nullptr;
     GCString* name = nullptr;
     if (!inferFrameCallName(ownerL, stackIndex, nameWhat, name)) {
         return "C function";
@@ -697,7 +698,7 @@ Str formatFrameLine(LuaState* ownerL, const CallInfo& ci, usize stackIndex) {
     }
 
     Str description = describeFunction(func);
-    const char* nameWhat = nullptr;
+    CharPtr nameWhat = nullptr;
     GCString* name = nullptr;
     if (inferFrameCallName(ownerL, stackIndex, nameWhat, name)) {
         Str namedCall = describeNamedCall(nameWhat, name);
@@ -716,14 +717,14 @@ Str formatTailCallLine() {
     return "\t(tail call): ?";
 }
 
-Function* checkFunctionArg(LuaState* L, i32 idx, const char* message) {
+Function* checkFunctionArg(LuaState* L, i32 idx, CharPtr message) {
     if (!L->isFunction(idx)) {
         L->error(message);
     }
     return L->at(idx).asFunction();
 }
 
-i32 checkInteger(LuaState* L, i32 idx, const char* message) {
+i32 checkInteger(LuaState* L, i32 idx, CharPtr message) {
     if (!L->isNumber(idx)) {
         L->error(message);
     }
@@ -734,7 +735,7 @@ i32 checkInteger(LuaState* L, i32 idx, const char* message) {
     return *converted;
 }
 
-i32 checkPositiveIndex(LuaState* L, i32 idx, const char* message) {
+i32 checkPositiveIndex(LuaState* L, i32 idx, CharPtr message) {
     i32 value = checkInteger(L, idx, message);
     if (value <= 0) {
         L->error(message);
@@ -742,7 +743,7 @@ i32 checkPositiveIndex(LuaState* L, i32 idx, const char* message) {
     return value;
 }
 
-i32 checkNonNegativeLevel(LuaState* L, i32 idx, const char* message) {
+i32 checkNonNegativeLevel(LuaState* L, i32 idx, CharPtr message) {
     i32 value = checkInteger(L, idx, message);
     if (value < 0) {
         L->error(message);
@@ -1145,7 +1146,7 @@ i32 luaDebug_traceback(LuaState* L) {
     i32 argBase = 1;
     LuaState* ownerL = getThreadArgument(L, argBase);
 
-    const char* message = nullptr;
+    CharPtr message = nullptr;
     if (L->getTop() >= argBase && !L->isNil(argBase)) {
         if (!L->isString(argBase)) {
             L->pushValue(L->at(argBase));
@@ -1403,7 +1404,7 @@ Table* createApiActiveLines(LuaState* L, Function* func) {
     return lines;
 }
 
-const char* findApiLocal(LuaState* L, const DebugFrameRef& frame, i32 localNumber, usize& slot) {
+CharPtr findApiLocal(LuaState* L, const DebugFrameRef& frame, i32 localNumber, usize& slot) {
     if (L == nullptr || frame.ci == nullptr || localNumber <= 0) {
         return nullptr;
     }
@@ -1447,7 +1448,7 @@ int apiDebugGetStack(LuaState* L, int level, lua_Debug* ar) {
     return 1;
 }
 
-int apiDebugGetInfo(LuaState* L, const char* what, lua_Debug* ar) {
+int apiDebugGetInfo(LuaState* L, CharPtr what, lua_Debug* ar) {
     if (L == nullptr || what == nullptr || ar == nullptr) {
         return 0;
     }
@@ -1473,7 +1474,7 @@ int apiDebugGetInfo(LuaState* L, const char* what, lua_Debug* ar) {
     }
 
     int status = 1;
-    for (const char* option = what; *option != '\0'; ++option) {
+    for (CharPtr option = what; *option != '\0'; ++option) {
         switch (*option) {
         case 'S':
             populateApiInfoS(ar, tailFrame ? nullptr : func);
@@ -1488,7 +1489,7 @@ int apiDebugGetInfo(LuaState* L, const char* what, lua_Debug* ar) {
             ar->name = nullptr;
             ar->namewhat = "";
             if (!tailFrame && frame.ci != nullptr && !(func->isLuaFunction() && frame.ci->tailcalls > 0)) {
-                const char* nameWhat = nullptr;
+                CharPtr nameWhat = nullptr;
                 GCString* name = nullptr;
                 if (inferFrameCallName(L, frame.stackIndex, nameWhat, name)) {
                     ar->name = name->c_str();
@@ -1523,21 +1524,21 @@ int apiDebugGetInfo(LuaState* L, const char* what, lua_Debug* ar) {
     return status;
 }
 
-const char* apiDebugGetLocal(LuaState* L, const lua_Debug* ar, int n) {
+CharPtr apiDebugGetLocal(LuaState* L, const lua_Debug* ar, int n) {
     DebugFrameRef frame;
     if (!resolveApiRecord(L, ar, frame)) {
         return nullptr;
     }
 
     usize slot = 0;
-    const char* name = findApiLocal(L, frame, n, slot);
+    CharPtr name = findApiLocal(L, frame, n, slot);
     if (name != nullptr) {
         L->pushValue(L->getStack().at(slot));
     }
     return name;
 }
 
-const char* apiDebugSetLocal(LuaState* L, const lua_Debug* ar, int n) {
+CharPtr apiDebugSetLocal(LuaState* L, const lua_Debug* ar, int n) {
     if (L == nullptr) {
         return nullptr;
     }
@@ -1550,7 +1551,7 @@ const char* apiDebugSetLocal(LuaState* L, const lua_Debug* ar, int n) {
     Value replacement = L->getStack().at(top - 1);
     DebugFrameRef frame;
     usize slot = 0;
-    const char* name = resolveApiRecord(L, ar, frame) ? findApiLocal(L, frame, n, slot) : nullptr;
+    CharPtr name = resolveApiRecord(L, ar, frame) ? findApiLocal(L, frame, n, slot) : nullptr;
     if (name != nullptr) {
         L->getStack().at(slot) = replacement;
     }

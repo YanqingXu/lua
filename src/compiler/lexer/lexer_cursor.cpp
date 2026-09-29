@@ -3,6 +3,7 @@
  * @brief 词法分析器输入游标的实现
  */
 
+#include "common/types.hpp"
 #include "lexer_cursor.hpp"
 
 namespace Lua {

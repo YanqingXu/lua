@@ -16,7 +16,7 @@ using LibCFunction = i32 (*)(LuaState*);
 
 /** @brief 标准库函数名称与入口的静态描述项。 */
 struct LibFunctionEntry {
-    const char* name;
+    CharPtr name;
     LibCFunction func;
 };
 
@@ -26,7 +26,7 @@ public:
     virtual ~LibModule() = default;
 
     /** @brief 获取模块名称。 */
-    virtual const char* getName() const = 0;
+    virtual CharPtr getName() const = 0;
 
     /** @brief 将模块函数注册到指定 Lua 状态。 */
     virtual void registerFunctions(LuaState* L) = 0;

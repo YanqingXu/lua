@@ -4,6 +4,7 @@
  */
 
 #include "debugger/debug_info.hpp"
+#include "common/types.hpp"
 
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
@@ -186,7 +187,7 @@ Vec<DebugCodeLocation> DebugInfoIndex::locationsForLine(StrView source, i32 line
     return result;
 }
 
-std::optional<i32> DebugInfoIndex::resolveExecutableLine(StrView source, i32 requestedLine) const {
+Opt<i32> DebugInfoIndex::resolveExecutableLine(StrView source, i32 requestedLine) const {
     if (requestedLine <= 0) {
         return std::nullopt;
     }
@@ -196,7 +197,7 @@ std::optional<i32> DebugInfoIndex::resolveExecutableLine(StrView source, i32 req
         return std::nullopt;
     }
 
-    std::optional<i32> resolved;
+    Opt<i32> resolved;
     for (const DebugCodeLocation& location : locations_) {
         if (location.source.identity != requestedSource.identity || location.line < requestedLine) {
             continue;
@@ -208,7 +209,7 @@ std::optional<i32> DebugInfoIndex::resolveExecutableLine(StrView source, i32 req
     return resolved;
 }
 
-std::optional<DebugCodeLocation> DebugInfoIndex::locationForPc(const Proto& proto, usize pc) const {
+Opt<DebugCodeLocation> DebugInfoIndex::locationForPc(const Proto& proto, usize pc) const {
     for (const DebugCodeLocation& location : locations_) {
         if (location.proto == &proto && location.pc == pc) {
             return location;

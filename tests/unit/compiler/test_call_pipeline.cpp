@@ -8,6 +8,7 @@
  * and print((f()))-style parenthesized call consumption.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
@@ -25,9 +26,9 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Call Pipeline (PR-5)";
+constexpr Lua::CharPtr kSuiteName = "Call Pipeline (PR-5)";
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -634,7 +635,7 @@ void testDeepTailCallErrorDiagnosticsAreBounded(TestSuite& suite) {
 void testLargeTableConstructorUsesExtendedSetList(TestSuite& suite) {
     LuaState* L = createFullState();
 
-    std::string code;
+    Lua::Str code;
     code.reserve(180000);
     code += "local t = {\n";
     for (i32 i = 1; i <= 25551; ++i) {

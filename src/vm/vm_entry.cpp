@@ -3,6 +3,7 @@
  * @brief VM 公共入口与 C 调用桥接
  */
 
+#include "common/types.hpp"
 #include "vm/vm.hpp"
 
 #include "common/lua_error.hpp"

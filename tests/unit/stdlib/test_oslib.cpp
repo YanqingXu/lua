@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "lib/oslib.hpp"
 #include "vm/state/lua_state.hpp"
@@ -15,10 +16,10 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "OS Library";
+constexpr Lua::CharPtr kSuiteName = "OS Library";
 
 // Helper function to call OS library functions from the os table
-i32 callOSFunc(LuaState* L, const char* funcName, const std::function<void(LuaState*)>& pushArgs) {
+i32 callOSFunc(LuaState* L, Lua::CharPtr funcName, const Lua::Func<void(LuaState*)>& pushArgs) {
     // 获取 os 表
     Value osTable = L->getGlobal("os");
     if (!osTable.isTable()) {
@@ -56,7 +57,7 @@ i32 callOSFunc(LuaState* L, const char* funcName, const std::function<void(LuaSt
 void testClockWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openOSLib);
     LuaState* L = ctx.getState();
-    
+
     i32 ret = callOSFunc(L, "clock", nullptr);
     ASSERT_EQ(suite, ret, 1, "clock returns 1 value");
     ASSERT_TRUE(suite, L->top().isNumber(), "clock returns number");
@@ -66,7 +67,7 @@ void testClockWrapper(TestSuite& suite) {
 void testDifftimeWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openOSLib);
     LuaState* L = ctx.getState();
-    
+
     // 测试时间差计算
     i32 ret = callOSFunc(L, "difftime", [](LuaState* s) {
         s->pushNumber(1000.0);
@@ -74,7 +75,7 @@ void testDifftimeWrapper(TestSuite& suite) {
     });
     ASSERT_EQ(suite, ret, 1, "difftime returns 1 value");
     ASSERT_EQ(suite, 500.0, L->top().asNumber(), "difftime(1000, 500) == 500");
-    
+
     // 测试负数差值
     ret = callOSFunc(L, "difftime", [](LuaState* s) {
         s->pushNumber(100.0);
@@ -87,25 +88,25 @@ void testTimeWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openOSLib);
     LuaState* L = ctx.getState();
     auto& pool = L->getGlobalState().getStringPool();
-    
+
     // 测试无参数调用（当前时间）
     i32 ret = callOSFunc(L, "time", nullptr);
     ASSERT_EQ(suite, ret, 1, "time() returns 1 value");
     ASSERT_TRUE(suite, L->top().isNumber(), "time() returns number");
     ASSERT_TRUE(suite, L->top().asNumber() > 0.0, "time() returns positive value");
-    
+
     // 测试时间表转换
     ret = callOSFunc(L, "time", [&pool](LuaState* s) {
         Table* t = new Table();
         s->getGlobalState().getGC().registerObject(t);
-        
+
         t->set(Value(pool.intern("year")), Value(2023.0));
         t->set(Value(pool.intern("month")), Value(12.0));
         t->set(Value(pool.intern("day")), Value(25.0));
         t->set(Value(pool.intern("hour")), Value(10.0));
         t->set(Value(pool.intern("min")), Value(30.0));
         t->set(Value(pool.intern("sec")), Value(0.0));
-        
+
         s->pushTable(t);
     });
     ASSERT_EQ(suite, ret, 1, "time(table) returns 1 value");
@@ -116,32 +117,28 @@ void testDateWrapper(TestSuite& suite) {
     LuaStdLibTestContext ctx(openOSLib);
     LuaState* L = ctx.getState();
     auto& pool = L->getGlobalState().getStringPool();
-    
+
     // 测试默认格式
     i32 ret = callOSFunc(L, "date", nullptr);
     ASSERT_EQ(suite, ret, 1, "date() returns 1 value");
     ASSERT_TRUE(suite, L->top().isString(), "date() returns string");
-    
+
     // 测试自定义格式
-    ret = callOSFunc(L, "date", [&pool](LuaState* s) {
-        s->pushString(pool.intern("%Y-%m-%d"));
-    });
+    ret = callOSFunc(L, "date", [&pool](LuaState* s) { s->pushString(pool.intern("%Y-%m-%d")); });
     ASSERT_EQ(suite, ret, 1, "date('%Y-%m-%d') returns 1 value");
     ASSERT_TRUE(suite, L->top().isString(), "date('%Y-%m-%d') returns string");
-    
+
     // 测试返回日期表
-    ret = callOSFunc(L, "date", [&pool](LuaState* s) {
-        s->pushString(pool.intern("*t"));
-    });
+    ret = callOSFunc(L, "date", [&pool](LuaState* s) { s->pushString(pool.intern("*t")); });
     ASSERT_EQ(suite, ret, 1, "date('*t') returns 1 value");
     ASSERT_TRUE(suite, L->top().isTable(), "date('*t') returns table");
-    
+
     // 验证日期表字段
     Table* dateTable = L->top().asTable();
     Value year = dateTable->get(Value(pool.intern("year")));
     Value month = dateTable->get(Value(pool.intern("month")));
     Value day = dateTable->get(Value(pool.intern("day")));
-    
+
     ASSERT_TRUE(suite, year.isNumber(), "date table has 'year' field");
     ASSERT_TRUE(suite, month.isNumber(), "date table has 'month' field");
     ASSERT_TRUE(suite, day.isNumber(), "date table has 'day' field");
@@ -155,15 +152,13 @@ void testSetlocaleWrapper(TestSuite& suite) {
     LuaState* L = ctx.getState();
     auto& pool = L->getGlobalState().getStringPool();
 
-    const char* current = std::setlocale(LC_ALL, nullptr);
-    std::string previous = current != nullptr ? current : "";
+    Lua::CharPtr current = std::setlocale(LC_ALL, nullptr);
+    Lua::Str previous = current != nullptr ? current : "";
 
     bool setC = false;
     try {
-        i32 ret = callOSFunc(L, "setlocale", [&pool](LuaState* s) {
-            s->pushString(pool.intern("C"));
-        });
-        setC = ret == 1 && L->top().isString() && std::string(L->top().asString()->c_str()) == "C";
+        i32 ret = callOSFunc(L, "setlocale", [&pool](LuaState* s) { s->pushString(pool.intern("C")); });
+        setC = ret == 1 && L->top().isString() && Lua::Str(L->top().asString()->c_str()) == "C";
     } catch (...) {
         setC = false;
     }
@@ -172,7 +167,7 @@ void testSetlocaleWrapper(TestSuite& suite) {
     bool queryAll = false;
     try {
         i32 ret = callOSFunc(L, "setlocale", nullptr);
-        queryAll = ret == 1 && L->top().isString() && std::string(L->top().asString()->c_str()) == "C";
+        queryAll = ret == 1 && L->top().isString() && Lua::Str(L->top().asString()->c_str()) == "C";
     } catch (...) {
         queryAll = false;
     }
@@ -184,7 +179,7 @@ void testSetlocaleWrapper(TestSuite& suite) {
             s->pushNil();
             s->pushString(pool.intern("numeric"));
         });
-        queryNumeric = ret == 1 && L->top().isString() && std::string(L->top().asString()->c_str()) == "C";
+        queryNumeric = ret == 1 && L->top().isString() && Lua::Str(L->top().asString()->c_str()) == "C";
     } catch (...) {
         queryNumeric = false;
     }
@@ -197,11 +192,10 @@ void testSetlocaleWrapper(TestSuite& suite) {
 
 void registerOSlibTests() {
     auto& registry = TestRegistry::getInstance();
-    
+
     registry.registerTest(kSuiteName, "clock", testClockWrapper);
     registry.registerTest(kSuiteName, "difftime", testDifftimeWrapper);
     registry.registerTest(kSuiteName, "time", testTimeWrapper);
     registry.registerTest(kSuiteName, "date", testDateWrapper);
     registry.registerTest(kSuiteName, "setlocale", testSetlocaleWrapper);
 }
-

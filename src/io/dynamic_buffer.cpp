@@ -3,6 +3,7 @@
  * @brief 动态缓冲区实现
  */
 
+#include "common/types.hpp"
 #include "dynamic_buffer.hpp"
 #include <algorithm>
 #include <cstring>
@@ -51,7 +52,7 @@ bool DynamicBuffer::empty() const noexcept {
     return buffer_.empty();
 }
 
-const char* DynamicBuffer::data() const noexcept {
+CharPtr DynamicBuffer::data() const noexcept {
     return buffer_.data();
 }
 

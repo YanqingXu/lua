@@ -23,6 +23,7 @@
  */
 
 #include "vm/state/lua_state.hpp"
+#include "common/types.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/vm.hpp"
 #include "lib/lib_manager.hpp"
@@ -99,7 +100,7 @@ void printVersion() {
 /**
  * @brief 打印使用帮助
  */
-void printUsage(const char* progname) {
+void printUsage(Lua::CharPtr progname) {
     std::cout << "Usage: " << progname << " [options] [script [args]]" << std::endl;
     std::cout << "Available options are:" << std::endl;
     std::cout << "  -v       show version information" << std::endl;
@@ -187,7 +188,7 @@ UPtr<LuaState> createLuaState(EngineContext& context) {
  * @param args 命令行参数集合
  * @param scriptIndex 参数集合中脚本文件名的索引
  */
-void setupArgTable(LuaState* L, std::span<const Str> args, i32 scriptIndex) {
+void setupArgTable(LuaState* L, Lua::Span<const Str> args, i32 scriptIndex) {
     // 创建 arg 表并注册到垃圾回收器
     // 官方 Lua 使用 lua_createtable(L, narg, n+1) 预分配表，其中 narg 为脚本参数数量
     Table* argTable = L->getGlobalState().getGC().create<Table>();
@@ -197,7 +198,7 @@ void setupArgTable(LuaState* L, std::span<const Str> args, i32 scriptIndex) {
     // 生成范围：arg[-scriptIndex] ... arg[0] ... arg[narg-1]
     for (i32 i = 0; i < static_cast<i32>(args.size()); i++) {
         const Str& arg = args[static_cast<usize>(i)];
-        const char* argText = arg.c_str();
+        Lua::CharPtr argText = arg.c_str();
         Str adjustedArg;
         if (i == 0) {
             adjustedArg = argText;
@@ -300,7 +301,7 @@ Str readAllStdin() {
 
 Str executableDirectory() {
 #ifdef _WIN32
-    std::array<char, MAX_PATH> buffer{};
+    Lua::Arr<char, MAX_PATH> buffer{};
     DWORD len = GetModuleFileNameA(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
     if (len == 0 || len >= buffer.size()) {
         return ".";
@@ -308,10 +309,10 @@ Str executableDirectory() {
 
     Str path(buffer.data(), static_cast<usize>(len));
 #elif defined(__APPLE__)
-    uint32_t capacity = PATH_MAX;
-    std::vector<char> buffer(static_cast<std::size_t>(capacity) + 1, '\0');
+    Lua::u32 capacity = PATH_MAX;
+    Lua::Vec<char> buffer(static_cast<Lua::usize>(capacity) + 1, '\0');
     if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
-        buffer.assign(static_cast<std::size_t>(capacity) + 1, '\0');
+        buffer.assign(static_cast<Lua::usize>(capacity) + 1, '\0');
         if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
             return ".";
         }
@@ -319,7 +320,7 @@ Str executableDirectory() {
 
     Str path(buffer.data());
 #else
-    std::array<char, PATH_MAX> buffer{};
+    Lua::Arr<char, PATH_MAX> buffer{};
     ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
     if (len <= 0) {
         return ".";
@@ -455,7 +456,7 @@ int executeSource(LuaState* L, StrView source, StrView chunkName, const Vec<Str>
     }
 }
 
-int executeScript(LuaState* L, const char* filename, const Vec<Str>& args = {}) {
+int executeScript(LuaState* L, Lua::CharPtr filename, const Vec<Str>& args = {}) {
     try {
         Str source = readWholeFile(filename);
         Str chunkName = Str("@") + filename;
@@ -563,7 +564,7 @@ int runQuietInteractive(LuaState* L) {
 } // namespace
 
 int Lua::runApp(const AppOptions& opt) {
-    const char* programName = !opt.programName.empty() ? opt.programName.c_str() : "lua";
+    Lua::CharPtr programName = !opt.programName.empty() ? opt.programName.c_str() : "lua";
 
     REPL::setProgName(programName);
 
@@ -625,7 +626,7 @@ int Lua::runApp(const AppOptions& opt) {
         }
 
         if (opt.scriptFile.has_value()) {
-            setupArgTable(L.get(), std::span<const Str>(opt.arguments.data(), opt.arguments.size()), opt.scriptIndex);
+            setupArgTable(L.get(), Lua::Span<const Str>(opt.arguments.data(), opt.arguments.size()), opt.scriptIndex);
             Vec<Str> scriptArgs = collectScriptArgs(opt);
             if (*opt.scriptFile == "-") {
                 status = executeStdinScript(L.get(), scriptArgs);
@@ -648,13 +649,13 @@ int Lua::runApp(const AppOptions& opt) {
         break;
 
     case RunMode::DefaultBehavior: {
-        constexpr const char* kTestScriptPath = LUA_TEST_SCRIPT_PATH;
+        constexpr Lua::CharPtr kTestScriptPath = LUA_TEST_SCRIPT_PATH;
 
         if (kTestScriptPath[0] == '\0') {
             REPL::initialize(L.get());
             status = REPL::run(L.get());
         } else if (std::filesystem::exists(kTestScriptPath)) {
-            constexpr const char* kTestTraceOutput = LUA_TRACE_TEST_SCRIPT_OUTPUT;
+            constexpr Lua::CharPtr kTestTraceOutput = LUA_TRACE_TEST_SCRIPT_OUTPUT;
             UPtr<JsonTraceSink> testTraceSink;
             if (kTestTraceOutput[0] != '\0' && !traceSink) {
                 const Str resolvedTraceOutput = resolveExecutableRelativePath(kTestTraceOutput);
@@ -671,7 +672,7 @@ int Lua::runApp(const AppOptions& opt) {
 
             std::cout << "[INFO] 执行测试脚本: " << kTestScriptPath << std::endl;
             const Vec<Str> testArguments{programName, kTestScriptPath};
-            setupArgTable(L.get(), std::span<const Str>(testArguments.data(), testArguments.size()), 1);
+            setupArgTable(L.get(), Lua::Span<const Str>(testArguments.data(), testArguments.size()), 1);
             status = executeScript(L.get(), kTestScriptPath);
 
             if (testTraceSink) {

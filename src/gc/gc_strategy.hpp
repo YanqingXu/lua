@@ -29,25 +29,25 @@ public:
     /** @brief 使用指定上下文执行一次完整收集。 */
     [[nodiscard]] virtual usize collect(GCContext& context) const = 0;
     /** @brief 获取稳定的策略名称。 */
-    [[nodiscard]] virtual const char* name() const noexcept = 0;
+    [[nodiscard]] virtual CharPtr name() const noexcept = 0;
     /** @brief 获取策略的简短说明。 */
-    [[nodiscard]] virtual const char* summary() const noexcept = 0;
+    [[nodiscard]] virtual CharPtr summary() const noexcept = 0;
 };
 
 /** @brief 停顿式三色标记清除策略。 */
 class MarkSweepGC final : public GCStrategy {
 public:
     [[nodiscard]] usize collect(GCContext& context) const override;
-    [[nodiscard]] const char* name() const noexcept override;
-    [[nodiscard]] const char* summary() const noexcept override;
+    [[nodiscard]] CharPtr name() const noexcept override;
+    [[nodiscard]] CharPtr summary() const noexcept override;
 };
 
 /** @brief 保持等价行为的教学用增量策略占位实现。 */
 class IncrementalGC final : public GCStrategy {
 public:
     [[nodiscard]] usize collect(GCContext& context) const override;
-    [[nodiscard]] const char* name() const noexcept override;
-    [[nodiscard]] const char* summary() const noexcept override;
+    [[nodiscard]] CharPtr name() const noexcept override;
+    [[nodiscard]] CharPtr summary() const noexcept override;
 };
 
 /** @brief 获取共享的标记清除策略实例。 */

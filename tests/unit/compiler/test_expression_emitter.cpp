@@ -3,6 +3,7 @@
  * @brief Tests for the CodeGenerator expression lowering boundary.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/codegen/codegen.hpp"
@@ -18,7 +19,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Expression Emitter";
+constexpr Lua::CharPtr kSuiteName = "Expression Emitter";
 
 struct ImmediatePayload {
     ValueResult::ImmediateKind kind = ValueResult::ImmediateKind::None;
@@ -32,34 +33,25 @@ ImmediatePayload readImmediatePayload(const ValueResult& value) {
         [](const ValueResult::Immediate& immediate) -> ImmediatePayload {
             return {immediate.kind, immediate.boolValue, immediate.numberValue, true};
         },
-        [](const auto&) -> ImmediatePayload {
-            return {};
-        },
+        [](const auto&) -> ImmediatePayload { return {}; },
     });
 }
 
-}  // namespace
+} // namespace
 
 void testExpressionEmitterPublicBoundary(TestSuite& suite) {
-    using EmitValueResult =
-        decltype(std::declval<ExpressionEmitter&>().emitValue(std::declval<const Expr&>()));
-    using EmitCondResult =
-        decltype(std::declval<ExpressionEmitter&>().emitCondResult(std::declval<const Expr&>()));
-    using EmitLValueResult =
-        decltype(std::declval<ExpressionEmitter&>().emitLValue(std::declval<const Expr&>()));
+    using EmitValueResult = decltype(std::declval<ExpressionEmitter&>().emitValue(std::declval<const Expr&>()));
+    using EmitCondResult = decltype(std::declval<ExpressionEmitter&>().emitCondResult(std::declval<const Expr&>()));
+    using EmitLValueResult = decltype(std::declval<ExpressionEmitter&>().emitLValue(std::declval<const Expr&>()));
     constexpr bool constructibleFromFacade = std::is_constructible_v<ExpressionEmitter, CodeGenerator&>;
     constexpr bool emitValueKeepsContract = std::is_same_v<EmitValueResult, ValueResult>;
     constexpr bool emitCondKeepsContract = std::is_same_v<EmitCondResult, CondResult>;
     constexpr bool emitLValueKeepsContract = std::is_same_v<EmitLValueResult, LValueRef>;
 
-    ASSERT_TRUE(suite, constructibleFromFacade,
-                "ExpressionEmitter should be constructible from CodeGenerator facade");
-    ASSERT_TRUE(suite, emitValueKeepsContract,
-                "emitValue should keep the ValueResult contract");
-    ASSERT_TRUE(suite, emitCondKeepsContract,
-                "emitCondResult should keep the CondResult contract");
-    ASSERT_TRUE(suite, emitLValueKeepsContract,
-                "emitLValue should keep the LValueRef contract");
+    ASSERT_TRUE(suite, constructibleFromFacade, "ExpressionEmitter should be constructible from CodeGenerator facade");
+    ASSERT_TRUE(suite, emitValueKeepsContract, "emitValue should keep the ValueResult contract");
+    ASSERT_TRUE(suite, emitCondKeepsContract, "emitCondResult should keep the CondResult contract");
+    ASSERT_TRUE(suite, emitLValueKeepsContract, "emitLValue should keep the LValueRef contract");
 }
 
 void testExpressionEmitterLowersImmediateValues(TestSuite& suite) {
@@ -73,10 +65,8 @@ void testExpressionEmitterLowersImmediateValues(TestSuite& suite) {
 
     ValueResult numberValue = expressions.emitValue(numberExpr);
     ImmediatePayload numberPayload = readImmediatePayload(numberValue);
-    ASSERT_TRUE(suite, numberPayload.matched,
-                "number literal should use the Immediate payload");
-    ASSERT_EQ(suite, static_cast<int>(ValueResult::ImmediateKind::Number),
-              static_cast<int>(numberPayload.kind),
+    ASSERT_TRUE(suite, numberPayload.matched, "number literal should use the Immediate payload");
+    ASSERT_EQ(suite, static_cast<int>(ValueResult::ImmediateKind::Number), static_cast<int>(numberPayload.kind),
               "number literal immediate kind should be number");
     ASSERT_EQ(suite, 42.5, numberPayload.numberValue, "number literal value should be preserved");
 
@@ -86,10 +76,8 @@ void testExpressionEmitterLowersImmediateValues(TestSuite& suite) {
 
     ValueResult boolValue = expressions.emitValue(boolExpr);
     ImmediatePayload boolPayload = readImmediatePayload(boolValue);
-    ASSERT_TRUE(suite, boolPayload.matched,
-                "boolean literal should use the Immediate payload");
-    ASSERT_EQ(suite, static_cast<int>(ValueResult::ImmediateKind::Boolean),
-              static_cast<int>(boolPayload.kind),
+    ASSERT_TRUE(suite, boolPayload.matched, "boolean literal should use the Immediate payload");
+    ASSERT_EQ(suite, static_cast<int>(ValueResult::ImmediateKind::Boolean), static_cast<int>(boolPayload.kind),
               "boolean literal immediate kind should be boolean");
     ASSERT_TRUE(suite, boolPayload.boolValue, "boolean literal value should be preserved");
 }
@@ -114,7 +102,6 @@ void testExpressionEmitterMaterializesNumberPayload(TestSuite& suite) {
     Value constant = proto->getConstant(static_cast<usize>(GETARG_Bx(inst)));
     ASSERT_TRUE(suite, constant.isNumber(), "payload number materializes as a numeric constant");
     ASSERT_EQ(suite, 21.0, constant.asNumber(), "payload number value is preserved");
-
 }
 
 void registerExpressionEmitterTests() {
@@ -122,7 +109,5 @@ void registerExpressionEmitterTests() {
 
     registry.registerTest(kSuiteName, "Public Boundary", testExpressionEmitterPublicBoundary);
     registry.registerTest(kSuiteName, "Lowers Immediate Values", testExpressionEmitterLowersImmediateValues);
-    registry.registerTest(kSuiteName, "Materializes Number Payload",
-                          testExpressionEmitterMaterializesNumberPayload);
+    registry.registerTest(kSuiteName, "Materializes Number Payload", testExpressionEmitterMaterializesNumberPayload);
 }
-

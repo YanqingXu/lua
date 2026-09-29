@@ -4,6 +4,7 @@
  */
 
 #include "lua.h"
+#include "common/types.hpp"
 #include "lauxlib.h"
 #include "lua_runtime.h"
 #include "lualib.h"
@@ -83,7 +84,7 @@ void setRuntimeStatus(int* runtimeStatus, int value) noexcept {
     }
 }
 
-Lua::ExecutionPolicy::Clock::time_point deadlineFromTimeout(std::uint64_t timeoutMilliseconds) noexcept {
+Lua::ExecutionPolicy::Clock::time_point deadlineFromTimeout(Lua::u64 timeoutMilliseconds) noexcept {
     using Clock = Lua::ExecutionPolicy::Clock;
     if (timeoutMilliseconds == LUA_RUNTIME_NO_TIMEOUT) {
         return Clock::time_point::max();
@@ -92,7 +93,7 @@ Lua::ExecutionPolicy::Clock::time_point deadlineFromTimeout(std::uint64_t timeou
     const Clock::time_point now = Clock::now();
     const auto available = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::time_point::max() - now);
     const auto availableCount = available.count();
-    if (availableCount < 0 || timeoutMilliseconds > static_cast<std::uint64_t>(availableCount)) {
+    if (availableCount < 0 || timeoutMilliseconds > static_cast<Lua::u64>(availableCount)) {
         return Clock::time_point::max();
     }
     return now + std::chrono::milliseconds(static_cast<std::chrono::milliseconds::rep>(timeoutMilliseconds));
@@ -105,11 +106,11 @@ int validateRuntimeConfig(const lua_RuntimeConfig* config) noexcept {
     if (config->struct_size != sizeof(lua_RuntimeConfig) || config->api_version != LUA_RUNTIME_API_VERSION) {
         return LUA_RUNTIME_ERR_VERSION;
     }
-    if ((config->standard_libraries & ~static_cast<std::uint32_t>(LUA_RUNTIME_LIB_ALL)) != 0 ||
-        (config->capabilities & ~static_cast<std::uint32_t>(LUA_RUNTIME_CAP_ALL)) != 0) {
+    if ((config->standard_libraries & ~static_cast<Lua::u32>(LUA_RUNTIME_LIB_ALL)) != 0 ||
+        (config->capabilities & ~static_cast<Lua::u32>(LUA_RUNTIME_CAP_ALL)) != 0) {
         return LUA_RUNTIME_ERR_ARGUMENT;
     }
-    if (config->max_stack_slots < static_cast<size_t>(LUA_MINSTACK + 1)) {
+    if (config->max_stack_slots < static_cast<Lua::usize>(LUA_MINSTACK + 1)) {
         return LUA_RUNTIME_ERR_ARGUMENT;
     }
     return LUA_RUNTIME_OK;
@@ -135,7 +136,7 @@ int validateRuntimeMetrics(const lua_RuntimeMetrics* metrics) noexcept {
     return LUA_RUNTIME_OK;
 }
 
-std::uint32_t publicStopReason(Lua::ExecutionStopReason reason) noexcept {
+Lua::u32 publicStopReason(Lua::ExecutionStopReason reason) noexcept {
     switch (reason) {
     case Lua::ExecutionStopReason::None:
         return LUA_RUNTIME_STOP_NONE;
@@ -296,7 +297,7 @@ ApiIndex resolveStackIndex(Lua::LuaState* L, int idx) {
     return {};
 }
 
-std::optional<Lua::Value> readIndex(Lua::LuaState* L, const ApiIndex& index) {
+Lua::Opt<Lua::Value> readIndex(Lua::LuaState* L, const ApiIndex& index) {
     switch (index.kind) {
     case ApiIndexKind::Stack:
         return L->getStack().at(index.stackIndex);
@@ -319,7 +320,7 @@ std::optional<Lua::Value> readIndex(Lua::LuaState* L, const ApiIndex& index) {
     return std::nullopt;
 }
 
-std::optional<Lua::Value> readIndex(Lua::LuaState* L, int idx) {
+Lua::Opt<Lua::Value> readIndex(Lua::LuaState* L, int idx) {
     return readIndex(L, resolveStackIndex(L, idx));
 }
 
@@ -432,7 +433,7 @@ int publishApiStatusError(Lua::LuaState* state, Lua::usize savedTop, const Lua::
 }
 
 template <typename Failure>
-int publishApiRuntimeException(Lua::LuaState* state, const char* message, Failure& failure) noexcept {
+int publishApiRuntimeException(Lua::LuaState* state, Lua::CharPtr message, Failure& failure) noexcept {
     try {
         Lua::GCString* text = state->getGlobalState().getStringPool().intern(message != nullptr ? message : "");
         return failure(Lua::Value(text), LUA_ERRRUN);
@@ -476,7 +477,7 @@ bool rawValueEqual(const Lua::Value& left, const Lua::Value& right) {
     return left == right;
 }
 
-const char* upvalueName(const Lua::Function* closure, Lua::usize index) {
+Lua::CharPtr upvalueName(const Lua::Function* closure, Lua::usize index) {
     if (closure->isCFunction()) {
         return "";
     }
@@ -512,7 +513,7 @@ int prepareCFunctionCoroutineEntry(lua_State* L, int nargs) {
         return LUA_OK;
     }
 
-    const std::optional<Lua::Value> entry = readIndex(state, 1);
+    const Lua::Opt<Lua::Value> entry = readIndex(state, 1);
     if (!entry.has_value() || !entry->isFunction() || !entry->asFunction()->isCFunction()) {
         return LUA_OK;
     }
@@ -584,7 +585,7 @@ void lua_runtime_config_init_gameserver(lua_RuntimeConfig* config) LUA_CXX_NOEXC
         return;
     }
 
-    constexpr size_t Megabyte = size_t{1024} * 1024U;
+    constexpr Lua::usize Megabyte = Lua::usize{1024} * 1024U;
     config->standard_libraries = LUA_RUNTIME_LIB_BASE | LUA_RUNTIME_LIB_MATH | LUA_RUNTIME_LIB_STRING |
                                  LUA_RUNTIME_LIB_TABLE | LUA_RUNTIME_LIB_COROUTINE | LUA_RUNTIME_LIB_PACKAGE;
     config->capabilities = 0;
@@ -1052,7 +1053,7 @@ const char* lua_tolstring(lua_State* L, int idx, size_t* len) LUA_CXX_MAY_THROW 
     }
 
     state->pushValue(*value);
-    const char* text = state->toString(-1);
+    Lua::CharPtr text = state->toString(-1);
     if (text == nullptr) {
         state->pop();
         if (len) {
@@ -1136,7 +1137,7 @@ size_t lua_objlen(lua_State* L, int idx) LUA_CXX_MAY_THROW {
         return value->asUserdata()->getDataSize();
     }
     if (value->isNumber()) {
-        size_t length = 0;
+        Lua::usize length = 0;
         (void)lua_tolstring(L, idx, &length);
         return length;
     }
@@ -1173,18 +1174,18 @@ void lua_pushstring(lua_State* L, const char* s) LUA_CXX_MAY_THROW {
 }
 
 const char* lua_pushvfstring(lua_State* L, const char* format, va_list arguments) LUA_CXX_MAY_THROW {
-    const char* cursor = format != nullptr ? format : "";
+    Lua::CharPtr cursor = format != nullptr ? format : "";
     int pieces = 1;
     lua_pushlstring(L, "", 0);
 
-    while (const char* marker = std::strchr(cursor, '%')) {
-        lua_pushlstring(L, cursor, static_cast<size_t>(marker - cursor));
+    while (Lua::CharPtr marker = std::strchr(cursor, '%')) {
+        lua_pushlstring(L, cursor, static_cast<Lua::usize>(marker - cursor));
         ++pieces;
 
         const char option = marker[1];
         switch (option) {
         case 's': {
-            const char* value = va_arg(arguments, const char*);
+            Lua::CharPtr value = va_arg(arguments, const char*);
             lua_pushstring(L, value != nullptr ? value : "(null)");
             break;
         }
@@ -1228,7 +1229,7 @@ const char* lua_pushfstring(lua_State* L, const char* format, ...) LUA_CXX_MAY_T
     va_list arguments;
     va_start(arguments, format);
     try {
-        const char* result = lua_pushvfstring(L, format, arguments);
+        Lua::CharPtr result = lua_pushvfstring(L, format, arguments);
         va_end(arguments);
         return result;
     } catch (...) {
@@ -1607,7 +1608,7 @@ int lua_resume(lua_State* L, int nargs) LUA_CXX_NOEXCEPT {
         state->setStatus(static_cast<Lua::ThreadStatus>(result));
         return result;
     };
-    auto runtimeError = [&](const char* message) noexcept { return publishApiRuntimeException(state, message, fail); };
+    auto runtimeError = [&](Lua::CharPtr message) noexcept { return publishApiRuntimeException(state, message, fail); };
 
     if (thread == nullptr) {
         return runtimeError("cannot resume main state");
@@ -1858,7 +1859,7 @@ int luaL_loadfile(lua_State* L, const char* filename) LUA_CXX_NOEXCEPT {
             const int callStatus = lua_pcall(L, 1, LUA_MULTRET, 0);
             int failureStatus = LUA_ERRSYNTAX;
             if (callStatus == LUA_OK && lua_gettop(L) >= base + 2 && lua_isnil(L, base + 1)) {
-                const char* message = lua_tostring(L, base + 2);
+                Lua::CharPtr message = lua_tostring(L, base + 2);
                 if (message != nullptr && (std::strstr(message, "cannot open") != nullptr ||
                                            std::strstr(message, "cannot read") != nullptr)) {
                     failureStatus = LUA_ERRFILE;
@@ -1887,8 +1888,8 @@ int lua_load(lua_State* L, lua_Reader reader, void* data, const char* chunkname)
         [&]() {
             Lua::LuaString source{Lua::LuaStdAllocator<char>(state->getGlobalState().getAllocator())};
             for (;;) {
-                size_t size = 0;
-                const char* piece = reader(L, data, &size);
+                Lua::usize size = 0;
+                Lua::CharPtr piece = reader(L, data, &size);
                 if (piece == nullptr || size == 0) {
                     break;
                 }
@@ -1926,8 +1927,8 @@ int lua_dump(lua_State* L, lua_Writer writer, void* data) LUA_CXX_NOEXCEPT {
                 return status;
             }
 
-            size_t size = 0;
-            const char* bytes = lua_tolstring(L, -1, &size);
+            Lua::usize size = 0;
+            Lua::CharPtr bytes = lua_tolstring(L, -1, &size);
             const int writerStatus = bytes != nullptr ? writer(L, bytes, size, data) : 1;
             lua_settop(L, base);
             return writerStatus;
@@ -1956,8 +1957,8 @@ int luaL_ref(lua_State* L, int tableIndex) LUA_CXX_MAY_THROW {
         lua_rawgeti(L, absoluteTable, reference);
         lua_rawseti(L, absoluteTable, 0);
     } else {
-        const size_t length = lua_objlen(L, absoluteTable);
-        if (length >= static_cast<size_t>(std::numeric_limits<int>::max())) {
+        const Lua::usize length = lua_objlen(L, absoluteTable);
+        if (length >= static_cast<Lua::usize>(std::numeric_limits<int>::max())) {
             return luaL_error(L, "reference table is too large");
         }
         reference = static_cast<int>(length) + 1;

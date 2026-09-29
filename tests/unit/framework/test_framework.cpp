@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "test_framework.hpp"
 
 #include "vm/state/lua_state.hpp"
@@ -56,20 +57,20 @@ void LuaStdLibTestContext::clearStack() const {
     }
 }
 
-Lua::Value LuaStdLibTestContext::getGlobal(const char* name) const {
+Lua::Value LuaStdLibTestContext::getGlobal(Lua::CharPtr name) const {
     if (!state_ || !name) {
         return Lua::Value();
     }
     return state_->getGlobal(name);
 }
 
-bool LuaStdLibTestContext::ensureGlobalFunction(const char* name, TestSuite& suite, const std::string& message) const {
+bool LuaStdLibTestContext::ensureGlobalFunction(Lua::CharPtr name, TestSuite& suite, const Lua::Str& message) const {
     bool ok = getGlobal(name).isFunction();
-    suite.addResult(TestResult(message, ok, ok ? "" : (std::string("missing function: ") + (name ? name : "<null>"))));
+    suite.addResult(TestResult(message, ok, ok ? "" : (Lua::Str("missing function: ") + (name ? name : "<null>"))));
     return ok;
 }
 
-int LuaStdLibTestContext::invoke(const char* name, const std::function<void(Lua::LuaState*)>& pushArgs) const {
+int LuaStdLibTestContext::invoke(Lua::CharPtr name, const Lua::Func<void(Lua::LuaState*)>& pushArgs) const {
     if (!state_ || !name) {
         return -1;
     }
@@ -110,20 +111,20 @@ void testSkipAccountingContract(TestSuite& suite) {
 
     std::ostringstream junit;
     probe.writeJUnitXml(junit);
-    const std::string xml = junit.str();
+    const Lua::Str xml = junit.str();
     ASSERT_TRUE(suite,
                 xml.find("<testsuite name=\"skip-accounting-probe\" tests=\"4\" failures=\"2\" skipped=\"1\">") !=
-                    std::string::npos,
+                    Lua::Str::npos,
                 "JUnit totals classify four outcomes");
-    ASSERT_TRUE(suite, xml.find("name=\"pass\" />") != std::string::npos, "JUnit classifies a pass");
-    ASSERT_TRUE(suite, xml.find("name=\"failure\">") != std::string::npos, "JUnit classifies an assertion failure");
+    ASSERT_TRUE(suite, xml.find("name=\"pass\" />") != Lua::Str::npos, "JUnit classifies a pass");
+    ASSERT_TRUE(suite, xml.find("name=\"failure\">") != Lua::Str::npos, "JUnit classifies an assertion failure");
     ASSERT_TRUE(suite,
-                xml.find("name=\"expected\">") != std::string::npos &&
-                    xml.find("<skipped message=\"missing optional environment capability\" />") != std::string::npos,
+                xml.find("name=\"expected\">") != Lua::Str::npos &&
+                    xml.find("<skipped message=\"missing optional environment capability\" />") != Lua::Str::npos,
                 "JUnit classifies an expected skip as skipped");
     ASSERT_TRUE(suite,
-                xml.find("name=\"unexpected\">") != std::string::npos &&
-                    xml.find("<failure type=\"unexpected-skip\" message=\"unregistered skip\">") != std::string::npos,
+                xml.find("name=\"unexpected\">") != Lua::Str::npos &&
+                    xml.find("<failure type=\"unexpected-skip\" message=\"unregistered skip\">") != Lua::Str::npos,
                 "JUnit classifies an unexpected skip as a failure");
 }
 

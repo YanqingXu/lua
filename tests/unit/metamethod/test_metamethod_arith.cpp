@@ -12,6 +12,7 @@
  * @date 2025-11-22
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "core/metatable.hpp"
 #include "core/table.hpp"
@@ -37,7 +38,7 @@ Function* createTestFunction(ScopedGCRoots& roots, CFunction function) {
     return roots.create<Function>(function);
 }
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -262,11 +263,11 @@ void testLuaFunctionMetamethodsAndBasicTypeMetatable(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "Lua function metamethods should execute");
     ASSERT_EQ(suite, 42.0, L->getGlobal("_sum").asNumber(), "Lua __add result");
     ASSERT_TRUE(suite, L->getGlobal("_indexed").isString(), "Lua __index result is string");
-    ASSERT_EQ(suite, std::string("fallback:missing"), std::string(L->getGlobal("_indexed").asString()->c_str()),
+    ASSERT_EQ(suite, Lua::Str("fallback:missing"), Lua::Str(L->getGlobal("_indexed").asString()->c_str()),
               "Lua __index fallback result");
     ASSERT_EQ(suite, 42.0, L->getGlobal("_newindex").asNumber(), "Lua __newindex side effect");
     ASSERT_EQ(suite, 15.0, L->getGlobal("_call").asNumber(), "Lua __call result");
-    ASSERT_EQ(suite, std::string("bcd"), std::string(L->getGlobal("_string_method").asString()->c_str()),
+    ASSERT_EQ(suite, Lua::Str("bcd"), Lua::Str(L->getGlobal("_string_method").asString()->c_str()),
               "string metatable __index enables method syntax");
 }
 
@@ -317,7 +318,7 @@ void testRuntimeMetamethodOpcodeExecution(TestSuite& suite) {
     ASSERT_EQ(suite, 2.0, L->getGlobal("_runtime_mod").asNumber(), "runtime __mod opcode result");
     ASSERT_EQ(suite, 53.0, L->getGlobal("_runtime_pow").asNumber(), "runtime __pow opcode result");
     ASSERT_TRUE(suite, L->getGlobal("_runtime_concat").isString(), "runtime __concat result should be string");
-    ASSERT_EQ(suite, std::string("cat:5:3"), std::string(L->getGlobal("_runtime_concat").asString()->c_str()),
+    ASSERT_EQ(suite, Lua::Str("cat:5:3"), Lua::Str(L->getGlobal("_runtime_concat").asString()->c_str()),
               "runtime __concat opcode result");
     ASSERT_EQ(suite, 42.0, L->getGlobal("_runtime_tailcall_call").asNumber(),
               "tailcall through __call metamethod should return the metamethod result");

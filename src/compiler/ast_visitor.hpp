@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "common/types.hpp"
 #include "compiler/ast.hpp"
 
 #include <concepts>
@@ -37,7 +38,7 @@ concept VisitsNodeAs = detail::canVisitNode<Visitor, Node, R>();
 
 namespace detail {
 
-template <typename Visitor, typename Variant, typename R, std::size_t... I>
+template <typename Visitor, typename Variant, typename R, usize... I>
 consteval bool visitsVariantNodes(std::index_sequence<I...>) {
     return (canVisitNode<Visitor, std::variant_alternative_t<I, Variant>, R>() && ...);
 }

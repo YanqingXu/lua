@@ -3,6 +3,7 @@
  * @brief AST节点实现
  */
 
+#include "common/types.hpp"
 #include "ast.hpp"
 
 namespace Lua {

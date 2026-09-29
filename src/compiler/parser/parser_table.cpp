@@ -5,6 +5,7 @@
  * 实现Lua表字段、键值项、数组项、字段分隔符和尾随分隔符解析。
  */
 
+#include "common/types.hpp"
 #include "parser_impl.hpp"
 #include "parser_utils.hpp"
 
@@ -32,8 +33,7 @@ ExprPtr Parser::Impl::parseTableConstructor() {
             expect(static_cast<TokenType>(']'), "Expected ']' after table key");
             expect(static_cast<TokenType>('='), "Expected '=' after table key");
             field.value = parseExpression();
-        }
-        else if (current().isName()) {
+        } else if (current().isName()) {
             Token nextToken = peek();
 
             if (nextToken.type == static_cast<TokenType>('=')) {
@@ -54,8 +54,7 @@ ExprPtr Parser::Impl::parseTableConstructor() {
                 field.key = nullptr;
                 field.value = parseExpression();
             }
-        }
-        else {
+        } else {
             field.key = nullptr;
             field.value = parseExpression();
         }
@@ -76,4 +75,4 @@ ExprPtr Parser::Impl::parseTableConstructor() {
     return makeExpr<TableExpr>(std::move(tableExpr));
 }
 
-}
+} // namespace Lua

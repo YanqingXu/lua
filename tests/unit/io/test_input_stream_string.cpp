@@ -1,7 +1,7 @@
-﻿/**
+/**
  * @file test_input_stream_string.cpp
  * @brief InputStream 类（字符串模式）单元测试
- * 
+ *
  * 测试 InputStream 的字符串模式功能，包括：
  * - 字符串模式构造（std::string_view）
  * - 字符读取（getChar, peekChar）
@@ -32,9 +32,9 @@ using namespace LuaTest;
 static void testStringConstruction(TestSuite& suite) {
     Str source = "hello";
     InputStream input(source);
-    
+
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF initially");
-    ASSERT_EQ(suite, static_cast<size_t>(0), input.getPosition(), "Initial position should be 0");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(0), input.getPosition(), "Initial position should be 0");
 }
 
 /**
@@ -43,9 +43,9 @@ static void testStringConstruction(TestSuite& suite) {
 static void testEmptyStringConstruction(TestSuite& suite) {
     Str source = "";
     InputStream input(source);
-    
+
     ASSERT_TRUE(suite, input.isEof(), "Empty string should be EOF immediately");
-    ASSERT_EQ(suite, static_cast<size_t>(0), input.getPosition(), "Position should be 0");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(0), input.getPosition(), "Position should be 0");
 }
 
 /**
@@ -54,7 +54,7 @@ static void testEmptyStringConstruction(TestSuite& suite) {
 static void testDefaultSourceName(TestSuite& suite) {
     Str source = "test";
     InputStream input(source);
-    
+
     ASSERT_EQ(suite, Str("string"), input.getSourceName(), "Default source name should be 'string'");
 }
 
@@ -68,19 +68,19 @@ static void testDefaultSourceName(TestSuite& suite) {
 static void testGetChar(TestSuite& suite) {
     Str source = "abc";
     InputStream input(source);
-    
+
     i32 c1 = input.getChar();
     ASSERT_EQ(suite, static_cast<i32>('a'), c1, "First char should be 'a'");
-    ASSERT_EQ(suite, static_cast<size_t>(1), input.getPosition(), "Position should be 1");
-    
+    ASSERT_EQ(suite, static_cast<Lua::usize>(1), input.getPosition(), "Position should be 1");
+
     i32 c2 = input.getChar();
     ASSERT_EQ(suite, static_cast<i32>('b'), c2, "Second char should be 'b'");
-    ASSERT_EQ(suite, static_cast<size_t>(2), input.getPosition(), "Position should be 2");
-    
+    ASSERT_EQ(suite, static_cast<Lua::usize>(2), input.getPosition(), "Position should be 2");
+
     i32 c3 = input.getChar();
     ASSERT_EQ(suite, static_cast<i32>('c'), c3, "Third char should be 'c'");
-    ASSERT_EQ(suite, static_cast<size_t>(3), input.getPosition(), "Position should be 3");
-    
+    ASSERT_EQ(suite, static_cast<Lua::usize>(3), input.getPosition(), "Position should be 3");
+
     i32 c4 = input.getChar();
     ASSERT_EQ(suite, -1, c4, "Should return -1 at EOF");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF after reading all chars");
@@ -92,19 +92,19 @@ static void testGetChar(TestSuite& suite) {
 static void testPeekChar(TestSuite& suite) {
     Str source = "xyz";
     InputStream input(source);
-    
+
     i32 peek1 = input.peekChar();
     ASSERT_EQ(suite, static_cast<i32>('x'), peek1, "Peek should return 'x'");
-    ASSERT_EQ(suite, static_cast<size_t>(0), input.getPosition(), "Peek should not advance position");
-    
+    ASSERT_EQ(suite, static_cast<Lua::usize>(0), input.getPosition(), "Peek should not advance position");
+
     i32 peek2 = input.peekChar();
     ASSERT_EQ(suite, static_cast<i32>('x'), peek2, "Multiple peeks should return same char");
-    ASSERT_EQ(suite, static_cast<size_t>(0), input.getPosition(), "Position should still be 0");
-    
+    ASSERT_EQ(suite, static_cast<Lua::usize>(0), input.getPosition(), "Position should still be 0");
+
     i32 c1 = input.getChar();
     ASSERT_EQ(suite, static_cast<i32>('x'), c1, "getChar should return peeked char");
-    ASSERT_EQ(suite, static_cast<size_t>(1), input.getPosition(), "Position should advance after getChar");
-    
+    ASSERT_EQ(suite, static_cast<Lua::usize>(1), input.getPosition(), "Position should advance after getChar");
+
     i32 peek3 = input.peekChar();
     ASSERT_EQ(suite, static_cast<i32>('y'), peek3, "Peek should now return 'y'");
 }
@@ -115,9 +115,9 @@ static void testPeekChar(TestSuite& suite) {
 static void testPeekCharAtEof(TestSuite& suite) {
     Str source = "a";
     InputStream input(source);
-    
+
     input.getChar(); // 读取 'a'
-    
+
     i32 peek = input.peekChar();
     ASSERT_EQ(suite, -1, peek, "Peek at EOF should return -1");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF");
@@ -129,15 +129,15 @@ static void testPeekCharAtEof(TestSuite& suite) {
 static void testReadToEof(TestSuite& suite) {
     Str source = "ab";
     InputStream input(source);
-    
+
     input.getChar(); // 'a'
     input.getChar(); // 'b'
-    
+
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF after reading all chars");
-    
+
     i32 c = input.getChar();
     ASSERT_EQ(suite, -1, c, "getChar at EOF should return -1");
-    
+
     i32 c2 = input.getChar();
     ASSERT_EQ(suite, -1, c2, "Multiple getChar at EOF should return -1");
 }
@@ -152,14 +152,14 @@ static void testReadToEof(TestSuite& suite) {
 static void testRead(TestSuite& suite) {
     Str source = "hello world";
     InputStream input(source);
-    
+
     char buffer[6];
     usize bytesRead = input.read(buffer, 5);
     buffer[5] = '\0';
-    
-    ASSERT_EQ(suite, static_cast<size_t>(5), bytesRead, "Should read 5 bytes");
+
+    ASSERT_EQ(suite, static_cast<Lua::usize>(5), bytesRead, "Should read 5 bytes");
     ASSERT_EQ(suite, Str("hello"), Str(buffer), "Buffer should contain 'hello'");
-    ASSERT_EQ(suite, static_cast<size_t>(5), input.getPosition(), "Position should be 5");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(5), input.getPosition(), "Position should be 5");
 }
 
 /**
@@ -172,9 +172,9 @@ static void testReadAll(TestSuite& suite) {
     char buffer[10];
     usize bytesRead = input.read(buffer, 10);
 
-    ASSERT_EQ(suite, static_cast<size_t>(4), bytesRead, "Should read 4 bytes (all available)");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(4), bytesRead, "Should read 4 bytes (all available)");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF after reading all");
-    ASSERT_EQ(suite, static_cast<size_t>(4), input.getPosition(), "Position should be 4");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(4), input.getPosition(), "Position should be 4");
 }
 
 /**
@@ -186,13 +186,13 @@ static void testReadPartial(TestSuite& suite) {
 
     char buffer1[4];
     usize bytes1 = input.read(buffer1, 3);
-    ASSERT_EQ(suite, static_cast<size_t>(3), bytes1, "First read should get 3 bytes");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(3), bytes1, "First read should get 3 bytes");
 
     char buffer2[4];
     usize bytes2 = input.read(buffer2, 3);
-    ASSERT_EQ(suite, static_cast<size_t>(3), bytes2, "Second read should get 3 bytes");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(3), bytes2, "Second read should get 3 bytes");
 
-    ASSERT_EQ(suite, static_cast<size_t>(6), input.getPosition(), "Position should be 6");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(6), input.getPosition(), "Position should be 6");
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF yet");
 }
 
@@ -206,7 +206,7 @@ static void testReadBeyondAvailable(TestSuite& suite) {
     char buffer[10];
     usize bytesRead = input.read(buffer, 10);
 
-    ASSERT_EQ(suite, static_cast<size_t>(3), bytesRead, "Should only read 3 bytes (all available)");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(3), bytesRead, "Should only read 3 bytes (all available)");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF");
 }
 
@@ -220,8 +220,8 @@ static void testReadZeroBytes(TestSuite& suite) {
     char buffer[10];
     usize bytesRead = input.read(buffer, 0);
 
-    ASSERT_EQ(suite, static_cast<size_t>(0), bytesRead, "Should read 0 bytes");
-    ASSERT_EQ(suite, static_cast<size_t>(0), input.getPosition(), "Position should not change");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(0), bytesRead, "Should read 0 bytes");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(0), input.getPosition(), "Position should not change");
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF");
 }
 
@@ -236,17 +236,17 @@ static void testPositionTracking(TestSuite& suite) {
     Str source = "12345";
     InputStream input(source);
 
-    ASSERT_EQ(suite, static_cast<size_t>(0), input.getPosition(), "Initial position should be 0");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(0), input.getPosition(), "Initial position should be 0");
 
     input.getChar();
-    ASSERT_EQ(suite, static_cast<size_t>(1), input.getPosition(), "Position should be 1");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(1), input.getPosition(), "Position should be 1");
 
     input.getChar();
-    ASSERT_EQ(suite, static_cast<size_t>(2), input.getPosition(), "Position should be 2");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(2), input.getPosition(), "Position should be 2");
 
     char buffer[2];
     input.read(buffer, 2);
-    ASSERT_EQ(suite, static_cast<size_t>(4), input.getPosition(), "Position should be 4 after read");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(4), input.getPosition(), "Position should be 4 after read");
 }
 
 /**
@@ -318,9 +318,9 @@ static void testNullCharacter(TestSuite& suite) {
  * @brief 测试 UTF-8 多字节字符（按字节读取）
  */
 static void testUtf8Bytes(TestSuite& suite) {
-    //Str source = "中"; // UTF-8: E4 B8 AD (3 bytes)
-    const char utf8Bytes[] = { static_cast<char>(0xE4), static_cast<char>(0xB8), static_cast<char>(0xAD) };
-	Str source(utf8Bytes, 3);
+    // Str source = "中"; // UTF-8: E4 B8 AD (3 bytes)
+    const char utf8Bytes[] = {static_cast<char>(0xE4), static_cast<char>(0xB8), static_cast<char>(0xAD)};
+    Str source(utf8Bytes, 3);
     InputStream input(source);
 
     i32 b1 = input.getChar();
@@ -328,7 +328,7 @@ static void testUtf8Bytes(TestSuite& suite) {
     i32 b3 = input.getChar();
 
     // 验证读取了 3 个字节
-    ASSERT_EQ(suite, static_cast<size_t>(3), input.getPosition(), "Should read 3 bytes for UTF-8 char");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(3), input.getPosition(), "Should read 3 bytes for UTF-8 char");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF after reading all bytes");
 
     // 验证字节值（UTF-8 编码）
@@ -351,13 +351,13 @@ static void testLargeString(TestSuite& suite) {
         // ASSERT_EQ(suite, static_cast<i32>('x'), c, "Each char should be 'x'");
     }
 
-    ASSERT_EQ(suite, static_cast<size_t>(100), input.getPosition(), "Position should be 100");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(100), input.getPosition(), "Position should be 100");
     ASSERT_FALSE(suite, input.isEof(), "Should not be EOF yet");
 
     // 批量读取剩余部分
     char buffer[10000];
     usize bytesRead = input.read(buffer, 9900);
-    ASSERT_EQ(suite, static_cast<size_t>(9900), bytesRead, "Should read remaining 9900 bytes");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(9900), bytesRead, "Should read remaining 9900 bytes");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF after reading all");
 }
 
@@ -394,7 +394,7 @@ static void testZeroCopy(TestSuite& suite) {
     usize bytesRead = input.read(buffer, 14);
     buffer[14] = '\0';
 
-    ASSERT_EQ(suite, static_cast<size_t>(14), bytesRead, "Should read 14 bytes");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(14), bytesRead, "Should read 14 bytes");
     ASSERT_EQ(suite, Str("zero copy test"), Str(buffer), "Content should match");
 }
 
@@ -450,7 +450,7 @@ static void testLexerLookaheadScenario(TestSuite& suite) {
     }
 
     ASSERT_EQ(suite, Str("123"), number, "Should read number '123'");
-    ASSERT_EQ(suite, static_cast<size_t>(3), input.getPosition(), "Position should be 3");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(3), input.getPosition(), "Position should be 3");
 
     // 验证下一个字符是 'a'
     i32 next = input.peekChar();
@@ -504,7 +504,7 @@ static void testMixedOperations(TestSuite& suite) {
     // read
     char buffer[3];
     usize bytes = input.read(buffer, 3);
-    ASSERT_EQ(suite, static_cast<size_t>(3), bytes, "Should read 3 bytes");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(3), bytes, "Should read 3 bytes");
     ASSERT_EQ(suite, 'b', buffer[0], "Buffer[0] should be 'b'");
     ASSERT_EQ(suite, 'c', buffer[1], "Buffer[1] should be 'c'");
     ASSERT_EQ(suite, 'd', buffer[2], "Buffer[2] should be 'd'");
@@ -513,7 +513,7 @@ static void testMixedOperations(TestSuite& suite) {
     i32 c2 = input.getChar();
     ASSERT_EQ(suite, static_cast<i32>('e'), c2, "Should read 'e'");
 
-    ASSERT_EQ(suite, static_cast<size_t>(5), input.getPosition(), "Position should be 5");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(5), input.getPosition(), "Position should be 5");
 }
 
 /**
@@ -529,7 +529,7 @@ static void testLuaCodeSnippet(TestSuite& suite) {
     usize bytesRead = input.read(buffer, 21);
     buffer[21] = '\0';
 
-    ASSERT_EQ(suite, static_cast<size_t>(21), bytesRead, "Should read all 21 bytes");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(21), bytesRead, "Should read all 21 bytes");
     ASSERT_EQ(suite, source, Str(buffer), "Content should match source");
     ASSERT_TRUE(suite, input.isEof(), "Should be EOF");
     ASSERT_EQ(suite, Str("snippet.lua"), input.getSourceName(), "Source name should be preserved");
@@ -585,7 +585,3 @@ void registerInputStreamStringTests() {
     registry.registerTest("InputStream (String Mode)", "Mixed operations", testMixedOperations);
     registry.registerTest("InputStream (String Mode)", "Lua code snippet", testLuaCodeSnippet);
 }
-
-
-
-

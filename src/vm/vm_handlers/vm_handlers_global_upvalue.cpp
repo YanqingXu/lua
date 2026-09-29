@@ -3,6 +3,7 @@
  * @brief 全局变量与上值操作码处理器
  */
 
+#include "common/types.hpp"
 #include "vm/vm_handlers/vm_handler_utils.hpp"
 #include "core/table.hpp"
 #include "core/upvalue.hpp"

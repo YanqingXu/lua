@@ -5,6 +5,7 @@
  * 实现全局函数、局部函数共享的参数列表解析以及函数体解析流程。
  */
 
+#include "common/types.hpp"
 #include "parser_impl.hpp"
 #include "parser_utils.hpp"
 
@@ -134,4 +135,4 @@ Vec<Str> Parser::Impl::parseParamList() {
     return params;
 }
 
-}
+} // namespace Lua

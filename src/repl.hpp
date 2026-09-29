@@ -43,37 +43,37 @@ namespace REPL {
 /**
  * @brief 默认主提示符（对应 LUA_PROMPT）
  */
-constexpr const char* DEFAULT_PROMPT1 = "> ";
+constexpr CharPtr DEFAULT_PROMPT1 = "> ";
 
 /**
  * @brief 默认续行提示符（对应 LUA_PROMPT2）
  */
-constexpr const char* DEFAULT_PROMPT2 = ">> ";
+constexpr CharPtr DEFAULT_PROMPT2 = ">> ";
 
 /**
  * @brief 版本信息
  */
-constexpr const char* VERSION = "Lua 5.1.5";
+constexpr CharPtr VERSION = "Lua 5.1.5";
 
 /**
  * @brief 版权信息
  */
-constexpr const char* COPYRIGHT = "Copyright (C) 1994-2012 Lua.org, PUC-Rio";
+constexpr CharPtr COPYRIGHT = "Copyright (C) 1994-2012 Lua.org, PUC-Rio";
 
 /**
  * @brief Lua 版本字符串（用于 _VERSION 全局变量）
  */
-constexpr const char* LUA_VERSION = "Lua 5.1";
+constexpr CharPtr LUA_VERSION = "Lua 5.1";
 
 /**
  * @brief 默认程序名（用于错误消息前缀）
  */
-constexpr const char* DEFAULT_PROGNAME = "lua";
+constexpr CharPtr DEFAULT_PROGNAME = "lua";
 
 /**
  * @brief 默认持久化历史文件名
  */
-constexpr const char* DEFAULT_HISTORY_FILE = ".lua_history";
+constexpr CharPtr DEFAULT_HISTORY_FILE = ".lua_history";
 
 /** @brief 交互式解释器元命令类型。 */
 enum class MetaCommandKind {
@@ -166,13 +166,13 @@ int runMetaCommand(LuaState* L, const MetaCommand& command, std::ostream& out, s
  *
  * @param name 程序名（通常为 argv[0]）
  */
-void setProgName(const char* name);
+void setProgName(CharPtr name);
 
 /**
  * @brief 获取程序名
  * @return 程序名字符串
  */
-const char* getProgName();
+CharPtr getProgName();
 
 /**
  * @brief 设置错误输出颜色模式
@@ -193,7 +193,7 @@ ErrorColorMode getErrorColorMode();
  * @param msg 错误消息
  * @param showProgName 是否显示程序名前缀（默认 true）
  */
-void reportError(const char* msg, bool showProgName = true);
+void reportError(CharPtr msg, bool showProgName = true);
 
 /**
  * @brief 输出带源位置的错误消息
@@ -206,7 +206,7 @@ void reportError(const char* msg, bool showProgName = true);
  * @param msg 错误消息
  * @param showProgName 是否显示程序名前缀（默认 true，脚本模式）
  */
-void reportError(const char* source, int line, const char* msg, bool showProgName = true);
+void reportError(CharPtr source, int line, CharPtr msg, bool showProgName = true);
 
 /**
  * @brief 初始化 REPL 环境

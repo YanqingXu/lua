@@ -3,6 +3,7 @@
  * @brief Lua 协程实现
  */
 
+#include "common/types.hpp"
 #include "core/thread.hpp"
 #include "common/features.hpp"
 #include "vm/state/lua_state.hpp"

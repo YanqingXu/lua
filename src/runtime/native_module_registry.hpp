@@ -46,12 +46,12 @@ public:
     /**
      * @brief 为当前运行时获取或复用模块租约
      */
-    [[nodiscard]] std::expected<Handle, Str> load(const Str& filename);
+    [[nodiscard]] Expect<Handle, Str> load(const Str& filename);
 
     /**
      * @brief 从已获取的模块中解析符号
      */
-    [[nodiscard]] std::expected<void*, Str> findSymbol(Handle handle, const Str& symbolName) const;
+    [[nodiscard]] Expect<void*, Str> findSymbol(Handle handle, const Str& symbolName) const;
 
     NativeModulePolicy& policy() noexcept {
         return policy_;
@@ -86,7 +86,7 @@ private:
     [[nodiscard]] static Str normalizedPath(const Str& filename);
     [[nodiscard]] static bool isCurrentExecutable(const Str& filename);
     [[nodiscard]] bool pathAllowed(const Str& normalized) const;
-    [[nodiscard]] std::expected<void, Str> verifyAbi(Handle handle) const;
+    [[nodiscard]] Expect<void, Str> verifyAbi(Handle handle) const;
     static void close(Handle handle, bool owned) noexcept;
 
     Vec<Entry> entries_;

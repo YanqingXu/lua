@@ -3,6 +3,7 @@
  * @brief Characterization tests for CodeGenerator statement and jump boundaries.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/opcode.hpp"
@@ -17,9 +18,9 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Codegen Characterization";
+constexpr Lua::CharPtr kSuiteName = "Codegen Characterization";
 
-Proto* generateProto(const char* code) {
+Proto* generateProto(Lua::CharPtr code) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
@@ -32,7 +33,7 @@ Proto* generateProto(const char* code) {
     return codegen.generate(chunk, "test_codegen_characterization");
 }
 
-LuaState* executeChunk(const char* code) {
+LuaState* executeChunk(Lua::CharPtr code) {
     Proto* proto = generateProto(code);
     if (proto == nullptr) {
         return nullptr;
@@ -340,7 +341,7 @@ void testLua51NilAssignmentInLoopRemainsObservable(TestSuite& suite) {
             const Value result = L->at(-1);
             ASSERT_TRUE(suite, result.isString(), "Loop nil assignment result is a string");
             if (result.isString()) {
-                ASSERT_EQ(suite, std::string("done"), std::string(result.asString()->c_str()),
+                ASSERT_EQ(suite, Lua::Str("done"), Lua::Str(result.asString()->c_str()),
                           "Nil assignment inside a loop is visible on the next iteration");
             }
         }

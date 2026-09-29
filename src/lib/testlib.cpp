@@ -3,6 +3,7 @@
  * @brief Lua 测试辅助库函数与模块注册的实现
  */
 
+#include "common/types.hpp"
 #include "lib/testlib.hpp"
 
 #include "lauxlib.h"
@@ -38,7 +39,7 @@ namespace Lua {
 
 namespace {
 
-i32 checkedTestInteger(LuaState* L, LuaNumber value, const char* message) {
+i32 checkedTestInteger(LuaState* L, LuaNumber value, CharPtr message) {
     const auto converted = checkedLuaInteger(value);
     if (!converted) {
         L->error(message);
@@ -67,9 +68,9 @@ struct RemoteStateAllocatorContext {
     usize liveBytes = 0;
 };
 
-std::unordered_map<lua_State*, std::unique_ptr<RemoteStateAllocatorContext>> gRemoteStateAllocators;
+HashMap<lua_State*, UPtr<RemoteStateAllocatorContext>> gRemoteStateAllocators;
 
-void* testDefaultAllocator(void*, void* pointer, size_t, size_t newSize) {
+void* testDefaultAllocator(void*, void* pointer, usize, usize newSize) {
     if (newSize == 0) {
         std::free(pointer);
         return nullptr;
@@ -77,7 +78,7 @@ void* testDefaultAllocator(void*, void* pointer, size_t, size_t newSize) {
     return std::realloc(pointer, newSize);
 }
 
-void* remoteStateAllocator(void* userData, void* pointer, size_t oldSize, size_t newSize) {
+void* remoteStateAllocator(void* userData, void* pointer, usize oldSize, usize newSize) {
     auto* context = static_cast<RemoteStateAllocatorContext*>(userData);
     if (context == nullptr || context->upstream == nullptr) {
         return nullptr;
@@ -347,7 +348,7 @@ void concatTop(LuaState* L, i32 count) {
     const i32 first = L->getTop() - count + 1;
     Str out;
     for (i32 i = first; i <= L->getTop(); ++i) {
-        const char* text = L->toString(i);
+        CharPtr text = L->toString(i);
         if (text == nullptr) {
             L->error("testC: concat expects string or number");
         }
@@ -431,7 +432,7 @@ i32 t_testC(LuaState* L) {
             L->pushNumber(L->toBoolean(readNumber(L, command.args.at(0))) ? 1.0 : 0.0);
         } else if (op == "tostring") {
             i32 idx = readNumber(L, command.args.at(0));
-            const char* text = L->toString(idx);
+            CharPtr text = L->toString(idx);
             if (text == nullptr) {
                 L->pushNil();
             } else {
@@ -599,7 +600,7 @@ i32 t_checkmemory(LuaState*) {
     return 0;
 }
 
-LuaNumber checkTestLibNumber(LuaState* L, i32 index, const char* functionName) {
+LuaNumber checkTestLibNumber(LuaState* L, i32 index, CharPtr functionName) {
     if (L->getTop() < index) {
         L->error(std::format("bad argument #{} to '{}' (number expected)", index, functionName).c_str());
     }
@@ -668,7 +669,7 @@ i32 t_upvalue(LuaState* L) {
     const i32 index = checkedTestInteger(L, L->toNumber(2), "upvalue index has no valid integer representation");
     lua_State* state = reinterpret_cast<lua_State*>(L);
     if (L->getTop() < 3) {
-        const char* name = lua_getupvalue(state, 1, index);
+        CharPtr name = lua_getupvalue(state, 1, index);
         if (name == nullptr) {
             return 0;
         }
@@ -676,7 +677,7 @@ i32 t_upvalue(LuaState* L) {
         return 2;
     }
 
-    const char* name = lua_setupvalue(state, 1, index);
+    CharPtr name = lua_setupvalue(state, 1, index);
     lua_pushstring(state, name != nullptr ? name : "");
     return 1;
 }
@@ -777,7 +778,7 @@ i32 t_doremote(LuaState* L) {
     if (status != LUA_OK) {
         L->pushNil();
         L->pushNumber(static_cast<LuaNumber>(status));
-        const char* message = lua_tostring(remote, -1);
+        CharPtr message = lua_tostring(remote, -1);
         if (message != nullptr) {
             L->pushString(L->getGlobalState().getStringPool().intern(message));
         } else {
@@ -789,7 +790,7 @@ i32 t_doremote(LuaState* L) {
 
     const int resultCount = lua_gettop(remote);
     for (int i = 1; i <= resultCount; ++i) {
-        const char* result = lua_tostring(remote, i);
+        CharPtr result = lua_tostring(remote, i);
         if (result != nullptr) {
             L->pushString(L->getGlobalState().getStringPool().intern(result));
         } else {
@@ -815,7 +816,7 @@ i32 t_loadlib(LuaState* L) {
         status = lua_pcall(remote, 0, 0, 0);
     }
     if (status != LUA_OK) {
-        const char* message = lua_tostring(remote, -1);
+        CharPtr message = lua_tostring(remote, -1);
         L->error(message != nullptr ? message : "could not initialize remote libraries");
     }
     return 0;

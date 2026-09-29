@@ -32,7 +32,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Parser Boundary Sentinels";
+constexpr Lua::CharPtr kSuiteName = "Parser Boundary Sentinels";
 
 struct TokenAllocatorLedger {
     usize liveBytes = 0;
@@ -63,7 +63,7 @@ void* tokenSnapshotAllocator(void* userData, void* pointer, usize oldSize, usize
     return resized;
 }
 
-bool parseChunk(TestSuite& suite, const char* source, Chunk& out, const char* testName) {
+bool parseChunk(TestSuite& suite, Lua::CharPtr source, Chunk& out, Lua::CharPtr testName) {
     Parser parser(source);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -87,7 +87,7 @@ template <typename T> const T* asExpr(const ExprPtr& expr) {
     return std::get_if<T>(&expr->variant);
 }
 
-const BinaryExpr* expectBinary(TestSuite& suite, const ExprPtr& expr, BinaryExpr::Op op, const char* testName) {
+const BinaryExpr* expectBinary(TestSuite& suite, const ExprPtr& expr, BinaryExpr::Op op, Lua::CharPtr testName) {
     const BinaryExpr* bin = asExpr<BinaryExpr>(expr);
     ASSERT_TRUE(suite, bin != nullptr, testName);
     if (!bin)
@@ -97,7 +97,7 @@ const BinaryExpr* expectBinary(TestSuite& suite, const ExprPtr& expr, BinaryExpr
     return bin;
 }
 
-void expectStringKey(TestSuite& suite, const TableField& field, const char* expected, const char* testName) {
+void expectStringKey(TestSuite& suite, const TableField& field, Lua::CharPtr expected, Lua::CharPtr testName) {
     const StringExpr* key = asExpr<StringExpr>(field.key);
     ASSERT_TRUE(suite, key != nullptr, testName);
     if (!key)
@@ -106,7 +106,7 @@ void expectStringKey(TestSuite& suite, const TableField& field, const char* expe
     ASSERT_TRUE(suite, key->value == expected, testName);
 }
 
-void expectParseError(TestSuite& suite, const char* source, const char* expectedText, const char* testName) {
+void expectParseError(TestSuite& suite, Lua::CharPtr source, Lua::CharPtr expectedText, Lua::CharPtr testName) {
     Parser parser(source);
     auto parsed = parser.parse();
     if (parsed) {
@@ -115,9 +115,9 @@ void expectParseError(TestSuite& suite, const char* source, const char* expected
     }
 
     const ParseError& e = parsed.error();
-    std::string message = e.what();
+    Lua::Str message = e.what();
     ASSERT_TRUE(suite, !message.empty(), testName);
-    ASSERT_TRUE(suite, message.find(expectedText) != std::string::npos, testName);
+    ASSERT_TRUE(suite, message.find(expectedText) != Lua::Str::npos, testName);
     ASSERT_TRUE(suite, e.getLine() >= 1 && e.getColumn() >= 0, testName);
 }
 
@@ -515,6 +515,5 @@ void registerParserBoundaryTests() {
                           testTokenAllocatorSnapshotOutlivesSourceAllocator);
     registry.registerTest(kSuiteName, "AST allocator snapshot lifetime",
                           testAstAllocatorSnapshotOutlivesRuntimeContext);
-    registry.registerTest(kSuiteName, "compilation policy parser limits",
-                          testCompilationPolicyBoundsParserGrowth);
+    registry.registerTest(kSuiteName, "compilation policy parser limits", testCompilationPolicyBoundsParserGrowth);
 }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file trace_types.hpp
  * @brief 虚拟机追踪事件类型定义
  *
@@ -43,8 +43,8 @@ struct TraceRegisterChange {
     Str name;
     Str oldValue;
     Str newValue;
-    const char* oldType = "nil";
-    const char* newType = "nil";
+    CharPtr oldType = "nil";
+    CharPtr newType = "nil";
 };
 
 /**
@@ -75,7 +75,7 @@ struct TraceEvent {
     /** @brief 源码行号 */
     i32 line = 0;
     /** @brief 源文件名（借用指针，不拥有） */
-    const char* source = "?";
+    CharPtr source = "?";
 
     // ---- 调用信息 ----
     /** @brief 当前调用深度 */
@@ -97,7 +97,7 @@ struct TraceEvent {
 
     // ---- 错误信息 ----
     /** @brief 错误事件的错误消息。 */
-    const char* errorMsg = nullptr;
+    CharPtr errorMsg = nullptr;
 };
 
 } // namespace Lua

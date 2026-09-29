@@ -6,6 +6,7 @@
  */
 
 #include "debugger/debug_types.hpp"
+#include "common/types.hpp"
 #include "debugger/source_registry.hpp"
 
 #include <atomic>
@@ -73,9 +74,8 @@ public:
     [[nodiscard]] Opt<u64> sourceContentIdentity(SourceId id) const;
 
     [[nodiscard]] DebugResult<Vec<BreakpointBinding>> setBreakpoints(SourceId sourceId,
-                                                                     std::span<const SourceBreakpoint> requested);
-    [[nodiscard]] DebugResult<Vec<BreakpointBinding>>
-    setFunctionBreakpoints(std::span<const FunctionBreakpoint> requested);
+                                                                     Span<const SourceBreakpoint> requested);
+    [[nodiscard]] DebugResult<Vec<BreakpointBinding>> setFunctionBreakpoints(Span<const FunctionBreakpoint> requested);
 
     /** Record one logical line/function hit. Count is global per breakpoint and survives Proto rebinding. */
     [[nodiscard]] Opt<BreakpointActivation> recordHit(BreakpointId id) noexcept;
@@ -128,7 +128,7 @@ private:
     [[nodiscard]] Ptr<const LookupSnapshot> loadSnapshot() const noexcept;
     void storeSnapshot(Ptr<const LookupSnapshot> snapshot) noexcept;
 
-    mutable std::mutex mutex_;
+    mutable Mtx mutex_;
     SourceRegistry sources_;
     HashMap<u64, Vec<DebugCodeLocation>> locationsBySource_;
     HashMap<u64, Vec<RequestedBreakpoint>> requestedBySource_;
@@ -137,11 +137,11 @@ private:
     HashSet<const Proto*> registeredProtos_;
     Ptr<const LookupSnapshot> emptySnapshot_;
 #if defined(__cpp_lib_atomic_shared_ptr) && __cpp_lib_atomic_shared_ptr >= 201711L
-    std::atomic<Ptr<const LookupSnapshot>> snapshot_;
+    Atom<Ptr<const LookupSnapshot>> snapshot_;
 #else
     Ptr<const LookupSnapshot> snapshot_;
 #endif
-    std::atomic<bool> hasBreakpoints_ = false;
+    Atom<bool> hasBreakpoints_ = false;
     u64 nextBreakpointId_ = 1;
 };
 

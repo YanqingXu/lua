@@ -5,6 +5,7 @@
  * @brief 代码生成器的跳转列表与回填边界
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/codegen_state.hpp"
 
 namespace Lua {

@@ -3,6 +3,7 @@
  * @brief Debugger domain-ID, source-registry, and pause-handle tests.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "debugger/pause_handles.hpp"
@@ -16,7 +17,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Debugger Domain Types";
+constexpr Lua::CharPtr kSuiteName = "Debugger Domain Types";
 
 static_assert(!std::is_same_v<SourceId, FrameId>);
 static_assert(!std::is_convertible_v<u64, SourceId>);

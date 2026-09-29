@@ -3,6 +3,7 @@
  * @brief Tests for the CodeGenerator bytecode emission boundary.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/bytecode_builder.hpp"
 #include "core/function.hpp"
@@ -14,7 +15,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Bytecode Builder";
+constexpr Lua::CharPtr kSuiteName = "Bytecode Builder";
 
 void testEmitInstructionsTracksLineInfo(TestSuite& suite) {
     StringPool& pool = StringPool::getInstance();
@@ -42,8 +43,7 @@ void testEmitInstructionsTracksLineInfo(TestSuite& suite) {
     ASSERT_EQ(suite, 0, GETARG_C(builder.instruction(loadBoolPc)), "ABC C argument should match");
     ASSERT_EQ(suite, 7, GETARG_Bx(builder.instruction(loadKPc)), "ABx argument should match");
     ASSERT_EQ(suite, -2, GETARG_sBx(builder.instruction(jumpPc)), "AsBx argument should match");
-    ASSERT_EQ(suite, static_cast<int>(OpCode::JMP), static_cast<int>(builder.lastOpcode()),
-              "last opcode should match");
+    ASSERT_EQ(suite, static_cast<int>(OpCode::JMP), static_cast<int>(builder.lastOpcode()), "last opcode should match");
 }
 
 void testConstantsAndProtoWritesUseSharedBoundary(TestSuite& suite) {
@@ -88,7 +88,7 @@ void testInstructionReplacementUsesSharedBoundary(TestSuite& suite) {
     ASSERT_EQ(suite, 7, proto.getLine(pc), "replacement should preserve line info");
 }
 
-}  // namespace
+} // namespace
 
 void registerBytecodeBuilderTests() {
     auto& registry = TestRegistry::getInstance();

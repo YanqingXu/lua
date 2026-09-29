@@ -7,6 +7,7 @@
  */
 
 #include "repl.hpp"
+#include "common/types.hpp"
 
 #include <iosfwd>
 #include <string_view>
@@ -16,8 +17,8 @@ namespace Lua::REPL::detail {
 /** @brief 保存 REPL 会话的程序名、错误颜色模式与交互状态。 */
 class ReplContext {
 public:
-    void setProgramName(const char* name);
-    const char* programName() const;
+    void setProgramName(CharPtr name);
+    CharPtr programName() const;
 
     void setErrorColorMode(ErrorColorMode mode);
     ErrorColorMode errorColorMode() const;
@@ -49,12 +50,11 @@ private:
 ReplContext& globalContext();
 
 /** @brief 按上下文颜色设置写出一行错误消息。 */
-void writeErrorLine(ReplContext& context, std::ostream& err, std::string_view message);
+void writeErrorLine(ReplContext& context, std::ostream& err, StrView message);
 /** @brief 报告不带源码位置的错误。 */
-void reportError(ReplContext& context, std::ostream& err, std::string_view msg, bool showProgName);
+void reportError(ReplContext& context, std::ostream& err, StrView msg, bool showProgName);
 /** @brief 报告带源码位置的错误。 */
-void reportError(ReplContext& context, std::ostream& err, std::string_view source, int line, std::string_view msg,
-                 bool showProgName);
+void reportError(ReplContext& context, std::ostream& err, StrView source, int line, StrView msg, bool showProgName);
 
 } // namespace Lua::REPL::detail
 

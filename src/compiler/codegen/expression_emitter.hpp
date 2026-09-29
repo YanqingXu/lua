@@ -5,6 +5,7 @@
  * @brief 表达式、条件、调用、可变参数与左值的降级边界
  */
 
+#include "common/types.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/ast_visitor.hpp"
 #include "compiler/codegen/codegen_ops.hpp"

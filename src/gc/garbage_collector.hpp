@@ -262,7 +262,7 @@ public:
     /**
      * @brief 获取当前 GC 策略名称
      */
-    [[nodiscard]] const char* getStrategyName() const noexcept;
+    [[nodiscard]] CharPtr getStrategyName() const noexcept;
 
     /**
      * @brief 按名称切换 GC 策略；未知名称返回 false 并保持原策略

@@ -4,6 +4,7 @@
  */
 
 #include "debugger/breakpoint_manager.hpp"
+#include "common/types.hpp"
 
 #include "core/function.hpp"
 
@@ -35,8 +36,8 @@ ParsedBehavior parseBehavior(StrView condition, StrView hitCondition, StrView lo
     behavior->logMessage = Str(logMessage);
     if (!hitCondition.empty()) {
         u64 target = 0;
-        const char* first = hitCondition.data();
-        const char* last = first + hitCondition.size();
+        CharPtr first = hitCondition.data();
+        CharPtr last = first + hitCondition.size();
         const auto parsed = std::from_chars(first, last, target, 10);
         if (parsed.ec != std::errc{} || parsed.ptr != last || target == 0) {
             return {behavior, Str("hitCondition must be a positive decimal integer")};
@@ -140,10 +141,10 @@ Opt<u64> BreakpointManager::sourceContentIdentity(SourceId id) const {
 }
 
 DebugResult<Vec<BreakpointBinding>> BreakpointManager::setBreakpoints(SourceId sourceId,
-                                                                      std::span<const SourceBreakpoint> requested) {
+                                                                      Span<const SourceBreakpoint> requested) {
     std::lock_guard lock(mutex_);
     if (sources_.lookup(sourceId) == nullptr) {
-        return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "unknown source ID"});
+        return Unexpect<DebugError>(DebugError{DebugErrorCode::InvalidReference, "unknown source ID"});
     }
 
     Vec<RequestedBreakpoint> replacements;
@@ -172,7 +173,7 @@ DebugResult<Vec<BreakpointBinding>> BreakpointManager::setBreakpoints(SourceId s
 }
 
 DebugResult<Vec<BreakpointBinding>>
-BreakpointManager::setFunctionBreakpoints(std::span<const FunctionBreakpoint> requested) {
+BreakpointManager::setFunctionBreakpoints(Span<const FunctionBreakpoint> requested) {
     std::lock_guard lock(mutex_);
     Vec<RequestedBreakpoint> replacements;
     replacements.reserve(requested.size());

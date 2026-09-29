@@ -3,6 +3,7 @@
  * @brief 表操作码处理器
  */
 
+#include "common/types.hpp"
 #include "vm/vm_handlers/vm_handler_utils.hpp"
 #include "common/lua_error.hpp"
 #include "core/table.hpp"
@@ -28,7 +29,7 @@ HandlerStatus handleGetTable(OpExecutionContext& context, Instruction inst) {
     try {
         detail::gettable(state, table, key, result);
     } catch (const RuntimeError& error) {
-        if (std::string(error.what()).find("attempt to index a non-table value") == std::string::npos) {
+        if (Str(error.what()).find("attempt to index a non-table value") == Str::npos) {
             throw;
         }
         Str sourceName = diagnostics::describeRegister(context.proto, b, context.instructionPc).value_or(Str());
@@ -82,7 +83,7 @@ HandlerStatus handleSelf(OpExecutionContext& context, Instruction inst) {
     try {
         detail::gettable(state, obj, key, result);
     } catch (const RuntimeError& error) {
-        if (std::string(error.what()).find("attempt to index a non-table value") == std::string::npos) {
+        if (Str(error.what()).find("attempt to index a non-table value") == Str::npos) {
             throw;
         }
         Str sourceName = diagnostics::describeRegister(context.proto, b, context.instructionPc).value_or(Str());

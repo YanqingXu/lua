@@ -8,6 +8,7 @@
  * @date 2025-12-19
  */
 
+#include "common/types.hpp"
 #include "lib/lib_registry.hpp"
 
 #include "core/function.hpp"
@@ -23,8 +24,8 @@ namespace Lua {
 
 namespace {
 
-std::unexpected<LibRegistrationError> registrationError(LibRegistrationErrorCode code, StrView operation) {
-    return std::unexpected(LibRegistrationError{code, operation});
+Unexpect<LibRegistrationError> registrationError(LibRegistrationErrorCode code, StrView operation) {
+    return Unexpect<LibRegistrationError>(LibRegistrationError{code, operation});
 }
 
 } // namespace
@@ -33,7 +34,7 @@ std::unexpected<LibRegistrationError> registrationError(LibRegistrationErrorCode
 // 私有辅助函数
 // =====================================================================
 
-std::expected<Function*, LibRegistrationError> FunctionRegistrar::tryCreateClosure(LuaState* L, LibCFunction func) {
+Expect<Function*, LibRegistrationError> FunctionRegistrar::tryCreateClosure(LuaState* L, LibCFunction func) {
     if (!L) {
         return registrationError(LibRegistrationErrorCode::NullState, "createClosure");
     }
@@ -55,7 +56,7 @@ Function* FunctionRegistrar::createClosure(LuaState* L, LibCFunction func) {
 // 静态方法实现：单个函数注册
 // =====================================================================
 
-void FunctionRegistrar::registerGlobal(LuaState* L, const char* name, LibCFunction func) {
+void FunctionRegistrar::registerGlobal(LuaState* L, CharPtr name, LibCFunction func) {
     if (!L || !name || !func) {
         return;
     }
@@ -68,7 +69,7 @@ void FunctionRegistrar::registerGlobal(LuaState* L, const char* name, LibCFuncti
     L->setGlobal(name, Value(closure));
 }
 
-void FunctionRegistrar::registerToTable(LuaState* L, Table* table, const char* name, LibCFunction func) {
+void FunctionRegistrar::registerToTable(LuaState* L, Table* table, CharPtr name, LibCFunction func) {
     if (!L || !table || !name || !func) {
         return;
     }
@@ -86,12 +87,12 @@ void FunctionRegistrar::registerToTable(LuaState* L, Table* table, const char* n
 // 静态方法实现：库表创建
 // =====================================================================
 
-Table* FunctionRegistrar::createLibTable(LuaState* L, const char* libName) {
+Table* FunctionRegistrar::createLibTable(LuaState* L, CharPtr libName) {
     auto created = tryCreateLibTable(L, libName != nullptr ? StrView(libName) : StrView{});
     return created ? *created : nullptr;
 }
 
-std::expected<Table*, LibRegistrationError> FunctionRegistrar::tryCreateLibTable(LuaState* L, StrView libName) {
+Expect<Table*, LibRegistrationError> FunctionRegistrar::tryCreateLibTable(LuaState* L, StrView libName) {
     if (!L) {
         return registrationError(LibRegistrationErrorCode::NullState, "createLibTable");
     }

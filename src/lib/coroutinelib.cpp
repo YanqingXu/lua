@@ -5,6 +5,7 @@
  * 实现 coroutine.create / resume / yield / status / running / wrap
  */
 
+#include "common/types.hpp"
 #include "lib/coroutinelib.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
@@ -80,7 +81,7 @@ static i32 coroutine_status(LuaState* L) {
     }
 
     Thread* thread = L->at(1).asThread();
-    const char* statusStr = nullptr;
+    CharPtr statusStr = nullptr;
 
     switch (thread->getCoroutineStatus()) {
     case CoroutineStatus::Suspended:

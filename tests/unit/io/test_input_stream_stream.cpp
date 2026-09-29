@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_input_stream_stream.cpp
  * @brief InputStream 类（流模式）单元测试
  *
@@ -510,8 +510,8 @@ static void testIStringStream(TestSuite& suite) {
  */
 static void testFileStreamIntegration(TestSuite& suite) {
     // 创建临时测试文件（以二进制模式，避免换行符转换）
-    const char* tempFilePath = "build/test_temp_stream_data.txt";
-    const char* testContent = "File stream content\nLine 2\nLine 3";
+    Lua::CharPtr tempFilePath = "build/test_temp_stream_data.txt";
+    Lua::CharPtr testContent = "File stream content\nLine 2\nLine 3";
     usize contentLength = std::strlen(testContent); // 33 字节
 
     TemporaryTestFile testFile(tempFilePath, testContent);
@@ -535,7 +535,7 @@ static void testFileStreamIntegration(TestSuite& suite) {
  * @brief 测试大文件流
  */
 static void testLargeFileStream(TestSuite& suite) {
-    const char* tempFilePath = "build/test_temp_large_stream.txt";
+    Lua::CharPtr tempFilePath = "build/test_temp_large_stream.txt";
 
     const Str content(5000, 'A');
     TemporaryTestFile testFile(tempFilePath, content);

@@ -43,20 +43,20 @@ enum class IntegerConversionError : u8 {
  * @param mode 转换模式。
  * @return 转换后的整数；失败时返回具体错误。
  */
-[[nodiscard]] inline std::expected<i32, IntegerConversionError>
+[[nodiscard]] inline Expect<i32, IntegerConversionError>
 checkedLuaInteger(LuaNumber value, IntegerConversion mode = IntegerConversion::Truncate) noexcept {
     if (!std::isfinite(value)) {
-        return std::unexpected(IntegerConversionError::NotFinite);
+        return Unexpect<IntegerConversionError>(IntegerConversionError::NotFinite);
     }
 
     const LuaNumber truncated = std::trunc(value);
     if (mode == IntegerConversion::Exact && truncated != value) {
-        return std::unexpected(IntegerConversionError::NotIntegral);
+        return Unexpect<IntegerConversionError>(IntegerConversionError::NotIntegral);
     }
 
     if (truncated < static_cast<LuaNumber>(std::numeric_limits<i32>::min()) ||
         truncated > static_cast<LuaNumber>(std::numeric_limits<i32>::max())) {
-        return std::unexpected(IntegerConversionError::OutOfRange);
+        return Unexpect<IntegerConversionError>(IntegerConversionError::OutOfRange);
     }
 
     return static_cast<i32>(truncated);
@@ -71,7 +71,7 @@ checkedLuaInteger(LuaNumber value, IntegerConversion mode = IntegerConversion::T
  */
 inline bool luaStringToNumber(StrView text, LuaNumber& out, LuaAllocator* allocator = nullptr) {
     LuaString copy(text.begin(), text.end(), LuaStdAllocator<char>(allocator));
-    const char* start = copy.c_str();
+    CharPtr start = copy.c_str();
     char* end = nullptr;
 
     errno = 0;
@@ -98,7 +98,7 @@ inline bool luaStringToNumber(StrView text, LuaNumber& out, LuaAllocator* alloca
  * @param buffer 输出缓冲区。
  * @return 指向格式化结果的字符串视图。
  */
-inline StrView luaNumberToView(LuaNumber value, std::array<char, 64>& buffer) {
+inline StrView luaNumberToView(LuaNumber value, Arr<char, 64>& buffer) {
     const auto result =
         std::to_chars(buffer.data(), buffer.data() + buffer.size(), value, std::chars_format::general, 14);
 
@@ -115,7 +115,7 @@ inline StrView luaNumberToView(LuaNumber value, std::array<char, 64>& buffer) {
  * @return 格式化后的字符串。
  */
 inline Str luaNumberToString(LuaNumber value) {
-    std::array<char, 64> buffer{};
+    Arr<char, 64> buffer{};
     return Str(luaNumberToView(value, buffer));
 }
 

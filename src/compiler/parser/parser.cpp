@@ -5,6 +5,7 @@
  * 实现解析入口、Token管理、错误诊断发布与语法错误恢复策略。
  */
 
+#include "common/types.hpp"
 #include "parser_impl.hpp"
 #include "runtime/runtime_services.hpp"
 #include <sstream>
@@ -43,7 +44,7 @@ Parser::~Parser() = default;
 Parser::Parser(Parser&&) noexcept = default;
 Parser& Parser::operator=(Parser&&) noexcept = default;
 
-std::expected<Chunk, ParseError> Parser::parse() {
+Expect<Chunk, ParseError> Parser::parse() {
     return impl_->parse();
 }
 
@@ -228,7 +229,7 @@ UPtr<Parser::Impl::ErrorRecoveryStrategy> Parser::Impl::makeRecoveryStrategy(Par
     }
 }
 
-std::expected<Chunk, ParseError> Parser::Impl::parse() {
+Expect<Chunk, ParseError> Parser::Impl::parse() {
     diagnosticCollector_.clear();
     functionScopes_.clear();
 
@@ -243,14 +244,14 @@ std::expected<Chunk, ParseError> Parser::Impl::parse() {
         }
 
         if (!diagnosticCollector_.empty()) {
-            return std::unexpected(diagnosticCollector_.first());
+            return Unexpect<ParseError>(diagnosticCollector_.first());
         }
 
         return chunk;
     } catch (const ParseError& error) {
-        return std::unexpected(error);
+        return Unexpect<ParseError>(error);
     } catch (const CompilationLimitError& error) {
-        return std::unexpected(ParseError(error.what(), current().line, current().column));
+        return Unexpect<ParseError>(ParseError(error.what(), current().line, current().column));
     }
 }
 

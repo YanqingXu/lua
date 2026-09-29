@@ -3,6 +3,7 @@
  * @brief Lua表系统实现
  */
 
+#include "common/types.hpp"
 #include "core/table.hpp"
 #include "common/lua_error.hpp"
 #include "core/gc_string.hpp"
@@ -213,10 +214,10 @@ void Table::setArray(i32 index, const Value& value) {
         return;
     }
     const Value stableValue = value;
-    setArrayRange(index, std::span<const Value>(&stableValue, 1));
+    setArrayRange(index, Span<const Value>(&stableValue, 1));
 }
 
-void Table::setArrayRange(i32 firstIndex, std::span<const Value> values) {
+void Table::setArrayRange(i32 firstIndex, Span<const Value> values) {
     if (firstIndex < 1 || values.empty()) {
         return;
     }

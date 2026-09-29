@@ -4,6 +4,7 @@
  */
 
 #include "repl/repl_exe.hpp"
+#include "common/types.hpp"
 
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
@@ -82,12 +83,12 @@ bool isIncompleteInput(const Str& errorMessage) {
            errorMessage.find("Unterminated long comment") != Str::npos;
 }
 
-std::expected<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, const Str& source, bool isExpression) {
+Expect<PreparedInput, ParseError> prepareInputForExecution(LuaState* L, const Str& source, bool isExpression) {
     RuntimeServices services(L->getGlobalState());
     Parser parser(source, services);
     auto parsed = parser.parse();
     if (!parsed) {
-        return std::unexpected(parsed.error());
+        return Unexpect<ParseError>(parsed.error());
     }
 
     PreparedInput input;

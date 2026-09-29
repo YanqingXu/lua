@@ -3,6 +3,7 @@
  * @brief Lua用户数据类型实现
  */
 
+#include "common/types.hpp"
 #include "userdata.hpp"
 #include "table.hpp"
 #include "gc/garbage_collector.hpp"

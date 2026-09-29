@@ -3,6 +3,7 @@
  * @brief StringPool类的实现
  */
 
+#include "common/types.hpp"
 #include "core/string_pool.hpp"
 #include "gc/garbage_collector.hpp"
 

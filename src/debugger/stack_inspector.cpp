@@ -4,6 +4,7 @@
  */
 
 #include "debugger/stack_inspector.hpp"
+#include "common/types.hpp"
 
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
@@ -83,14 +84,14 @@ bool StackInspector::paused() const noexcept {
 
 DebugResult<Vec<DebugThread>> StackInspector::threads() const {
     if (!paused()) {
-        return std::unexpected(inspectorError(DebugErrorCode::InvalidState, "threads require a suspended VM"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidState, "threads require a suspended VM"));
     }
     return Vec<DebugThread>{{threadId_, threadName_, DebugThreadState::Paused}};
 }
 
 DebugResult<void> StackInspector::ensureFrames() {
     if (!paused()) {
-        return std::unexpected(inspectorError(DebugErrorCode::InvalidState, "stackTrace requires a suspended VM"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidState, "stackTrace requires a suspended VM"));
     }
     if (framesBuilt_) {
         return {};
@@ -129,7 +130,7 @@ DebugResult<void> StackInspector::ensureFrames() {
 
         DebugResult<FrameId> frameId = frames_.add(descriptor);
         if (!frameId) {
-            return std::unexpected(frameId.error());
+            return Unexpect<DebugError>(frameId.error());
         }
         frame.id = *frameId;
         stackFrames_.push_back(std::move(frame));
@@ -139,7 +140,7 @@ DebugResult<void> StackInspector::ensureFrames() {
             FrameDescriptor tailDescriptor{state_, callIndex, descriptor.pc, false, true};
             DebugResult<FrameId> tailId = frames_.add(tailDescriptor);
             if (!tailId) {
-                return std::unexpected(tailId.error());
+                return Unexpect<DebugError>(tailId.error());
             }
             stackFrames_.push_back(DebugStackFrame{*tailId, threadId_, "[tail call]", {}, false});
             ++emitted;
@@ -151,10 +152,10 @@ DebugResult<void> StackInspector::ensureFrames() {
 
 DebugResult<Vec<DebugStackFrame>> StackInspector::stackTrace(ThreadId thread, usize startFrame, usize levels) {
     if (thread != threadId_) {
-        return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "unknown debug thread"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "unknown debug thread"));
     }
     if (DebugResult<void> built = ensureFrames(); !built) {
-        return std::unexpected(built.error());
+        return Unexpect<DebugError>(built.error());
     }
 
     if (startFrame >= stackFrames_.size()) {
@@ -168,11 +169,11 @@ DebugResult<Vec<DebugStackFrame>> StackInspector::stackTrace(ThreadId thread, us
 
 DebugResult<Vec<DebugScope>> StackInspector::scopes(FrameId frame) {
     if (DebugResult<void> built = ensureFrames(); !built) {
-        return std::unexpected(built.error());
+        return Unexpect<DebugError>(built.error());
     }
     const DebugResult<std::reference_wrapper<const FrameDescriptor>> descriptor = frames_.lookup(frame);
     if (!descriptor) {
-        return std::unexpected(descriptor.error());
+        return Unexpect<DebugError>(descriptor.error());
     }
     if (descriptor->get().tailPlaceholder) {
         return Vec<DebugScope>{};
@@ -185,7 +186,7 @@ DebugResult<Vec<DebugScope>> StackInspector::scopes(FrameId frame) {
     const auto addScope = [&](Str name, DebugScopeKind kind, VariableNode node) -> DebugResult<void> {
         DebugResult<VariableReference> reference = addNode(node);
         if (!reference) {
-            return std::unexpected(reference.error());
+            return Unexpect<DebugError>(reference.error());
         }
         result.push_back(DebugScope{std::move(name), kind, *reference, false});
         return {};
@@ -198,7 +199,7 @@ DebugResult<Vec<DebugScope>> StackInspector::scopes(FrameId frame) {
             if (DebugResult<void> exception =
                     addScope("Exception", DebugScopeKind::Exception, VariableNode{VariableNodeKind::Exception, frame});
                 !exception) {
-                return std::unexpected(exception.error());
+                return Unexpect<DebugError>(exception.error());
             }
         }
         scopesByFrame_.emplace(frame.value(), result);
@@ -208,24 +209,23 @@ DebugResult<Vec<DebugScope>> StackInspector::scopes(FrameId frame) {
     if (DebugResult<void> local =
             addScope("Locals", DebugScopeKind::Locals, VariableNode{VariableNodeKind::Locals, frame, nullptr});
         !local) {
-        return std::unexpected(local.error());
+        return Unexpect<DebugError>(local.error());
     }
     if (DebugResult<void> upvalues =
             addScope("Upvalues", DebugScopeKind::Upvalues, VariableNode{VariableNodeKind::Upvalues, frame, nullptr});
         !upvalues) {
-        return std::unexpected(upvalues.error());
+        return Unexpect<DebugError>(upvalues.error());
     }
     if (DebugResult<void> globals = addScope("Globals", DebugScopeKind::Globals,
-                                             VariableNode{VariableNodeKind::TableRaw, frame,
-                                                          state_->getGlobalTable()});
+                                             VariableNode{VariableNodeKind::TableRaw, frame, state_->getGlobalTable()});
         !globals) {
-        return std::unexpected(globals.error());
+        return Unexpect<DebugError>(globals.error());
     }
     if (exceptionFrame) {
         if (DebugResult<void> exception =
                 addScope("Exception", DebugScopeKind::Exception, VariableNode{VariableNodeKind::Exception, frame});
             !exception) {
-            return std::unexpected(exception.error());
+            return Unexpect<DebugError>(exception.error());
         }
     }
 
@@ -237,27 +237,27 @@ DebugResult<Vec<DebugVariable>> StackInspector::variables(VariableReference refe
                                                           DebugVariableFilter filter) {
     const DebugResult<std::reference_wrapper<const VariableNode>> node = variables_.lookup(reference);
     if (!node) {
-        return std::unexpected(node.error());
+        return Unexpect<DebugError>(node.error());
     }
     switch (node->get().kind) {
     case VariableNodeKind::Locals: {
         const auto frame = frames_.lookup(node->get().frame);
         return frame ? localVariables(node->get().frame, frame->get())
-                     : DebugResult<Vec<DebugVariable>>(std::unexpected(frame.error()));
+                     : DebugResult<Vec<DebugVariable>>(Unexpect<DebugError>(frame.error()));
     }
     case VariableNodeKind::Upvalues: {
         const auto frame = frames_.lookup(node->get().frame);
         return frame ? upvalueVariables(node->get().frame, frame->get())
-                     : DebugResult<Vec<DebugVariable>>(std::unexpected(frame.error()));
+                     : DebugResult<Vec<DebugVariable>>(Unexpect<DebugError>(frame.error()));
     }
     case VariableNodeKind::TableRaw:
         if (node->get().table == nullptr) {
-            return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
+            return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
         }
         return tableVariables(*node->get().table, start, count, filter);
     case VariableNodeKind::TableOverview:
         if (node->get().table == nullptr) {
-            return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
+            return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
         }
         if (filter == DebugVariableFilter::All) {
             return tableOverview(node->get());
@@ -265,48 +265,49 @@ DebugResult<Vec<DebugVariable>> StackInspector::variables(VariableReference refe
         return tableVariables(*node->get().table, start, count, filter);
     case VariableNodeKind::TableArray:
         if (node->get().table == nullptr) {
-            return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
+            return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
         }
         return tableVariables(*node->get().table, start, count, DebugVariableFilter::Indexed);
     case VariableNodeKind::TableHash:
         if (node->get().table == nullptr) {
-            return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
+            return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
         }
         return tableVariables(*node->get().table, start, count, DebugVariableFilter::Named);
     case VariableNodeKind::Exception: {
         if (exceptionValueStorage_ == nullptr) {
-            return std::unexpected(inspectorError(DebugErrorCode::StaleReference, "exception value is unavailable"));
+            return Unexpect<DebugError>(
+                inspectorError(DebugErrorCode::StaleReference, "exception value is unavailable"));
         }
         DebugResult<DebugVariable> value = makeVariable("error", *exceptionValueStorage_);
         if (!value) {
-            return std::unexpected(value.error());
+            return Unexpect<DebugError>(value.error());
         }
         return Vec<DebugVariable>{std::move(*value)};
     }
     }
-    return std::unexpected(inspectorError(DebugErrorCode::Unsupported, "unsupported variable node"));
+    return Unexpect<DebugError>(inspectorError(DebugErrorCode::Unsupported, "unsupported variable node"));
 }
 
 DebugResult<StackInspector::RawEvaluatedValue> StackInspector::evaluateRaw(FrameId frameId, StrView expression) {
     if (expression.empty() || expression.size() > limits_.maxExpressionLength) {
-        return std::unexpected(
+        return Unexpect<DebugError>(
             inspectorError(DebugErrorCode::ResourceLimit, "expression is empty or exceeds the configured limit"));
     }
     if (DebugResult<void> built = ensureFrames(); !built) {
-        return std::unexpected(built.error());
+        return Unexpect<DebugError>(built.error());
     }
     const auto descriptorResult = frames_.lookup(frameId);
     if (!descriptorResult) {
-        return std::unexpected(descriptorResult.error());
+        return Unexpect<DebugError>(descriptorResult.error());
     }
     const FrameDescriptor& frame = descriptorResult->get();
     if (frame.native || frame.tailPlaceholder || frame.state == nullptr) {
-        return std::unexpected(inspectorError(DebugErrorCode::Unsupported,
-                                              "read-only evaluation requires a live Lua stack frame"));
+        return Unexpect<DebugError>(
+            inspectorError(DebugErrorCode::Unsupported, "read-only evaluation requires a live Lua stack frame"));
     }
 
     const auto error = [](DebugErrorCode code, Str message) -> DebugResult<RawEvaluatedValue> {
-        return std::unexpected(inspectorError(code, std::move(message)));
+        return Unexpect<DebugError>(inspectorError(code, std::move(message)));
     };
     usize position = 0;
     usize depth = 0;
@@ -316,8 +317,7 @@ DebugResult<StackInspector::RawEvaluatedValue> StackInspector::evaluateRaw(Frame
         return steps <= limits_.maxEvaluationSteps;
     };
     const auto skipWhitespace = [&]() {
-        while (position < expression.size() &&
-               std::isspace(static_cast<unsigned char>(expression[position])) != 0) {
+        while (position < expression.size() && std::isspace(static_cast<unsigned char>(expression[position])) != 0) {
             ++position;
         }
     };
@@ -597,11 +597,11 @@ DebugResult<StackInspector::RawEvaluatedValue> StackInspector::evaluateRaw(Frame
 
     auto evaluated = parseExpression();
     if (!evaluated) {
-        return std::unexpected(evaluated.error());
+        return Unexpect<DebugError>(evaluated.error());
     }
     skipWhitespace();
     if (position != expression.size()) {
-        return std::unexpected(inspectorError(
+        return Unexpect<DebugError>(inspectorError(
             DebugErrorCode::Unsupported,
             "read-only evaluation rejects calls, assignments, operators, and other side-effecting syntax"));
     }
@@ -611,7 +611,8 @@ DebugResult<StackInspector::RawEvaluatedValue> StackInspector::evaluateRaw(Frame
 DebugResult<Value> StackInspector::materializeValue(RawEvaluatedValue evaluated) {
     if (evaluated.stringLiteral) {
         if (state_ == nullptr) {
-            return std::unexpected(inspectorError(DebugErrorCode::InvalidState, "value materialization requires a pause"));
+            return Unexpect<DebugError>(
+                inspectorError(DebugErrorCode::InvalidState, "value materialization requires a pause"));
         }
         return Value(state_->getGlobalState().getStringPool().intern(*evaluated.stringLiteral));
     }
@@ -621,7 +622,7 @@ DebugResult<Value> StackInspector::materializeValue(RawEvaluatedValue evaluated)
 DebugResult<DebugVariable> StackInspector::evaluate(FrameId frameId, StrView expression) {
     auto evaluated = evaluateRaw(frameId, expression);
     if (!evaluated) {
-        return std::unexpected(evaluated.error());
+        return Unexpect<DebugError>(evaluated.error());
     }
     if (evaluated->stringLiteral) {
         DebugVariable result;
@@ -640,36 +641,36 @@ DebugResult<DebugVariable> StackInspector::evaluate(FrameId frameId, StrView exp
 
 DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frameId, StrView expression) {
     if (expression.empty() || expression.size() > limits_.maxExpressionLength) {
-        return std::unexpected(
+        return Unexpect<DebugError>(
             inspectorError(DebugErrorCode::ResourceLimit, "expression is empty or exceeds the configured limit"));
     }
     if (DebugResult<void> built = ensureFrames(); !built) {
-        return std::unexpected(built.error());
+        return Unexpect<DebugError>(built.error());
     }
     const auto descriptorResult = frames_.lookup(frameId);
     if (!descriptorResult) {
-        return std::unexpected(descriptorResult.error());
+        return Unexpect<DebugError>(descriptorResult.error());
     }
     const FrameDescriptor frame = descriptorResult->get();
     if (frame.native || frame.tailPlaceholder || frame.state == nullptr) {
-        return std::unexpected(inspectorError(DebugErrorCode::Unsupported,
-                                              "side-effecting evaluation requires a live Lua stack frame"));
+        return Unexpect<DebugError>(
+            inspectorError(DebugErrorCode::Unsupported, "side-effecting evaluation requires a live Lua stack frame"));
     }
     LuaState& luaState = *frame.state;
     if (frame.callInfoIndex >= luaState.getCallStack().size()) {
-        return std::unexpected(inspectorError(DebugErrorCode::StaleReference, "evaluation frame is unavailable"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::StaleReference, "evaluation frame is unavailable"));
     }
     Stack& stack = luaState.getStack();
     const CallInfo& call = luaState.getCallStack()[frame.callInfoIndex];
     if (call.func >= stack.size() || !stack[call.func].isFunction()) {
-        return std::unexpected(inspectorError(DebugErrorCode::StaleReference,
-                                              "evaluation frame function is unavailable"));
+        return Unexpect<DebugError>(
+            inspectorError(DebugErrorCode::StaleReference, "evaluation frame function is unavailable"));
     }
     Function* targetFunction = stack[call.func].asFunction();
     Proto* targetProto = targetFunction == nullptr ? nullptr : targetFunction->getProto();
     if (targetFunction == nullptr || targetProto == nullptr) {
-        return std::unexpected(inspectorError(DebugErrorCode::Unsupported,
-                                              "side-effecting evaluation is unavailable for native frames"));
+        return Unexpect<DebugError>(
+            inspectorError(DebugErrorCode::Unsupported, "side-effecting evaluation is unavailable for native frames"));
     }
 
     RuntimeServices services(luaState.getGlobalState());
@@ -744,8 +745,8 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
             EnvironmentBinding* existing = findEnvironmentBinding(nextKey);
             if (existing == nullptr) {
                 if (environmentBindings.size() >= limits_.maxSideEffectEnvironmentEntries) {
-                    return std::unexpected(inspectorError(DebugErrorCode::ResourceLimit,
-                                                          "evaluation environment exceeds the configured entry limit"));
+                    return Unexpect<DebugError>(inspectorError(
+                        DebugErrorCode::ResourceLimit, "evaluation environment exceeds the configured entry limit"));
                 }
                 environmentBindings.push_back({nextKey, source});
             } else {
@@ -760,15 +761,15 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
     Table* functionEnvironment = targetFunction->getEnv() == nullptr ? globals : targetFunction->getEnv();
     try {
         if (auto copied = copyEnvironment(globals); !copied) {
-            return std::unexpected(copied.error());
+            return Unexpect<DebugError>(copied.error());
         }
         if (functionEnvironment != globals) {
             if (auto copied = copyEnvironment(functionEnvironment); !copied) {
-                return std::unexpected(copied.error());
+                return Unexpect<DebugError>(copied.error());
             }
         }
     } catch (const RuntimeError& error) {
-        return std::unexpected(inspectorError(DebugErrorCode::RuntimeFailure, error.what()));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::RuntimeFailure, error.what()));
     }
 
     const auto installLexical = [&](Str name, bool local, usize slot, Upvalue* upvalue, const Value& value) {
@@ -799,7 +800,8 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
         }
         for (usize index = 0; index < targetProto->getLocVarCount(); ++index) {
             const LocVar& local = targetProto->getLocVar(index);
-            if (local.varname == nullptr || local.reg < 0 || frame.pc < static_cast<usize>(std::max(local.startpc, 0)) ||
+            if (local.varname == nullptr || local.reg < 0 ||
+                frame.pc < static_cast<usize>(std::max(local.startpc, 0)) ||
                 frame.pc >= static_cast<usize>(std::max(local.endpc, 0))) {
                 continue;
             }
@@ -809,7 +811,7 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
             }
         }
     } catch (const RuntimeError& error) {
-        return std::unexpected(inspectorError(DebugErrorCode::RuntimeFailure, error.what()));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::RuntimeFailure, error.what()));
     }
 
     const auto isLexicalKey = [&](const Value& key) {
@@ -831,8 +833,8 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
                 const Value value = environment->get(key);
                 if (binding.local) {
                     if (binding.slot >= liveStack.size()) {
-                        return std::unexpected(inspectorError(DebugErrorCode::StaleReference,
-                                                              "local writeback slot is unavailable"));
+                        return Unexpect<DebugError>(
+                            inspectorError(DebugErrorCode::StaleReference, "local writeback slot is unavailable"));
                     }
                     liveStack[binding.slot] = value;
                 } else if (binding.upvalue != nullptr) {
@@ -850,8 +852,8 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
             usize count = 0;
             while (environment->next(key, nextKey, nextValue)) {
                 if (++count > limits_.maxSideEffectEnvironmentEntries) {
-                    return std::unexpected(inspectorError(DebugErrorCode::ResourceLimit,
-                                                          "evaluation writeback exceeds the configured entry limit"));
+                    return Unexpect<DebugError>(inspectorError(
+                        DebugErrorCode::ResourceLimit, "evaluation writeback exceeds the configured entry limit"));
                 }
                 if (!isLexicalKey(nextKey) && findEnvironmentBinding(nextKey) == nullptr) {
                     functionEnvironment->set(nextKey, nextValue);
@@ -860,7 +862,7 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
             }
             return {};
         } catch (const RuntimeError& error) {
-            return std::unexpected(inspectorError(DebugErrorCode::RuntimeFailure, error.what()));
+            return Unexpect<DebugError>(inspectorError(DebugErrorCode::RuntimeFailure, error.what()));
         }
     };
 
@@ -868,10 +870,10 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
         Parser parser("return (" + Str(expression) + ")", services);
         auto parsed = parser.parse();
         if (!parsed) {
-            return std::unexpected(inspectorError(DebugErrorCode::Unsupported,
-                                                  "Debug Console expression syntax error at line " +
-                                                      std::to_string(parsed.error().getLine()) + ": " +
-                                                      parsed.error().what()));
+            return Unexpect<DebugError>(
+                inspectorError(DebugErrorCode::Unsupported, "Debug Console expression syntax error at line " +
+                                                                std::to_string(parsed.error().getLine()) + ": " +
+                                                                parsed.error().what()));
         }
         CodeGenerator generator(services);
         Proto* proto = generator.generate(*parsed, "=(debug console)");
@@ -893,7 +895,7 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
         VM::call(evaluationServices, &luaState, 0, 1);
         const Value resultValue = luaState.top();
         if (auto written = writeBack(); !written) {
-            return std::unexpected(written.error());
+            return Unexpect<DebugError>(written.error());
         }
         DebugResult<DebugVariable> result = makeVariable("result", resultValue, frameId);
         if (result) {
@@ -903,38 +905,38 @@ DebugResult<DebugVariable> StackInspector::evaluateWithSideEffects(FrameId frame
     } catch (const RuntimeError& error) {
         (void)writeBack();
         const ExecutionStopReason reason = executionPolicy.lastStopReason();
-        const DebugErrorCode code = reason == ExecutionStopReason::None ? DebugErrorCode::RuntimeFailure
-                                                                        : DebugErrorCode::ResourceLimit;
-        return std::unexpected(inspectorError(code, "Debug Console evaluation failed: " + Str(error.what())));
+        const DebugErrorCode code =
+            reason == ExecutionStopReason::None ? DebugErrorCode::RuntimeFailure : DebugErrorCode::ResourceLimit;
+        return Unexpect<DebugError>(inspectorError(code, "Debug Console evaluation failed: " + Str(error.what())));
     } catch (const std::exception& error) {
         (void)writeBack();
-        return std::unexpected(inspectorError(DebugErrorCode::RuntimeFailure,
-                                              "Debug Console evaluation failed: " + Str(error.what())));
+        return Unexpect<DebugError>(
+            inspectorError(DebugErrorCode::RuntimeFailure, "Debug Console evaluation failed: " + Str(error.what())));
     }
 }
 
 DebugResult<DebugVariable> StackInspector::setVariable(VariableReference reference, StrView requestedName,
-                                                        StrView valueExpression) {
+                                                       StrView valueExpression) {
     if (requestedName.empty() || requestedName.size() > limits_.maxExpressionLength) {
-        return std::unexpected(inspectorError(DebugErrorCode::ResourceLimit,
-                                              "variable name is empty or exceeds the configured limit"));
+        return Unexpect<DebugError>(
+            inspectorError(DebugErrorCode::ResourceLimit, "variable name is empty or exceeds the configured limit"));
     }
     const auto nodeResult = variables_.lookup(reference);
     if (!nodeResult) {
-        return std::unexpected(nodeResult.error());
+        return Unexpect<DebugError>(nodeResult.error());
     }
     const VariableNode& node = nodeResult->get();
     if (!node.frame.valid()) {
-        return std::unexpected(inspectorError(DebugErrorCode::Unsupported,
-                                              "variable value requires a live originating Lua frame"));
+        return Unexpect<DebugError>(
+            inspectorError(DebugErrorCode::Unsupported, "variable value requires a live originating Lua frame"));
     }
     auto rawValue = evaluateRaw(node.frame, valueExpression);
     if (!rawValue) {
-        return std::unexpected(rawValue.error());
+        return Unexpect<DebugError>(rawValue.error());
     }
     auto valueResult = materializeValue(std::move(*rawValue));
     if (!valueResult) {
-        return std::unexpected(valueResult.error());
+        return Unexpect<DebugError>(valueResult.error());
     }
     const Value value = *valueResult;
 
@@ -942,26 +944,26 @@ DebugResult<DebugVariable> StackInspector::setVariable(VariableReference referen
         node.kind == VariableNodeKind::TableArray || node.kind == VariableNodeKind::TableHash) {
         if (node.kind == VariableNodeKind::TableOverview &&
             (requestedName == "[array]" || requestedName == "[hash]" || requestedName == "[metatable]")) {
-            return std::unexpected(inspectorError(DebugErrorCode::Unsupported,
-                                                  "synthetic table groups cannot be assigned"));
+            return Unexpect<DebugError>(
+                inspectorError(DebugErrorCode::Unsupported, "synthetic table groups cannot be assigned"));
         }
         if (node.table == nullptr) {
-            return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
+            return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
         }
         Value key;
         if (requestedName.size() >= 2 && requestedName.front() == '[' && requestedName.back() == ']') {
             const StrView keyExpression = requestedName.substr(1, requestedName.size() - 2);
             auto rawKey = evaluateRaw(node.frame, keyExpression);
             if (!rawKey) {
-                return std::unexpected(inspectorError(DebugErrorCode::Unsupported,
-                                                      "table key cannot be reconstructed safely: " +
-                                                          rawKey.error().message));
+                return Unexpect<DebugError>(
+                    inspectorError(DebugErrorCode::Unsupported,
+                                   "table key cannot be reconstructed safely: " + rawKey.error().message));
             }
             auto keyResult = materializeValue(std::move(*rawKey));
             if (!keyResult || keyResult->isNil() || keyResult->isTable() || keyResult->isFunction() ||
                 keyResult->isUserdata() || keyResult->isThread() || keyResult->isLightUserdata()) {
-                return std::unexpected(inspectorError(DebugErrorCode::Unsupported,
-                                                      "only string, number, and boolean raw table keys are writable"));
+                return Unexpect<DebugError>(inspectorError(
+                    DebugErrorCode::Unsupported, "only string, number, and boolean raw table keys are writable"));
             }
             key = *keyResult;
         } else {
@@ -970,30 +972,31 @@ DebugResult<DebugVariable> StackInspector::setVariable(VariableReference referen
         try {
             node.table->set(key, value);
         } catch (const RuntimeError& error) {
-            return std::unexpected(inspectorError(DebugErrorCode::RuntimeFailure, error.what()));
+            return Unexpect<DebugError>(inspectorError(DebugErrorCode::RuntimeFailure, error.what()));
         }
         return makeVariable(Str(requestedName), value, node.frame);
     }
 
     const auto frameResult = frames_.lookup(node.frame);
     if (!frameResult) {
-        return std::unexpected(frameResult.error());
+        return Unexpect<DebugError>(frameResult.error());
     }
     const FrameDescriptor& frame = frameResult->get();
     if (frame.state == nullptr || frame.callInfoIndex >= frame.state->getCallStack().size()) {
-        return std::unexpected(inspectorError(DebugErrorCode::StaleReference, "variable frame is unavailable"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::StaleReference, "variable frame is unavailable"));
     }
     Stack& stack = frame.state->getStack();
     const CallInfo& call = frame.state->getCallStack()[frame.callInfoIndex];
     if (call.func >= stack.size() || !stack[call.func].isFunction()) {
-        return std::unexpected(inspectorError(DebugErrorCode::StaleReference, "frame function is unavailable"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::StaleReference, "frame function is unavailable"));
     }
     Function* function = stack[call.func].asFunction();
     Proto* proto = function == nullptr ? nullptr : function->getProto();
 
     if (node.kind == VariableNodeKind::Locals) {
         if (proto == nullptr) {
-            return std::unexpected(inspectorError(DebugErrorCode::Unsupported, "native frames have no writable locals"));
+            return Unexpect<DebugError>(
+                inspectorError(DebugErrorCode::Unsupported, "native frames have no writable locals"));
         }
         HashMap<Str, usize> duplicateNames;
         for (usize index = 0; index < proto->getLocVarCount(); ++index) {
@@ -1016,7 +1019,7 @@ DebugResult<DebugVariable> StackInspector::setVariable(VariableReference referen
                 return makeVariable(std::move(displayName), value, node.frame);
             }
         }
-        return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "visible local was not found"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "visible local was not found"));
     }
 
     if (node.kind == VariableNodeKind::Upvalues) {
@@ -1034,15 +1037,16 @@ DebugResult<DebugVariable> StackInspector::setVariable(VariableReference referen
                 return makeVariable(std::move(displayName), value, node.frame);
             }
         }
-        return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "upvalue was not found"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "upvalue was not found"));
     }
 
-    return std::unexpected(inspectorError(DebugErrorCode::Unsupported, "this scope is read-only"));
+    return Unexpect<DebugError>(inspectorError(DebugErrorCode::Unsupported, "this scope is read-only"));
 }
 
 DebugResult<VariableReference> StackInspector::addNode(VariableNode node) {
     if (variables_.size() >= limits_.maxObjectHandles) {
-        return std::unexpected(inspectorError(DebugErrorCode::ResourceLimit, "debug object handle limit exceeded"));
+        return Unexpect<DebugError>(
+            inspectorError(DebugErrorCode::ResourceLimit, "debug object handle limit exceeded"));
     }
     return variables_.add(std::move(node));
 }
@@ -1052,7 +1056,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::localVariables(FrameId frameId, 
     Stack& stack = frame.state->getStack();
     const CallInfo& call = frame.state->getCallStack()[frame.callInfoIndex];
     if (call.func >= stack.size() || !stack[call.func].isFunction()) {
-        return std::unexpected(inspectorError(DebugErrorCode::StaleReference, "frame function is unavailable"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::StaleReference, "frame function is unavailable"));
     }
     Function* function = stack[call.func].asFunction();
     Proto* proto = function->getProto();
@@ -1080,7 +1084,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::localVariables(FrameId frameId, 
         }
         DebugResult<DebugVariable> variable = makeVariable(std::move(name), stack[slot], frameId);
         if (!variable) {
-            return std::unexpected(variable.error());
+            return Unexpect<DebugError>(variable.error());
         }
         result.push_back(std::move(*variable));
     }
@@ -1092,7 +1096,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::upvalueVariables(FrameId frameId
     Stack& stack = frame.state->getStack();
     const CallInfo& call = frame.state->getCallStack()[frame.callInfoIndex];
     if (call.func >= stack.size() || !stack[call.func].isFunction()) {
-        return std::unexpected(inspectorError(DebugErrorCode::StaleReference, "frame function is unavailable"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::StaleReference, "frame function is unavailable"));
     }
     Function* function = stack[call.func].asFunction();
     Proto* proto = function->getProto();
@@ -1107,7 +1111,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::upvalueVariables(FrameId frameId
         }
         DebugResult<DebugVariable> variable = makeVariable(std::move(name), upvalue->getValue(stack), frameId);
         if (!variable) {
-            return std::unexpected(variable.error());
+            return Unexpect<DebugError>(variable.error());
         }
         result.push_back(std::move(*variable));
     }
@@ -1143,7 +1147,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::tableVariables(Table& table, usi
         if (index >= start && result.size() < pageSize) {
             DebugResult<DebugVariable> variable = makeVariable(formatTableKey(nextKey), nextValue);
             if (!variable) {
-                return std::unexpected(variable.error());
+                return Unexpect<DebugError>(variable.error());
             }
             result.push_back(std::move(*variable));
         }
@@ -1158,7 +1162,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::tableVariables(Table& table, usi
 
 DebugResult<Vec<DebugVariable>> StackInspector::tableOverview(const VariableNode& node) {
     if (node.table == nullptr) {
-        return std::unexpected(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::InvalidReference, "table handle is empty"));
     }
     Table& table = *node.table;
     Vec<DebugVariable> result;
@@ -1166,7 +1170,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::tableOverview(const VariableNode
     if (table.getArraySize() != 0) {
         auto reference = tableSectionReference(table, node.frame, VariableNodeKind::TableArray);
         if (!reference) {
-            return std::unexpected(reference.error());
+            return Unexpect<DebugError>(reference.error());
         }
         DebugVariable array;
         array.name = "[array]";
@@ -1179,7 +1183,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::tableOverview(const VariableNode
     if (table.getHashSize() != 0) {
         auto reference = tableSectionReference(table, node.frame, VariableNodeKind::TableHash);
         if (!reference) {
-            return std::unexpected(reference.error());
+            return Unexpect<DebugError>(reference.error());
         }
         DebugVariable hash;
         hash.name = "[hash]";
@@ -1192,7 +1196,7 @@ DebugResult<Vec<DebugVariable>> StackInspector::tableOverview(const VariableNode
     if (Table* metatable = table.getMetatable()) {
         auto variable = makeVariable("[metatable]", Value(metatable), node.frame);
         if (!variable) {
-            return std::unexpected(variable.error());
+            return Unexpect<DebugError>(variable.error());
         }
         variable->type = "metatable";
         result.push_back(std::move(*variable));
@@ -1208,7 +1212,7 @@ DebugResult<VariableReference> StackInspector::tableSectionReference(Table& tabl
     } else if (kind == VariableNodeKind::TableHash) {
         references = &tableHashReferences_;
     } else {
-        return std::unexpected(inspectorError(DebugErrorCode::Unsupported, "invalid table section kind"));
+        return Unexpect<DebugError>(inspectorError(DebugErrorCode::Unsupported, "invalid table section kind"));
     }
     if (const auto found = references->find(&table); found != references->end()) {
         return found->second;
@@ -1228,7 +1232,7 @@ DebugResult<DebugVariable> StackInspector::makeVariable(Str name, const Value& v
     if (value.isTable() && value.asTable() != nullptr) {
         DebugResult<VariableReference> reference = tableReference(*value.asTable(), originFrame);
         if (!reference) {
-            return std::unexpected(reference.error());
+            return Unexpect<DebugError>(reference.error());
         }
         variable.variablesReference = *reference;
         variable.indexedVariables = value.asTable()->getArraySize();

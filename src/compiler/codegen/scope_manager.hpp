@@ -5,6 +5,7 @@
  * @brief 代码生成器的局部变量、代码块与上值作用域边界
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 
 namespace Lua {

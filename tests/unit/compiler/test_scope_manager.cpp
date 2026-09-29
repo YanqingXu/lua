@@ -3,6 +3,7 @@
  * @brief Tests for the CodeGenerator scope management boundary.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 #include "compiler/codegen/scope_manager.hpp"
@@ -15,7 +16,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Scope Manager";
+constexpr Lua::CharPtr kSuiteName = "Scope Manager";
 
 struct ScopeFixture {
     RuntimeServices services = RuntimeServices::fromSingletons();
@@ -29,7 +30,7 @@ struct ScopeFixture {
     }
 };
 
-}  // namespace
+} // namespace
 
 void testLocalLifecycleClosesScopeAndResetsRegisters(TestSuite& suite) {
     ScopeFixture fixture;
@@ -107,6 +108,5 @@ void registerScopeManagerTests() {
     registry.registerTest(kSuiteName, "Return Suppresses Redundant Close", testReturnSuppressesRedundantClose);
     registry.registerTest(kSuiteName, "Breakable Block Patches Break List On Leave",
                           testBreakableBlockPatchesBreakListOnLeave);
-    registry.registerTest(kSuiteName, "Upvalue Context Deduplicates Captures",
-                          testUpvalueContextDeduplicatesCaptures);
+    registry.registerTest(kSuiteName, "Upvalue Context Deduplicates Captures", testUpvalueContextDeduplicatesCaptures);
 }

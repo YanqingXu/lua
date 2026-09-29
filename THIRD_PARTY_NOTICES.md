@@ -24,6 +24,16 @@ Copyright (c) 2025 YanqingXu
 
 Copyright (c) 2024-present Johnson Chu
 
+## Hunter coding rules and type aliases
+
+- 来源：[YanqingXu/Hunter](https://github.com/YanqingXu/Hunter/tree/ad1f7841f0fb3013898d099e6e8ed22eea658a6b)，固定提交 `ad1f7841f0fb3013898d099e6e8ed22eea658a6b`。
+- 参考和改编范围：该提交的 `server/rules/README.md`、`server/rules/coding_principles_rules.md`、`server/rules/formatting_rules.md`、`server/rules/readability_rules.md`、`server/rules/refactoring_rules.md`、`server/rules/type_naming_rules.md`，以及 [`server/src/common/Types.h`](https://github.com/YanqingXu/Hunter/blob/ad1f7841f0fb3013898d099e6e8ed22eea658a6b/server/src/common/Types.h)。规则原文见[固定版本目录](https://github.com/YanqingXu/Hunter/tree/ad1f7841f0fb3013898d099e6e8ed22eea658a6b/server/rules)。
+- 本项目范围：`docs/rules/` 中的规则适配与存量登记，以及 `src/common/types.hpp` 的相关类型别名增补。
+- 修改：按主题重组并建立本项目规则编号，按 Lua 解释器的模块、GC、allocator、owner-thread、C API/ABI 与 SDK 消费边界改写；采用本项目 `.clang-format` 的 120 列和 Attach 花括号风格；注释以职责和调用契约为先并保留现有语言；不导入 Hunter 的全量中文要求、强制 `Cfg` 缩写、游戏业务规则或专属执行流程。
+- 许可证：[该提交的 MIT License](https://github.com/YanqingXu/Hunter/blob/ad1f7841f0fb3013898d099e6e8ed22eea658a6b/LICENSE)。适用的许可条款全文列于下方。
+
+Copyright (c) 2026 Hunter contributors
+
 ## MIT license terms for the materials above
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
