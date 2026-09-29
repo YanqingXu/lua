@@ -3,6 +3,7 @@
  * @brief Lua 5.1 official test-suite integration smoke test.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
@@ -26,30 +27,30 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Lua 5.1 Official Smoke";
-constexpr const char* kOfficialAllLua = "tests/lua/official/all.lua";
+constexpr Lua::CharPtr kSuiteName = "Lua 5.1 Official Smoke";
+constexpr Lua::CharPtr kOfficialAllLua = "tests/lua/official/all.lua";
 constexpr LuaNumber kExpectedSkippedScripts = 0.0;
-constexpr const char* kCodeLuaUpstreamLoadNilOracle = R"lua(check(function ()
+constexpr Lua::CharPtr kCodeLuaUpstreamLoadNilOracle = R"lua(check(function ()
   local a,b,c
   local d; local e;
   a = nil; d=nil
 end, 'RETURN'))lua";
-constexpr const char* kCodeLua515LoadNilOracle = R"lua(check(function ()
+constexpr Lua::CharPtr kCodeLua515LoadNilOracle = R"lua(check(function ()
   local a,b,c
   local d; local e;
   a = nil; d=nil
 end, 'LOADNIL', 'LOADNIL', 'RETURN'))lua";
-constexpr const char* kCodeLuaUpstreamRepeatFalseOracle = R"lua(check(function () repeat local x = 1 until false end,
+constexpr Lua::CharPtr kCodeLuaUpstreamRepeatFalseOracle = R"lua(check(function () repeat local x = 1 until false end,
 'LOADK', 'JMP', 'RETURN'))lua";
-constexpr const char* kCodeLua515RepeatFalseOracle = R"lua(check(function () repeat local x = 1 until false end,
+constexpr Lua::CharPtr kCodeLua515RepeatFalseOracle = R"lua(check(function () repeat local x = 1 until false end,
 'LOADK', 'LOADBOOL', 'TEST', 'JMP', 'RETURN'))lua";
-constexpr const char* kCodeLuaUpstreamRepeatNilOracle = R"lua(check(function () repeat local x until nil end,
+constexpr Lua::CharPtr kCodeLuaUpstreamRepeatNilOracle = R"lua(check(function () repeat local x until nil end,
 'LOADNIL', 'JMP', 'RETURN'))lua";
-constexpr const char* kCodeLua515RepeatNilOracle = R"lua(check(function () repeat local x until nil end,
+constexpr Lua::CharPtr kCodeLua515RepeatNilOracle = R"lua(check(function () repeat local x until nil end,
 'LOADNIL', 'LOADBOOL', 'TEST', 'JMP', 'RETURN'))lua";
 struct RunResult {
     bool ok = false;
-    std::string message;
+    Lua::Str message;
 };
 
 class CurrentPathGuard {
@@ -70,23 +71,23 @@ private:
     std::filesystem::path previous_;
 };
 
-void replaceAll(std::string& text, const std::string& from, const std::string& to) {
+void replaceAll(Lua::Str& text, const Lua::Str& from, const Lua::Str& to) {
     if (from.empty()) {
         return;
     }
 
-    std::size_t pos = 0;
-    while ((pos = text.find(from, pos)) != std::string::npos) {
+    Lua::usize pos = 0;
+    while ((pos = text.find(from, pos)) != Lua::Str::npos) {
         text.replace(pos, from.size(), to);
         pos += to.size();
     }
 }
 
-std::string applyLua515CodeLuaOracle(std::string source) {
-    const auto replaceUnique = [&source](const char* upstream, const char* lua515, const char* label) {
-        const std::size_t match = source.find(upstream);
-        if (match == std::string::npos || source.find(upstream, match + 1) != std::string::npos) {
-            throw std::runtime_error(std::string("code.lua ") + label +
+Lua::Str applyLua515CodeLuaOracle(Lua::Str source) {
+    const auto replaceUnique = [&source](Lua::CharPtr upstream, Lua::CharPtr lua515, Lua::CharPtr label) {
+        const Lua::usize match = source.find(upstream);
+        if (match == Lua::Str::npos || source.find(upstream, match + 1) != Lua::Str::npos) {
+            throw std::runtime_error(Lua::Str("code.lua ") + label +
                                      " oracle source does not match the locked upstream fixture");
         }
         source.replace(match, std::char_traits<char>::length(upstream), lua515);
@@ -98,10 +99,10 @@ std::string applyLua515CodeLuaOracle(std::string source) {
     return source;
 }
 
-std::string trimOfficialAllForCurrentFrontend(std::string source) {
+Lua::Str trimOfficialAllForCurrentFrontend(Lua::Str source) {
     if (source.rfind("#!", 0) == 0) {
-        const std::size_t newline = source.find('\n');
-        source.erase(0, newline == std::string::npos ? source.size() : newline + 1);
+        const Lua::usize newline = source.find('\n');
+        source.erase(0, newline == Lua::Str::npos ? source.size() : newline + 1);
     }
 
     replaceAll(source, "assert(os.setlocale\"C\")", "assert(os.setlocale(\"C\"))");
@@ -144,27 +145,27 @@ std::string trimOfficialAllForCurrentFrontend(std::string source) {
     // Keep this smoke test bounded to the staged frontend/stdlib coverage that
     // currently completes quickly. Post-vararg tail coverage is registered as a
     // separate fast-tail test, while sort.lua and verybig.lua remain slow gates.
-    constexpr const char* lastBoundedScript = "dofile('vararg.lua')";
-    const std::size_t boundedPos = source.find(lastBoundedScript);
-    if (boundedPos != std::string::npos) {
-        source.erase(boundedPos + std::string(lastBoundedScript).size());
+    constexpr Lua::CharPtr lastBoundedScript = "dofile('vararg.lua')";
+    const Lua::usize boundedPos = source.find(lastBoundedScript);
+    if (boundedPos != Lua::Str::npos) {
+        source.erase(boundedPos + Lua::Str(lastBoundedScript).size());
         source.append("\nprint(\"final OK !!!\")\n");
     }
 
     // Keep this staged integration focused on script execution. The upstream
     // final cleanup is covered by the fast-tail test below with the same local
     // assert/type capture pattern used by all.lua.
-    constexpr const char* finalOk = "print(\"final OK !!!\")";
-    const std::size_t finalOkPos = source.find(finalOk);
-    if (finalOkPos != std::string::npos) {
-        source.erase(finalOkPos + std::string(finalOk).size());
+    constexpr Lua::CharPtr finalOk = "print(\"final OK !!!\")";
+    const Lua::usize finalOkPos = source.find(finalOk);
+    if (finalOkPos != Lua::Str::npos) {
+        source.erase(finalOkPos + Lua::Str(finalOk).size());
         source.push_back('\n');
     }
 
     return source;
 }
 
-const char* officialSuitePrelude() {
+Lua::CharPtr officialSuitePrelude() {
     return R"lua(
 _U = true
 _soft = true
@@ -338,8 +339,8 @@ end
 )lua";
 }
 
-std::string officialPostVarargTailSource(const char* scriptName) {
-    std::string source = R"lua(
+Lua::Str officialPostVarargTailSource(Lua::CharPtr scriptName) {
+    Lua::Str source = R"lua(
 local T,print,gcinfo,format,write,assert,type =
       T,print,gcinfo,string.format,io.write,assert,type
 
@@ -365,11 +366,11 @@ print("post-vararg __SCRIPT_NAME__ tail OK")
     return source;
 }
 
-std::string officialFastPostVarargTailSource() {
+Lua::Str officialFastPostVarargTailSource() {
     return officialPostVarargTailSource("closure.lua");
 }
 
-const char* officialGlobalCleanupTailSource() {
+Lua::CharPtr officialGlobalCleanupTailSource() {
     return R"lua(
 local assert,type = assert,type
 
@@ -397,7 +398,7 @@ print(format("global cleanup tail OK %.2f", clock()))
 )lua";
 }
 
-const char* officialClosureThenGlobalCleanupTailSource() {
+Lua::CharPtr officialClosureThenGlobalCleanupTailSource() {
     return R"lua(
 local T,print,gcinfo,assert,type =
       T,print,gcinfo,assert,type
@@ -439,7 +440,7 @@ print(format("closure plus global cleanup tail OK %.2f", clock()))
 )lua";
 }
 
-RunResult runLuaChunk(LuaState* L, const std::string& source, const char* chunkName) {
+RunResult runLuaChunk(LuaState* L, const Lua::Str& source, Lua::CharPtr chunkName) {
     try {
         RuntimeServices services(L->getGlobalState());
         Parser parser(source, services);
@@ -452,7 +453,7 @@ RunResult runLuaChunk(LuaState* L, const std::string& source, const char* chunkN
         CodeGenerator codegen(services);
         Proto* proto = codegen.generate(chunk, chunkName);
         if (proto == nullptr) {
-            return {false, std::string(chunkName) + ": code generation failed"};
+            return {false, Lua::Str(chunkName) + ": code generation failed"};
         }
 
         Function* func = new Function(proto);
@@ -463,12 +464,12 @@ RunResult runLuaChunk(LuaState* L, const std::string& source, const char* chunkN
         L->pushFunction(func);
         const i32 status = L->pcall(0, -1, 0);
         if (status != 0) {
-            std::string message = std::string(chunkName) + ": runtime error";
+            Lua::Str message = Lua::Str(chunkName) + ": runtime error";
             if (L->getTop() >= 1) {
-                if (const char* text = L->toString(1)) {
-                    message = std::string(chunkName) + ": " + text;
+                if (Lua::CharPtr text = L->toString(1)) {
+                    message = Lua::Str(chunkName) + ": " + text;
                 } else {
-                    message = std::string(chunkName) + ": " + L->at(1).toString();
+                    message = Lua::Str(chunkName) + ": " + L->at(1).toString();
                 }
             }
             L->setTop(0);
@@ -476,11 +477,11 @@ RunResult runLuaChunk(LuaState* L, const std::string& source, const char* chunkN
         }
         L->setTop(0);
 
-        return {true, std::string(chunkName) + " executed"};
+        return {true, Lua::Str(chunkName) + " executed"};
     } catch (const std::exception& e) {
-        return {false, std::string(chunkName) + ": " + e.what()};
+        return {false, Lua::Str(chunkName) + ": " + e.what()};
     } catch (...) {
-        return {false, std::string(chunkName) + ": unknown exception"};
+        return {false, Lua::Str(chunkName) + ": unknown exception"};
     }
 }
 
@@ -493,7 +494,7 @@ RunResult runOfficialSuiteAllLua() {
     EngineContext context;
     context.gc().useStrategy("mark-sweep");
 
-    std::unique_ptr<LuaState> L(LuaState::newState(context));
+    Lua::UPtr<LuaState> L(LuaState::newState(context));
     if (!L) {
         return {false, "LuaState::newState returned null"};
     }
@@ -506,7 +507,7 @@ RunResult runOfficialSuiteAllLua() {
         return prelude;
     }
 
-    std::string allLua = readWholeFile("all.lua");
+    Lua::Str allLua = readWholeFile("all.lua");
     RunResult all = runLuaChunk(L.get(), trimOfficialAllForCurrentFrontend(std::move(allLua)), kOfficialAllLua);
     if (!all.ok) {
         return all;
@@ -520,7 +521,7 @@ RunResult runOfficialSuiteAllLua() {
     return {true, "Lua 5.1 official all.lua executed with staged compatibility skips"};
 }
 
-RunResult runOfficialSuitePostVarargTailScript(const char* scriptName) {
+RunResult runOfficialSuitePostVarargTailScript(Lua::CharPtr scriptName) {
     const std::filesystem::path suiteDir = std::filesystem::path("tests") / "lua" / "official";
     if (!std::filesystem::exists(suiteDir / "all.lua")) {
         return {false, "missing tests/lua/official/all.lua"};
@@ -529,7 +530,7 @@ RunResult runOfficialSuitePostVarargTailScript(const char* scriptName) {
     EngineContext context;
     context.gc().useStrategy("mark-sweep");
 
-    std::unique_ptr<LuaState> L(LuaState::newState(context));
+    Lua::UPtr<LuaState> L(LuaState::newState(context));
     if (!L) {
         return {false, "LuaState::newState returned null"};
     }
@@ -542,20 +543,20 @@ RunResult runOfficialSuitePostVarargTailScript(const char* scriptName) {
         return prelude;
     }
 
-    const std::string chunkName = std::string("official_suite_post_vararg_") + scriptName + "_tail";
+    const Lua::Str chunkName = Lua::Str("official_suite_post_vararg_") + scriptName + "_tail";
     RunResult tail = runLuaChunk(L.get(), officialPostVarargTailSource(scriptName), chunkName.c_str());
     if (!tail.ok) {
         return tail;
     }
 
-    return {true, std::string("Lua 5.1 official post-vararg ") + scriptName + " tail executed"};
+    return {true, Lua::Str("Lua 5.1 official post-vararg ") + scriptName + " tail executed"};
 }
 
 RunResult runOfficialSuiteGlobalCleanupTail() {
     EngineContext context;
     context.gc().useStrategy("mark-sweep");
 
-    std::unique_ptr<LuaState> L(LuaState::newState(context));
+    Lua::UPtr<LuaState> L(LuaState::newState(context));
     if (!L) {
         return {false, "LuaState::newState returned null"};
     }
@@ -578,7 +579,7 @@ RunResult runOfficialSuiteClosureThenGlobalCleanupTail() {
     EngineContext context;
     context.gc().useStrategy("mark-sweep");
 
-    std::unique_ptr<LuaState> L(LuaState::newState(context));
+    Lua::UPtr<LuaState> L(LuaState::newState(context));
     if (!L) {
         return {false, "LuaState::newState returned null"};
     }
@@ -600,16 +601,16 @@ RunResult runOfficialSuiteClosureThenGlobalCleanupTail() {
     return {true, "Lua 5.1 official closure then global cleanup tail executed"};
 }
 
-RunResult runOfficialTestCScript(const char* scriptName, bool applyCodeLuaOracle = false) {
+RunResult runOfficialTestCScript(Lua::CharPtr scriptName, bool applyCodeLuaOracle = false) {
     const std::filesystem::path suiteDir = std::filesystem::path("tests") / "lua" / "official";
     if (!std::filesystem::exists(suiteDir / scriptName)) {
-        return {false, std::string("missing tests/lua/official/") + scriptName};
+        return {false, Lua::Str("missing tests/lua/official/") + scriptName};
     }
 
     EngineContext context;
     context.gc().useStrategy("mark-sweep");
 
-    std::unique_ptr<LuaState> L(LuaState::newState(context));
+    Lua::UPtr<LuaState> L(LuaState::newState(context));
     if (!L) {
         return {false, "LuaState::newState returned null"};
     }
@@ -622,7 +623,7 @@ RunResult runOfficialTestCScript(const char* scriptName, bool applyCodeLuaOracle
         return prelude;
     }
 
-    std::string source = readWholeFile(scriptName);
+    Lua::Str source = readWholeFile(scriptName);
     if (applyCodeLuaOracle) {
         try {
             source = applyLua515CodeLuaOracle(std::move(source));
@@ -630,7 +631,7 @@ RunResult runOfficialTestCScript(const char* scriptName, bool applyCodeLuaOracle
             return {false, e.what()};
         }
     }
-    const std::string chunkName = std::string("official_testc_") + scriptName;
+    const Lua::Str chunkName = Lua::Str("official_testc_") + scriptName;
     return runLuaChunk(L.get(), source, chunkName.c_str());
 }
 
@@ -640,35 +641,35 @@ void testOfficialSuiteAllLua(TestSuite& suite) {
 }
 
 void testOfficialSuitePreludeCapsConstructsStressLoop(TestSuite& suite) {
-    const std::string prelude = officialSuitePrelude();
+    const Lua::Str prelude = officialSuitePrelude();
     ASSERT_TRUE(suite,
-                prelude.find("constructs.lua") != std::string::npos &&
-                    prelude.find("until i==c or i==32") != std::string::npos,
+                prelude.find("constructs.lua") != Lua::Str::npos &&
+                    prelude.find("until i==c or i==32") != Lua::Str::npos,
                 "official staged suite caps constructs.lua dynamic compile stress loop");
 }
 
 void testOfficialSuitePreludeCapsClosureWeakGcLoop(TestSuite& suite) {
-    const std::string prelude = officialSuitePrelude();
+    const Lua::Str prelude = officialSuitePrelude();
     ASSERT_TRUE(suite,
-                prelude.find("closure.lua") != std::string::npos &&
-                    prelude.find("__soft_closure_gc_probe") != std::string::npos &&
-                    prelude.find("__soft_closure_factory_limit") != std::string::npos,
+                prelude.find("closure.lua") != Lua::Str::npos &&
+                    prelude.find("__soft_closure_gc_probe") != Lua::Str::npos &&
+                    prelude.find("__soft_closure_factory_limit") != Lua::Str::npos,
                 "official staged suite caps closure.lua weak-table GC wait loop and factory size");
 }
 
 void testOfficialSuitePreludeCapsGcRestartLoop(TestSuite& suite) {
-    const std::string prelude = officialSuitePrelude();
+    const Lua::Str prelude = officialSuitePrelude();
     ASSERT_TRUE(suite,
-                prelude.find("gc.lua") != std::string::npos && prelude.find("__soft_gc_probe") != std::string::npos &&
-                    prelude.find("__soft_gc_restart_probe") != std::string::npos,
+                prelude.find("gc.lua") != Lua::Str::npos && prelude.find("__soft_gc_probe") != Lua::Str::npos &&
+                    prelude.find("__soft_gc_restart_probe") != Lua::Str::npos,
                 "official staged suite caps gc.lua automatic-GC wait loops");
 }
 
 void testOfficialSuitePostVarargTailIsSplit(TestSuite& suite) {
-    const std::string tail = officialFastPostVarargTailSource();
+    const Lua::Str tail = officialFastPostVarargTailSource();
     ASSERT_FALSE(suite,
                  tail.find("dofile('closure.lua')\ndofile('errors.lua')\ndofile('math.lua')\ndofile('files.lua')") !=
-                     std::string::npos,
+                     Lua::Str::npos,
                  "official post-vararg tail is split into single-script gates");
 }
 

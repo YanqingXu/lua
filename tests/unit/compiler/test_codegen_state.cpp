@@ -3,6 +3,7 @@
  * @brief Tests for the CodeGenerator state boundary.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "common/lua_error.hpp"
 #include "compiler/codegen/codegen.hpp"
@@ -22,7 +23,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Codegen State";
+constexpr Lua::CharPtr kSuiteName = "Codegen State";
 
 void testResetForProtoClearsTransientState(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
@@ -103,11 +104,10 @@ void testTryGenerateReturnsCodegenErrorOnFailure(TestSuite& suite) {
     }
 
     const CodegenError& error = generated.error();
-    std::string message = error.what();
-    ASSERT_TRUE(suite, message.find("no loop to break") != std::string::npos,
+    Lua::Str message = error.what();
+    ASSERT_TRUE(suite, message.find("no loop to break") != Lua::Str::npos,
                 "CodegenError should preserve the original message");
-    ASSERT_TRUE(suite, (std::is_base_of<LuaError, CodegenError>::value),
-                "CodegenError derives from LuaError");
+    ASSERT_TRUE(suite, (std::is_base_of<LuaError, CodegenError>::value), "CodegenError derives from LuaError");
 }
 
 void testGenerateKeepsThrowingForCompatibility(TestSuite& suite) {
@@ -125,7 +125,7 @@ void testGenerateKeepsThrowingForCompatibility(TestSuite& suite) {
     try {
         (void)codegen.generate(*parsed, "=(codegen compatibility failure)");
     } catch (const CodegenError& error) {
-        threwCodegenError = std::string(error.what()).find("no loop to break") != std::string::npos;
+        threwCodegenError = Lua::Str(error.what()).find("no loop to break") != Lua::Str::npos;
     }
 
     ASSERT_TRUE(suite, threwCodegenError, "legacy generate should still throw on codegen failure");
@@ -145,22 +145,16 @@ void testCompilationPolicyBoundsCodeGeneration(TestSuite& suite) {
         return codegen.tryGenerate(*parsed).has_value();
     };
 
-    ASSERT_FALSE(suite, generateWith("return 1", [](CompilationPolicy& policy) {
-                     policy.maxInstructions = 0;
-                 }),
+    ASSERT_FALSE(suite, generateWith("return 1", [](CompilationPolicy& policy) { policy.maxInstructions = 0; }),
                  "instruction budget rejects before Proto code growth");
-    ASSERT_FALSE(suite, generateWith("return 1", [](CompilationPolicy& policy) {
-                     policy.maxConstants = 0;
-                 }),
+    ASSERT_FALSE(suite, generateWith("return 1", [](CompilationPolicy& policy) { policy.maxConstants = 0; }),
                  "constant budget rejects before Proto constant growth");
-    ASSERT_FALSE(suite, generateWith("return 'x'", [](CompilationPolicy& policy) {
-                     policy.maxStringBytes = 0;
-                 }),
+    ASSERT_FALSE(suite, generateWith("return 'x'", [](CompilationPolicy& policy) { policy.maxStringBytes = 0; }),
                  "string budget rejects before codegen string interning");
-    ASSERT_FALSE(suite, generateWith("return function() return 1 end", [](CompilationPolicy& policy) {
-                     policy.maxFunctions = 1;
-                 }),
-                 "function budget is shared by root and child Protos");
+    ASSERT_FALSE(
+        suite,
+        generateWith("return function() return 1 end", [](CompilationPolicy& policy) { policy.maxFunctions = 1; }),
+        "function budget is shared by root and child Protos");
 
     {
         EngineContext context;
@@ -173,7 +167,7 @@ void testCompilationPolicyBoundsCodeGeneration(TestSuite& suite) {
             Parser parser{"return 1", services};
             parserStopped = !parser.parse().has_value();
         } catch (const CompilationLimitError& error) {
-            parserStopped = std::string(error.what()) == "compilation interrupted by execution policy";
+            parserStopped = Lua::Str(error.what()) == "compilation interrupted by execution policy";
         }
         ASSERT_TRUE(suite, parserStopped, "parser source work consumes the shared native-work budget");
     }
@@ -195,7 +189,7 @@ void testCompilationPolicyBoundsCodeGeneration(TestSuite& suite) {
     }
 }
 
-}  // namespace
+} // namespace
 
 void registerCodegenStateTests() {
     auto& registry = TestRegistry::getInstance();
@@ -207,6 +201,5 @@ void registerCodegenStateTests() {
                           testTryGenerateReturnsCodegenErrorOnFailure);
     registry.registerTest(kSuiteName, "generate keeps throwing for compatibility",
                           testGenerateKeepsThrowingForCompatibility);
-    registry.registerTest(kSuiteName, "compilation policy codegen limits",
-                          testCompilationPolicyBoundsCodeGeneration);
+    registry.registerTest(kSuiteName, "compilation policy codegen limits", testCompilationPolicyBoundsCodeGeneration);
 }

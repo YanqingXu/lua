@@ -5,6 +5,7 @@
  * 实现字面量、标识符、括号表达式、表与函数表达式入口以及调用、索引、成员访问解析。
  */
 
+#include "common/types.hpp"
 #include "parser_impl.hpp"
 #include "parser_utils.hpp"
 
@@ -124,8 +125,7 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
 
             expect(static_cast<TokenType>(')'), "Expected ')' after arguments");
             base = makeExpr<CallExpr>(std::move(callExpr));
-        }
-        else if (match(static_cast<TokenType>('['))) {
+        } else if (match(static_cast<TokenType>('['))) {
             IndexExpr indexExpr;
             indexExpr.table = std::move(base);
             indexExpr.index = parseExpression();
@@ -134,8 +134,7 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
 
             expect(static_cast<TokenType>(']'), "Expected ']' after index");
             base = makeExpr<IndexExpr>(std::move(indexExpr));
-        }
-        else if (match(static_cast<TokenType>('.'))) {
+        } else if (match(static_cast<TokenType>('.'))) {
             if (!current().isName()) {
                 error("Expected member name after '.'");
             }
@@ -148,8 +147,7 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             advance();
 
             base = makeExpr<MemberExpr>(std::move(memberExpr));
-        }
-        else if (match(static_cast<TokenType>(':'))) {
+        } else if (match(static_cast<TokenType>(':'))) {
             if (!current().isName()) {
                 error("Expected method name after ':'");
             }
@@ -204,8 +202,7 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
             }
 
             base = makeExpr<CallExpr>(std::move(callExpr));
-        }
-        else if (current().isString()) {
+        } else if (current().isString()) {
             rejectAmbiguousNewlineCall();
 
             CallExpr callExpr;
@@ -221,8 +218,7 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
 
             callExpr.args.push_back(makeExpr<StringExpr>(std::move(strExpr)));
             base = makeExpr<CallExpr>(std::move(callExpr));
-        }
-        else if (check(static_cast<TokenType>('{'))) {
+        } else if (check(static_cast<TokenType>('{'))) {
             rejectAmbiguousNewlineCall();
 
             CallExpr callExpr;
@@ -232,8 +228,7 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
 
             callExpr.args.push_back(parseTableConstructor());
             base = makeExpr<CallExpr>(std::move(callExpr));
-        }
-        else {
+        } else {
             break;
         }
     }
@@ -241,4 +236,4 @@ ExprPtr Parser::Impl::parsePostfixExpr(ExprPtr base) {
     return base;
 }
 
-}
+} // namespace Lua

@@ -3,6 +3,7 @@
  * @brief 上下文拥有的原生模块租约的平台实现
  */
 
+#include "common/types.hpp"
 #include "runtime/native_module_registry.hpp"
 #include "runtime/sandbox_policy.hpp"
 
@@ -52,7 +53,7 @@ Str lastModuleError() {
 }
 
 Str executablePath() {
-    std::array<char, MAX_PATH> buffer{};
+    Arr<char, MAX_PATH> buffer{};
     const DWORD length = GetModuleFileNameA(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
     if (length == 0 || length >= buffer.size()) {
         return {};
@@ -83,13 +84,13 @@ Str platformPathKey(Str path) {
 #else
 
 Str lastModuleError() {
-    const char* error = dlerror();
+    CharPtr error = dlerror();
     return error != nullptr ? Str(error) : Str("unknown dynamic library error");
 }
 
 Str executablePath() {
 #ifdef __APPLE__
-    uint32_t capacity = static_cast<uint32_t>(PATH_MAX);
+    u32 capacity = static_cast<u32>(PATH_MAX);
     Vec<char> buffer(static_cast<usize>(capacity) + 1, '\0');
     if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
         buffer.assign(static_cast<usize>(capacity) + 1, '\0');
@@ -99,7 +100,7 @@ Str executablePath() {
     }
     return Str(buffer.data());
 #else
-    std::array<char, PATH_MAX> buffer{};
+    Arr<char, PATH_MAX> buffer{};
     const ssize_t length = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
     if (length <= 0) {
         return {};
@@ -109,7 +110,7 @@ Str executablePath() {
 }
 
 Str absolutePath(const Str& path) {
-    std::array<char, PATH_MAX> buffer{};
+    Arr<char, PATH_MAX> buffer{};
     if (realpath(path.c_str(), buffer.data()) == nullptr) {
         return path;
     }
@@ -130,23 +131,23 @@ NativeModuleRegistry::~NativeModuleRegistry() noexcept {
     }
 }
 
-std::expected<NativeModuleRegistry::Handle, Str> NativeModuleRegistry::load(const Str& filename) {
+Expect<NativeModuleRegistry::Handle, Str> NativeModuleRegistry::load(const Str& filename) {
     if (sandboxPolicy_ != nullptr && !sandboxPolicy_->allows(SandboxCapability::NativeModules)) {
-        return std::unexpected(Str(SandboxPolicy::deniedMessage(SandboxCapability::NativeModules)));
+        return Unexpect<Str>(Str(SandboxPolicy::deniedMessage(SandboxCapability::NativeModules)));
     }
 
     if (filename.empty()) {
-        return std::unexpected(Str("empty dynamic library path"));
+        return Unexpect<Str>(Str("empty dynamic library path"));
     }
 
     const std::filesystem::path requested(filename);
     if (policy_.requireAbsolutePath && !requested.is_absolute()) {
-        return std::unexpected(Str("dynamic library path must be absolute"));
+        return Unexpect<Str>(Str("dynamic library path must be absolute"));
     }
 
     const Str key = normalizedPath(filename);
     if (!pathAllowed(key)) {
-        return std::unexpected(Str("dynamic library path is not allowlisted"));
+        return Unexpect<Str>(Str("dynamic library path is not allowlisted"));
     }
     const auto hasPath = [&key](const Entry& entry) {
         return entry.normalizedPath == key ||
@@ -179,12 +180,12 @@ std::expected<NativeModuleRegistry::Handle, Str> NativeModuleRegistry::load(cons
 #endif
 
     if (handle == nullptr) {
-        return std::unexpected(lastModuleError());
+        return Unexpect<Str>(lastModuleError());
     }
 
     if (auto abi = verifyAbi(handle); !abi) {
         close(handle, owned);
-        return std::unexpected(abi.error());
+        return Unexpect<Str>(abi.error());
     }
 
     try {
@@ -204,26 +205,26 @@ std::expected<NativeModuleRegistry::Handle, Str> NativeModuleRegistry::load(cons
     return handle;
 }
 
-std::expected<void*, Str> NativeModuleRegistry::findSymbol(Handle handle, const Str& symbolName) const {
+Expect<void*, Str> NativeModuleRegistry::findSymbol(Handle handle, const Str& symbolName) const {
     if (handle == nullptr) {
-        return std::unexpected(Str("invalid dynamic library handle"));
+        return Unexpect<Str>(Str("invalid dynamic library handle"));
     }
     if (symbolName.empty()) {
-        return std::unexpected(Str("empty dynamic library symbol"));
+        return Unexpect<Str>(Str("empty dynamic library symbol"));
     }
 
 #ifdef _WIN32
     FARPROC symbol = GetProcAddress(reinterpret_cast<HMODULE>(handle), symbolName.c_str());
     if (symbol == nullptr) {
-        return std::unexpected(lastModuleError());
+        return Unexpect<Str>(lastModuleError());
     }
     return reinterpret_cast<void*>(symbol);
 #else
     dlerror();
     void* symbol = dlsym(handle, symbolName.c_str());
-    const char* error = dlerror();
+    CharPtr error = dlerror();
     if (error != nullptr) {
-        return std::unexpected(Str(error));
+        return Unexpect<Str>(Str(error));
     }
     return symbol;
 #endif
@@ -266,7 +267,7 @@ bool NativeModuleRegistry::pathAllowed(const Str& normalized) const {
                policy_.allowedCanonicalPaths.end();
 }
 
-std::expected<void, Str> NativeModuleRegistry::verifyAbi(Handle handle) const {
+Expect<void, Str> NativeModuleRegistry::verifyAbi(Handle handle) const {
     if (!policy_.requireAbiHandshake) {
         return {};
     }
@@ -280,11 +281,11 @@ std::expected<void, Str> NativeModuleRegistry::verifyAbi(Handle handle) const {
     rawSymbol = dlsym(handle, policy_.abiVersionSymbol.c_str());
 #endif
     if (rawSymbol == nullptr) {
-        return std::unexpected(Str("dynamic library is missing ABI version handshake"));
+        return Unexpect<Str>(Str("dynamic library is missing ABI version handshake"));
     }
     const auto versionFunction = reinterpret_cast<AbiVersionFunction>(rawSymbol);
     if (versionFunction() != policy_.expectedAbiVersion) {
-        return std::unexpected(Str("dynamic library ABI version mismatch"));
+        return Unexpect<Str>(Str("dynamic library ABI version mismatch"));
     }
     return {};
 }

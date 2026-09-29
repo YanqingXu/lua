@@ -3,6 +3,7 @@
  * @brief 算术操作码处理器
  */
 
+#include "common/types.hpp"
 #include "vm/vm_handlers/vm_handler_utils.hpp"
 #include "common/lua_error.hpp"
 #include "vm/vm_handlers/vm_diagnostics.hpp"
@@ -23,7 +24,7 @@ bool canConvertToNumber(const Value& value) {
         return false;
     }
 
-    const char* text = value.asString()->c_str();
+    CharPtr text = value.asString()->c_str();
     char* end = nullptr;
     std::strtod(text, &end);
     if (end == text) {
@@ -53,7 +54,7 @@ HandlerStatus handleArithmetic(OpExecutionContext& context, Instruction inst) {
     try {
         detail::execArithmetic(state, context.proto, context.base, a, b, c, GET_OPCODE(inst));
     } catch (const RuntimeError& error) {
-        if (std::string(error.what()).find("attempt to perform arithmetic on non-number values") == std::string::npos) {
+        if (Str(error.what()).find("attempt to perform arithmetic on non-number values") == Str::npos) {
             throw;
         }
 

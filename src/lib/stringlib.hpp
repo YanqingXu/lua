@@ -28,7 +28,7 @@ namespace Lua {
 /** @brief Lua 字符串库模块。 */
 class StringLibModule : public LibModule {
 public:
-    const char* getName() const override {
+    CharPtr getName() const override {
         return "string";
     }
 

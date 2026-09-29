@@ -88,7 +88,7 @@ public:
      * @brief 解析源代码，生成AST
      * @return Chunk对象（程序块）或 ParseError
      */
-    [[nodiscard]] std::expected<Chunk, ParseError> parse();
+    [[nodiscard]] Expect<Chunk, ParseError> parse();
 
     /**
      * @brief 返回本次解析中收集到的诊断信息。

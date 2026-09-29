@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file test_runner.cpp
  * @brief 测试运行器 - 统一的测试入口
  *
@@ -9,6 +9,7 @@
  * @date 2025-11-14
  */
 
+#include "common/types.hpp"
 #include "test_framework.hpp"
 #include "common/features.hpp"
 
@@ -104,42 +105,42 @@ extern void registerLuaCApiTests();
 
 namespace {
 
-constexpr const char* kDefaultJunitReportPath = "lua_test_junit.xml";
-constexpr const char* kBuildGitSha = LUA_TEST_BUILD_GIT_SHA;
-constexpr std::size_t kDefaultMemoryLimitMb = 512;
-constexpr std::size_t kMinMemoryLimitMb = 64;
+constexpr Lua::CharPtr kDefaultJunitReportPath = "lua_test_junit.xml";
+constexpr Lua::CharPtr kBuildGitSha = LUA_TEST_BUILD_GIT_SHA;
+constexpr Lua::usize kDefaultMemoryLimitMb = 512;
+constexpr Lua::usize kMinMemoryLimitMb = 64;
 
 struct RunnerOptions {
     bool list = false;
     bool showBuildInfo = false;
     bool showHelp = false;
-    std::string filter;
-    std::string excludeFilter;
+    Lua::Str filter;
+    Lua::Str excludeFilter;
     bool writeJunit = false;
-    std::string junitPath = kDefaultJunitReportPath;
+    Lua::Str junitPath = kDefaultJunitReportPath;
     bool memoryLimitEnabled = true;
-    std::size_t memoryLimitMb = kDefaultMemoryLimitMb;
+    Lua::usize memoryLimitMb = kDefaultMemoryLimitMb;
 };
 
 #ifdef _WIN32
 HANDLE gMemoryLimitJob = nullptr;
 #endif
 
-bool startsWith(const std::string& text, const std::string& prefix) {
+bool startsWith(const Lua::Str& text, const Lua::Str& prefix) {
     return text.rfind(prefix, 0) == 0;
 }
 
-std::string toLower(std::string text) {
+Lua::Str toLower(Lua::Str text) {
     std::transform(text.begin(), text.end(), text.begin(),
                    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return text;
 }
 
-bool containsCaseInsensitive(const std::string& haystack, const std::string& needle) {
-    return needle.empty() || toLower(haystack).find(toLower(needle)) != std::string::npos;
+bool containsCaseInsensitive(const Lua::Str& haystack, const Lua::Str& needle) {
+    return needle.empty() || toLower(haystack).find(toLower(needle)) != Lua::Str::npos;
 }
 
-bool parseMemoryLimitMb(const std::string& text, std::size_t& value) {
+bool parseMemoryLimitMb(const Lua::Str& text, Lua::usize& value) {
     if (text.empty()) {
         return false;
     }
@@ -148,37 +149,37 @@ bool parseMemoryLimitMb(const std::string& text, std::size_t& value) {
     char* end = nullptr;
     unsigned long long parsed = std::strtoull(text.c_str(), &end, 10);
     if (errno != 0 || end == text.c_str() || *end != '\0' || parsed < kMinMemoryLimitMb ||
-        parsed > (std::numeric_limits<std::size_t>::max() / (1024ull * 1024ull))) {
+        parsed > (std::numeric_limits<Lua::usize>::max() / (1024ull * 1024ull))) {
         return false;
     }
 
-    value = static_cast<std::size_t>(parsed);
+    value = static_cast<Lua::usize>(parsed);
     return true;
 }
 
-std::string readEnvironmentVariable(const char* name) {
+Lua::Str readEnvironmentVariable(Lua::CharPtr name) {
 #ifdef _WIN32
     char* value = nullptr;
-    std::size_t length = 0;
+    Lua::usize length = 0;
     if (_dupenv_s(&value, &length, name) != 0 || value == nullptr) {
         return "";
     }
 
-    std::string result(value);
+    Lua::Str result(value);
     std::free(value);
     return result;
 #else
-    const char* value = std::getenv(name);
+    Lua::CharPtr value = std::getenv(name);
     return value == nullptr ? "" : value;
 #endif
 }
 
-bool envVarIsTruthy(const std::string& value) {
+bool envVarIsTruthy(const Lua::Str& value) {
     if (value.empty()) {
         return false;
     }
 
-    std::string normalized = toLower(value);
+    Lua::Str normalized = toLower(value);
     return normalized == "1" || normalized == "true" || normalized == "yes" || normalized == "on";
 }
 
@@ -188,12 +189,12 @@ bool loadMemoryLimitFromEnvironment(RunnerOptions& options) {
         return true;
     }
 
-    const std::string envLimit = readEnvironmentVariable("LUA_TEST_MAX_MEMORY_MB");
+    const Lua::Str envLimit = readEnvironmentVariable("LUA_TEST_MAX_MEMORY_MB");
     if (envLimit.empty()) {
         return true;
     }
 
-    std::size_t parsed = 0;
+    Lua::usize parsed = 0;
     if (!parseMemoryLimitMb(envLimit, parsed)) {
         std::cerr << "error: LUA_TEST_MAX_MEMORY_MB must be an integer >= " << kMinMemoryLimitMb << std::endl;
         return false;
@@ -203,8 +204,8 @@ bool loadMemoryLimitFromEnvironment(RunnerOptions& options) {
     return true;
 }
 
-bool installProcessMemoryLimit(std::size_t limitMb, std::string& message) {
-    const std::size_t limitBytes = limitMb * 1024ull * 1024ull;
+bool installProcessMemoryLimit(Lua::usize limitMb, Lua::Str& message) {
+    const Lua::usize limitBytes = limitMb * 1024ull * 1024ull;
 
 #ifdef _WIN32
     HANDLE job = CreateJobObjectW(nullptr, nullptr);
@@ -240,7 +241,7 @@ bool installProcessMemoryLimit(std::size_t limitMb, std::string& message) {
     limit.rlim_max = static_cast<rlim_t>(limitBytes);
 
     if (setrlimit(RLIMIT_AS, &limit) != 0) {
-        message = std::string("setrlimit(RLIMIT_AS) failed: ") + std::strerror(errno);
+        message = Lua::Str("setrlimit(RLIMIT_AS) failed: ") + std::strerror(errno);
         return false;
     }
 
@@ -249,12 +250,12 @@ bool installProcessMemoryLimit(std::size_t limitMb, std::string& message) {
 #endif
 }
 
-bool testMatchesFilter(const LuaTest::TestRegistry::TestEntry& test, const std::string& filter) {
+bool testMatchesFilter(const LuaTest::TestRegistry::TestEntry& test, const Lua::Str& filter) {
     if (filter.empty()) {
         return true;
     }
 
-    const std::string fullName = test.suiteName + "::" + test.testName;
+    const Lua::Str fullName = test.suiteName + "::" + test.testName;
     return containsCaseInsensitive(test.suiteName, filter) || containsCaseInsensitive(test.testName, filter) ||
            containsCaseInsensitive(fullName, filter);
 }
@@ -265,7 +266,7 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
     }
 
     for (int index = 1; index < argc; ++index) {
-        const std::string arg = argv[index] ? argv[index] : "";
+        const Lua::Str arg = argv[index] ? argv[index] : "";
 
         if (arg == "--help" || arg == "-h") {
             options.showHelp = true;
@@ -280,7 +281,7 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
             }
             options.filter = argv[++index] ? argv[index] : "";
         } else if (startsWith(arg, "--filter=")) {
-            options.filter = arg.substr(std::string("--filter=").size());
+            options.filter = arg.substr(Lua::Str("--filter=").size());
         } else if (arg == "--exclude-filter") {
             if (index + 1 >= argc) {
                 std::cerr << "error: --exclude-filter requires a suite or test name" << std::endl;
@@ -288,18 +289,17 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
             }
             options.excludeFilter = argv[++index] ? argv[index] : "";
         } else if (startsWith(arg, "--exclude-filter=")) {
-            options.excludeFilter = arg.substr(std::string("--exclude-filter=").size());
+            options.excludeFilter = arg.substr(Lua::Str("--exclude-filter=").size());
         } else if (arg == "--report=junit") {
             options.writeJunit = true;
         } else if (startsWith(arg, "--report=junit:")) {
             options.writeJunit = true;
-            options.junitPath = arg.substr(std::string("--report=junit:").size());
+            options.junitPath = arg.substr(Lua::Str("--report=junit:").size());
             if (options.junitPath.empty()) {
                 options.junitPath = kDefaultJunitReportPath;
             }
         } else if (startsWith(arg, "--report=")) {
-            std::cerr << "error: unsupported report format: " << arg.substr(std::string("--report=").size())
-                      << std::endl;
+            std::cerr << "error: unsupported report format: " << arg.substr(Lua::Str("--report=").size()) << std::endl;
             return false;
         } else if (arg == "--max-memory-mb") {
             if (index + 1 >= argc) {
@@ -307,7 +307,7 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
                 return false;
             }
 
-            std::size_t parsed = 0;
+            Lua::usize parsed = 0;
             if (!parseMemoryLimitMb(argv[++index] ? argv[index] : "", parsed)) {
                 std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb << std::endl;
                 return false;
@@ -316,8 +316,8 @@ bool parseArgs(int argc, char** argv, RunnerOptions& options) {
             options.memoryLimitEnabled = true;
             options.memoryLimitMb = parsed;
         } else if (startsWith(arg, "--max-memory-mb=")) {
-            std::size_t parsed = 0;
-            if (!parseMemoryLimitMb(arg.substr(std::string("--max-memory-mb=").size()), parsed)) {
+            Lua::usize parsed = 0;
+            if (!parseMemoryLimitMb(arg.substr(Lua::Str("--max-memory-mb=").size()), parsed)) {
                 std::cerr << "error: --max-memory-mb requires an integer >= " << kMinMemoryLimitMb << std::endl;
                 return false;
             }
@@ -420,7 +420,7 @@ void registerAllTests() {
     registerLuaCApiTests();
 }
 
-void printTestList(const LuaTest::TestRegistry& registry, const std::string& filter) {
+void printTestList(const LuaTest::TestRegistry& registry, const Lua::Str& filter) {
     int count = 0;
     for (const auto& test : registry.getTests()) {
         if (!testMatchesFilter(test, filter)) {
@@ -500,7 +500,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    std::string memoryLimitMessage;
+    Lua::Str memoryLimitMessage;
     if (options.memoryLimitEnabled) {
         if (!installProcessMemoryLimit(options.memoryLimitMb, memoryLimitMessage)) {
             std::cerr << "error: failed to install lua_test memory cap: " << memoryLimitMessage << std::endl;

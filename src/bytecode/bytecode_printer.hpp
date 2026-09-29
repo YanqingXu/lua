@@ -5,6 +5,7 @@
  * @brief Lua 函数原型字节码的打印与差异比较接口
  */
 
+#include "common/types.hpp"
 #include <iosfwd>
 #include <string_view>
 
@@ -31,7 +32,7 @@ void printProtoBytecode(const Proto* f, std::ostream& out, bool full);
  * @param rightLabel 右侧标签
  */
 void printProtoBytecodeDiff(const Proto* left, const Proto* right, std::ostream& out, bool full = false,
-                            std::string_view leftLabel = "left", std::string_view rightLabel = "right");
+                            StrView leftLabel = "left", StrView rightLabel = "right");
 
 /**
  * @brief 打印函数原型的 Mermaid 控制流图

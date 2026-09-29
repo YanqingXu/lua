@@ -375,7 +375,7 @@ constexpr OpcodeMetadata makeOpcodeMetadata(OpCode opcode, StrView name, OpMode 
 
 } // namespace detail
 
-inline constexpr std::array<OpcodeMetadata, static_cast<usize>(NUM_OPCODES)> kOpcodeMetadata = {{
+inline constexpr Arr<OpcodeMetadata, static_cast<usize>(NUM_OPCODES)> kOpcodeMetadata = {{
     detail::makeOpcodeMetadata(OpCode::MOVE, "MOVE", OpMode::iABC, OpArgMask::OpArgR, OpArgMask::OpArgN, true, false,
                                VM::OpcodeGroup::DataMove, false),
     detail::makeOpcodeMetadata(OpCode::LOADK, "LOADK", OpMode::iABx, OpArgMask::OpArgK, OpArgMask::OpArgN, true, false,
@@ -520,7 +520,7 @@ bool testTMode(OpCode op);
 /**
  * @brief 获取操作码名称
  */
-const char* getOpName(OpCode op);
+CharPtr getOpName(OpCode op);
 
 // 表构造器批处理大小
 constexpr i32 LFIELDS_PER_FLUSH = 50;

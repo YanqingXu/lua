@@ -3,6 +3,7 @@
  * @brief 基础库函数测试 - 依赖统一测试框架
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "lib/baselib.hpp"
 #include "lib/lib_manager.hpp"
@@ -29,11 +30,11 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Base Library";
-constexpr const char* kCompatibilitySuiteName = "Lua 5.1 Compatibility";
+constexpr Lua::CharPtr kSuiteName = "Base Library";
+constexpr Lua::CharPtr kCompatibilitySuiteName = "Lua 5.1 Compatibility";
 
 /// Helper: compile and execute Lua code with all standard libs
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         RuntimeServices services(L->getGlobalState());
         Parser parser(code, services);
@@ -58,18 +59,18 @@ bool runLua(LuaState* L, const char* code) {
 }
 
 /// Helper: get global number
-double getGlobalNumber(LuaState* L, const char* name) {
+Lua::f64 getGlobalNumber(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     return v.isNumber() ? v.asNumber() : -9999.0;
 }
 
 /// Helper: get global string
-std::string getGlobalStr(LuaState* L, const char* name) {
+Lua::Str getGlobalStr(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
-    return v.isString() ? std::string(v.asString()->c_str()) : "";
+    return v.isString() ? Lua::Str(v.asString()->c_str()) : "";
 }
 
-bool getGlobalBool(LuaState* L, const char* name) {
+bool getGlobalBool(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     return v.isBoolean() && v.asBoolean();
 }
@@ -94,37 +95,37 @@ LuaState* createFullState() {
     return L;
 }
 
-void appendDumpByte(std::string& out, u8 value) {
+void appendDumpByte(Lua::Str& out, u8 value) {
     out.push_back(static_cast<char>(value));
 }
 
-void appendDumpU32(std::string& out, u32 value) {
+void appendDumpU32(Lua::Str& out, u32 value) {
     for (i32 i = 0; i < 4; ++i) {
         out.push_back(static_cast<char>((value >> (i * 8)) & 0xffu));
     }
 }
 
-void appendDumpI32(std::string& out, i32 value) {
+void appendDumpI32(Lua::Str& out, i32 value) {
     appendDumpU32(out, static_cast<u32>(value));
 }
 
-void appendDumpU64(std::string& out, u64 value) {
+void appendDumpU64(Lua::Str& out, u64 value) {
     for (i32 i = 0; i < 8; ++i) {
         out.push_back(static_cast<char>((value >> (i * 8)) & 0xffu));
     }
 }
 
-void appendDumpNumber(std::string& out, LuaNumber value) {
+void appendDumpNumber(Lua::Str& out, LuaNumber value) {
     u64 bits = 0;
     std::memcpy(&bits, &value, sizeof(value));
     appendDumpU64(out, bits);
 }
 
-void appendDumpSize(std::string& out, usize value) {
+void appendDumpSize(Lua::Str& out, usize value) {
     appendDumpU32(out, static_cast<u32>(value));
 }
 
-void appendDumpString(std::string& out, const char* value) {
+void appendDumpString(Lua::Str& out, Lua::CharPtr value) {
     if (value == nullptr) {
         appendDumpU32(out, std::numeric_limits<u32>::max());
         return;
@@ -135,8 +136,8 @@ void appendDumpString(std::string& out, const char* value) {
     out.append(value, len);
 }
 
-std::string makeDuplicateConstantBinaryChunk() {
-    std::string chunk;
+Lua::Str makeDuplicateConstantBinaryChunk() {
+    Lua::Str chunk;
     chunk.append("\x1bLua", 4);
     appendDumpByte(chunk, 0x51);
     appendDumpByte(chunk, 0);
@@ -214,14 +215,14 @@ void testTypeWrapper(TestSuite& suite) {
 
     LuaState* L = ctx.getState();
 
-    auto checkType = [&](auto pushValue, const std::string& expected, const std::string& msg) {
+    auto checkType = [&](auto pushValue, const Lua::Str& expected, const Lua::Str& msg) {
         i32 ret = ctx.invoke("type", [&](LuaState* s) { pushValue(s); });
         ASSERT_EQ(suite, ret, 1, "type returns 1 value");
         Value val = L->top();
         bool isStr = val.isString();
         ASSERT_TRUE(suite, isStr, "type returns string");
         if (isStr) {
-            std::string s = val.asString()->c_str();
+            Lua::Str s = val.asString()->c_str();
             ASSERT_TRUE(suite, s == expected, msg);
         }
     };
@@ -240,14 +241,14 @@ void testTostringWrapper(TestSuite& suite) {
 
     LuaState* L = ctx.getState();
 
-    auto checkTostring = [&](auto pushValue, const std::string& expected, const std::string& msg) {
+    auto checkTostring = [&](auto pushValue, const Lua::Str& expected, const Lua::Str& msg) {
         i32 ret = ctx.invoke("tostring", [&](LuaState* s) { pushValue(s); });
         ASSERT_EQ(suite, ret, 1, "tostring returns 1 value");
         Value val = L->top();
         bool isStr = val.isString();
         ASSERT_TRUE(suite, isStr, "tostring returns string");
         if (isStr) {
-            std::string s = val.asString()->c_str();
+            Lua::Str s = val.asString()->c_str();
             ASSERT_TRUE(suite, s == expected, msg);
         }
     };
@@ -273,7 +274,7 @@ void testTonumberWrapper(TestSuite& suite) {
     LuaState* L = ctx.getState();
     StringPool& pool = L->getGlobalState().getStringPool();
 
-    auto checkTonumber = [&](auto pushArgs, std::function<bool(const Value&)> validator, const std::string& msg) {
+    auto checkTonumber = [&](auto pushArgs, Lua::Func<bool(const Value&)> validator, const Lua::Str& msg) {
         i32 ret = ctx.invoke("tonumber", [&](LuaState* s) { pushArgs(s); });
         ASSERT_EQ(suite, ret, 1, "tonumber returns 1 value");
         Value val = L->top();
@@ -310,7 +311,7 @@ void testAssertWrapper(TestSuite& suite) {
 
     StringPool& pool = ctx.getState()->getGlobalState().getStringPool();
 
-    auto expectReturn = [&](auto pushArgs, i32 expected, const std::string& msg) {
+    auto expectReturn = [&](auto pushArgs, i32 expected, const Lua::Str& msg) {
         i32 ret = ctx.invoke("assert", [&](LuaState* s) { pushArgs(s); });
         ASSERT_EQ(suite, ret, expected, msg);
     };
@@ -371,7 +372,7 @@ void testMetatableWrapper(TestSuite& suite) {
     Value protectedResult = L->top();
     ASSERT_TRUE(suite, protectedResult.isString(), "protected getmetatable returns __metatable value");
     if (protectedResult.isString()) {
-        ASSERT_TRUE(suite, std::string(protectedResult.asString()->c_str()) == "locked",
+        ASSERT_TRUE(suite, Lua::Str(protectedResult.asString()->c_str()) == "locked",
                     "protected getmetatable returns locked marker");
     }
 }
@@ -439,7 +440,7 @@ void testRawsetWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, L->top().isTable(), "rawset returns table");
     Value v1 = t->get(Value(pool.intern("name")));
     ASSERT_TRUE(suite, v1.isString(), "value is string");
-    ASSERT_TRUE(suite, std::string(v1.asString()->c_str()) == "Lua", "t['name'] == 'Lua'");
+    ASSERT_TRUE(suite, Lua::Str(v1.asString()->c_str()) == "Lua", "t['name'] == 'Lua'");
 
     // 测试设置数字键
     ret = ctx.invoke("rawset", [t](LuaState* s) {
@@ -817,7 +818,7 @@ void testXpcallWrapper(TestSuite& suite) {
     ASSERT_FALSE(suite, L->at(-2).asBoolean(), "first return is false");
     ASSERT_TRUE(suite, L->at(-1).isString(), "xpcall error handler result is returned");
     if (L->at(-1).isString()) {
-        ASSERT_EQ(suite, std::string("error handled"), std::string(L->at(-1).asString()->c_str()),
+        ASSERT_EQ(suite, Lua::Str("error handled"), Lua::Str(L->at(-1).asString()->c_str()),
                   "xpcall calls error handler");
     }
 
@@ -870,7 +871,7 @@ void testLoadstringWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, L->top().isFunction(), "loadstring returns function");
 
     // 含 NUL 的源码字符串必须按 GCString 长度传给解析器，不能按 C 字符串截断
-    const std::string embeddedNullSource("x = 'a\0a'", 9);
+    const Lua::Str embeddedNullSource("x = 'a\0a'", 9);
     ret = ctx.invoke("loadstring", [&](LuaState* s) {
         s->pushString(pool.intern(embeddedNullSource.data(), embeddedNullSource.size()));
     });
@@ -891,10 +892,10 @@ void testLoadstringWrapper(TestSuite& suite) {
     ASSERT_TRUE(suite, L->at(-2).isNil(), "official syntax first return is nil");
     ASSERT_TRUE(suite, L->at(-1).isString(), "official syntax second return is error message");
     if (L->at(-1).isString()) {
-        std::string message = L->at(-1).asString()->c_str();
-        ASSERT_TRUE(suite, message.find("[string \"break label\"]:1:") != std::string::npos,
+        Lua::Str message = L->at(-1).asString()->c_str();
+        ASSERT_TRUE(suite, message.find("[string \"break label\"]:1:") != Lua::Str::npos,
                     "loadstring syntax error includes chunk id and line");
-        ASSERT_TRUE(suite, message.find("near 'label'") != std::string::npos,
+        ASSERT_TRUE(suite, message.find("near 'label'") != Lua::Str::npos,
                     "loadstring syntax error includes near token");
     }
 
@@ -923,7 +924,7 @@ void testLoadstringBinaryChunkPreservesConstantSlots(TestSuite& suite) {
         return;
     }
 
-    const std::string chunk = makeDuplicateConstantBinaryChunk();
+    const Lua::Str chunk = makeDuplicateConstantBinaryChunk();
     const i32 ret = ctx.invoke("loadstring", [&](LuaState* s) {
         s->pushString(s->getGlobalState().getStringPool().intern(chunk.data(), chunk.size()));
     });
@@ -984,7 +985,7 @@ void testDofileWrapper(TestSuite& suite) {
     auto invoke = [&](const std::filesystem::path& script) {
         L->setTop(0);
         L->pushValue(dofile);
-        const std::string text = script.string();
+        const Lua::Str text = script.string();
         L->pushString(pool.intern(text.data(), text.size()));
         return L->pcall(1, MULTRET, 0);
     };
@@ -1137,7 +1138,7 @@ void testUnpackLua(TestSuite& suite) {
         if c then gBool = 1 else gBool = 0 end
     )lua");
     ASSERT_TRUE(suite, ok, "unpack with mixed types runs");
-    ASSERT_EQ(suite, std::string("hello"), getGlobalStr(L, "gStr"), "unpack str='hello'");
+    ASSERT_EQ(suite, Lua::Str("hello"), getGlobalStr(L, "gStr"), "unpack str='hello'");
     ASSERT_EQ(suite, 42.0, getGlobalNumber(L, "gNum"), "unpack num=42");
     ASSERT_EQ(suite, 1.0, getGlobalNumber(L, "gBool"), "unpack bool=true");
 

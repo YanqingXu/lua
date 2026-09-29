@@ -3,6 +3,7 @@
  * @brief Guardrail tests for multi-return semantics before removing expdesc.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
@@ -17,9 +18,9 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Codegen MultiRet";
+constexpr Lua::CharPtr kSuiteName = "Codegen MultiRet";
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();

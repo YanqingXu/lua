@@ -48,7 +48,7 @@ struct FileHandleData;
  */
 class IOLibModule : public LibModule {
 public:
-    const char* getName() const override {
+    CharPtr getName() const override {
         return "io";
     }
 
@@ -242,8 +242,7 @@ i32 f_lines(LuaState* L);
  * @param fp 文件指针
  * @return 创建的userdata
  */
-Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe = false, const char* path = nullptr,
-                           bool ownsFile = true);
+Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe = false, CharPtr path = nullptr, bool ownsFile = true);
 
 /**
  * @brief 关闭引用指定路径的已打开文件句柄
@@ -251,7 +250,7 @@ Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe = false, const cha
  * 供 Windows 重命名或删除兼容路径使用；在这些路径中，CRT 会拒绝重命名或删除仍处于打开
  * 状态的文件。
  */
-bool releaseFileHandlesForPath(LuaState* L, const char* path);
+bool releaseFileHandlesForPath(LuaState* L, CharPtr path);
 
 /**
  * @brief 检查并获取文件指针

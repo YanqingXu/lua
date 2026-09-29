@@ -4,13 +4,14 @@
  */
 
 #include "app_options.hpp"
+#include "common/types.hpp"
 
 #include <cstring>
 #include <utility>
 
 namespace Lua {
 
-AppOptions parseArgs(std::span<char* const> argv) {
+AppOptions parseArgs(Span<char* const> argv) {
     AppOptions opt;
     opt.arguments.reserve(argv.size());
     for (char* arg : argv) {
@@ -119,10 +120,10 @@ AppOptions parseArgs(std::span<char* const> argv) {
 
 AppOptions parseArgs(int argc, char** argv) {
     if (argc <= 0 || argv == nullptr) {
-        return parseArgs(std::span<char* const>());
+        return parseArgs(Span<char* const>());
     }
 
-    return parseArgs(std::span<char* const>(argv, static_cast<usize>(argc)));
+    return parseArgs(Span<char* const>(argv, static_cast<usize>(argc)));
 }
 
 } // namespace Lua

@@ -371,7 +371,7 @@ try {
         # string macro keeps test_runner.cpp parseable without native-shell quote rules.
         $testBuildGitShaDefinition = "-DLUA_TEST_BUILD_GIT_SHA=__FILE__"
         foreach ($file in $files) {
-            & $clangTidy.Source $file.FullName -- -std=c++20 $testBuildGitShaDefinition `
+            & $clangTidy.Source $file.FullName -- -std=c++23 $testBuildGitShaDefinition `
                 "-I$sourceInclude" "-I$frameworkInclude" "-I$testInclude"
             if ($LASTEXITCODE -ne 0) {
                 throw "clang-tidy failed for $($file.FullName) with exit code $LASTEXITCODE"

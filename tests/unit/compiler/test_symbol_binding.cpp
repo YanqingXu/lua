@@ -11,6 +11,7 @@
  * - 函数表路径（table path）加载通过 resolve() 收敛
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -56,7 +57,7 @@ LuaState* createFullState() {
     return L;
 }
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -80,7 +81,7 @@ bool runLua(LuaState* L, const char* code) {
     }
 }
 
-int countOpcode(const char* code, OpCode op) {
+int countOpcode(Lua::CharPtr code, OpCode op) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
@@ -102,12 +103,12 @@ int countOpcode(const char* code, OpCode op) {
     return count;
 }
 
-f64 getGlobalNumber(LuaState* L, const char* name) {
+f64 getGlobalNumber(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     return v.asNumber();
 }
 
-Str getGlobalString(LuaState* L, const char* name) {
+Str getGlobalString(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     return Str(v.asString()->getData());
 }

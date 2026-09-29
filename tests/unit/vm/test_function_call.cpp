@@ -3,6 +3,7 @@
  * @brief 测试VM函数调用机制：递归调用、多返回值、嵌套调用
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -18,7 +19,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Function Call";
+constexpr Lua::CharPtr kSuiteName = "Function Call";
 
 } // namespace
 
@@ -26,7 +27,7 @@ constexpr const char* kSuiteName = "Function Call";
  * @brief 测试简单函数调用（无递归）
  */
 void testSimpleFunctionCall(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         function add(a, b)
             return a + b
         end
@@ -74,7 +75,7 @@ void testSimpleFunctionCall(TestSuite& suite) {
  * @brief 测试简单的递归函数调用（阶乘）
  */
 void testFactorialRecursion(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         function factorial(n)
             if n <= 1 then
                 return 1
@@ -125,7 +126,7 @@ void testFactorialRecursion(TestSuite& suite) {
  * @brief 测试多返回值函数
  */
 void testMultipleReturnValues(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         function multi_return()
             return 1, 2, 3
         end
@@ -171,7 +172,7 @@ void testMultipleReturnValues(TestSuite& suite) {
  * @brief 测试嵌套函数调用
  */
 void testNestedFunctionCalls(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         function add(a, b)
             return a + b
         end

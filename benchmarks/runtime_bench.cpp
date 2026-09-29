@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
 #include "gc/garbage_collector.hpp"
@@ -31,108 +32,108 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-constexpr std::size_t kRequiredClosureCount = 100000;
-constexpr std::size_t kRequiredCiGcPauseSamples = 10000;
-constexpr std::size_t kHeapAbsoluteGrowthAllowanceBytes = std::size_t{64} * 1024;
-constexpr std::size_t kHeapGrowthAllowanceDivisor = 10;
-constexpr std::size_t kHeapMinimumSlopeAllowanceBytesPerMillionFrames = std::size_t{256} * 1024;
-constexpr double kBytesPerMiB = 1024.0 * 1024.0;
+constexpr Lua::usize kRequiredClosureCount = 100000;
+constexpr Lua::usize kRequiredCiGcPauseSamples = 10000;
+constexpr Lua::usize kHeapAbsoluteGrowthAllowanceBytes = Lua::usize{64} * 1024;
+constexpr Lua::usize kHeapGrowthAllowanceDivisor = 10;
+constexpr Lua::usize kHeapMinimumSlopeAllowanceBytesPerMillionFrames = Lua::usize{256} * 1024;
+constexpr Lua::f64 kBytesPerMiB = 1024.0 * 1024.0;
 
 struct Config {
-    std::string profile = "ci";
+    Lua::Str profile = "ci";
     std::filesystem::path jsonPath = "runtime-bench.json";
-    std::size_t samples = 3;
-    std::size_t parseIterations = 1;
-    std::size_t vmIterations = 100000;
-    std::size_t cppToLuaCalls = 2000;
-    std::size_t luaToCppCalls = 20000;
-    std::size_t coroutineYields = 1000;
-    std::size_t tableIterations = 50000;
-    std::size_t closureSamples = 1;
-    std::size_t gcPauseFrames = kRequiredCiGcPauseSamples;
-    std::size_t heapWarmupFrames = 1000;
-    std::size_t heapFrames = 20000;
+    Lua::usize samples = 3;
+    Lua::usize parseIterations = 1;
+    Lua::usize vmIterations = 100000;
+    Lua::usize cppToLuaCalls = 2000;
+    Lua::usize luaToCppCalls = 20000;
+    Lua::usize coroutineYields = 1000;
+    Lua::usize tableIterations = 50000;
+    Lua::usize closureSamples = 1;
+    Lua::usize gcPauseFrames = kRequiredCiGcPauseSamples;
+    Lua::usize heapWarmupFrames = 1000;
+    Lua::usize heapFrames = 20000;
     int gcStepSize = 4;
 };
 
 struct Metric {
-    std::string name;
-    std::string unit;
-    std::string direction;
-    std::vector<double> samples;
+    Lua::Str name;
+    Lua::Str unit;
+    Lua::Str direction;
+    Lua::Vec<Lua::f64> samples;
 };
 
 struct HeapCheckpoint {
-    std::size_t frame = 0;
-    std::size_t allocatorLiveBytes = 0;
-    std::size_t gcManagedBytes = 0;
-    std::size_t gcObjectCount = 0;
+    Lua::usize frame = 0;
+    Lua::usize allocatorLiveBytes = 0;
+    Lua::usize gcManagedBytes = 0;
+    Lua::usize gcObjectCount = 0;
 };
 
 struct Report {
     Config config;
-    std::vector<Metric> metrics;
-    std::vector<double> gcPauseSamplesUs;
-    std::vector<HeapCheckpoint> heapCheckpoints;
-    std::size_t closureCount = 0;
-    std::size_t gcCycles = 0;
-    std::size_t heapGcCycles = 0;
-    std::size_t heapBaselineBytes = 0;
-    std::size_t heapFinalBytes = 0;
-    std::size_t heapAllowedGrowthBytes = 0;
-    std::size_t heapMaxGrowthBytesPerMillionFrames = 0;
-    std::size_t allocatorLiveAfterClose = 0;
-    double heapGrowthBytesPerMillionFrames = 0.0;
+    Lua::Vec<Metric> metrics;
+    Lua::Vec<Lua::f64> gcPauseSamplesUs;
+    Lua::Vec<HeapCheckpoint> heapCheckpoints;
+    Lua::usize closureCount = 0;
+    Lua::usize gcCycles = 0;
+    Lua::usize heapGcCycles = 0;
+    Lua::usize heapBaselineBytes = 0;
+    Lua::usize heapFinalBytes = 0;
+    Lua::usize heapAllowedGrowthBytes = 0;
+    Lua::usize heapMaxGrowthBytesPerMillionFrames = 0;
+    Lua::usize allocatorLiveAfterClose = 0;
+    Lua::f64 heapGrowthBytesPerMillionFrames = 0.0;
     bool heapStable = false;
 };
 
-[[noreturn]] void fail(const std::string& message) {
+[[noreturn]] void fail(const Lua::Str& message) {
     throw std::runtime_error(message);
 }
 
-void require(bool condition, const std::string& message) {
+void require(bool condition, const Lua::Str& message) {
     if (!condition) {
         fail(message);
     }
 }
 
-double elapsedSeconds(Clock::time_point start, Clock::time_point end) {
-    return std::chrono::duration<double>(end - start).count();
+Lua::f64 elapsedSeconds(Clock::time_point start, Clock::time_point end) {
+    return std::chrono::duration<Lua::f64>(end - start).count();
 }
 
-double median(std::vector<double> values) {
+Lua::f64 median(Lua::Vec<Lua::f64> values) {
     require(!values.empty(), "cannot compute the median of an empty sample set");
     std::sort(values.begin(), values.end());
-    const std::size_t middle = values.size() / 2;
+    const Lua::usize middle = values.size() / 2;
     if ((values.size() % 2) != 0) {
         return values[middle];
     }
     return (values[middle - 1] + values[middle]) / 2.0;
 }
 
-double nearestRankPercentile(std::vector<double> values, double percentile) {
+Lua::f64 nearestRankPercentile(Lua::Vec<Lua::f64> values, Lua::f64 percentile) {
     require(!values.empty(), "cannot compute a percentile of an empty sample set");
     require(percentile > 0.0 && percentile <= 1.0, "percentile must be in (0, 1]");
     std::sort(values.begin(), values.end());
-    const double rank = std::ceil(percentile * static_cast<double>(values.size()));
-    const std::size_t index = static_cast<std::size_t>(rank) - 1;
+    const Lua::f64 rank = std::ceil(percentile * static_cast<Lua::f64>(values.size()));
+    const Lua::usize index = static_cast<Lua::usize>(rank) - 1;
     return values[std::min(index, values.size() - 1)];
 }
 
-void addMetric(Report& report, std::string name, std::string unit, std::string direction, std::vector<double> samples) {
+void addMetric(Report& report, Lua::Str name, Lua::Str unit, Lua::Str direction, Lua::Vec<Lua::f64> samples) {
     require(!samples.empty(), "metric " + name + " has no samples");
-    for (double sample : samples) {
+    for (Lua::f64 sample : samples) {
         require(std::isfinite(sample), "metric " + name + " contains a non-finite sample");
     }
     report.metrics.push_back(Metric{std::move(name), std::move(unit), std::move(direction), std::move(samples)});
 }
 
-std::string luaError(lua_State* state, const std::string& operation) {
-    const char* message = lua_tostring(state, -1);
+Lua::Str luaError(lua_State* state, const Lua::Str& operation) {
+    Lua::CharPtr message = lua_tostring(state, -1);
     return operation + " failed: " + (message != nullptr ? message : "non-string Lua error");
 }
 
-void requireLuaStatus(lua_State* state, int status, const std::string& operation) {
+void requireLuaStatus(lua_State* state, int status, const Lua::Str& operation) {
     if (status != LUA_OK) {
         fail(luaError(state, operation));
     }
@@ -167,11 +168,11 @@ private:
 };
 
 struct CountingAllocator {
-    std::size_t liveBytes = 0;
-    std::size_t peakBytes = 0;
-    std::size_t grantedBytes = 0;
-    std::size_t allocationCalls = 0;
-    std::size_t freeCalls = 0;
+    Lua::usize liveBytes = 0;
+    Lua::usize peakBytes = 0;
+    Lua::usize grantedBytes = 0;
+    Lua::usize allocationCalls = 0;
+    Lua::usize freeCalls = 0;
     bool accountingError = false;
 
     void resetPeak() noexcept {
@@ -219,40 +220,40 @@ Lua::LuaState* internalState(lua_State* state) {
     return reinterpret_cast<Lua::LuaState*>(state);
 }
 
-int loadReturnedFunction(lua_State* state, std::string_view source, std::string_view name) {
-    requireLuaStatus(state, luaL_loadbuffer(state, source.data(), source.size(), std::string(name).c_str()),
+int loadReturnedFunction(lua_State* state, Lua::StrView source, Lua::StrView name) {
+    requireLuaStatus(state, luaL_loadbuffer(state, source.data(), source.size(), Lua::Str(name).c_str()),
                      "load function factory");
     requireLuaStatus(state, lua_pcall(state, 0, 1, 0), "run function factory");
     require(lua_isfunction(state, -1) != 0, "function factory did not return a function");
     return luaL_ref(state, LUA_REGISTRYINDEX);
 }
 
-double expectedVmChecksum(std::size_t iterations) {
-    double total = 0.0;
-    for (std::size_t i = 1; i <= iterations; ++i) {
-        total += static_cast<double>(i % 7);
+Lua::f64 expectedVmChecksum(Lua::usize iterations) {
+    Lua::f64 total = 0.0;
+    for (Lua::usize i = 1; i <= iterations; ++i) {
+        total += static_cast<Lua::f64>(i % 7);
     }
     return total;
 }
 
-double invokeNumberFunction(lua_State* state, int reference, double argument, const std::string& operation) {
+Lua::f64 invokeNumberFunction(lua_State* state, int reference, Lua::f64 argument, const Lua::Str& operation) {
     const int base = lua_gettop(state);
     luaL_getref(state, reference);
     require(lua_isfunction(state, -1) != 0, operation + " registry reference is not a function");
     lua_pushnumber(state, argument);
     requireLuaStatus(state, lua_pcall(state, 1, 1, 0), operation);
     require(lua_isnumber(state, -1) != 0, operation + " did not return a number");
-    const double result = lua_tonumber(state, -1);
+    const Lua::f64 result = lua_tonumber(state, -1);
     lua_pop(state, 1);
     require(lua_gettop(state) == base, operation + " did not restore the host stack");
     return result;
 }
 
-std::string makeCompilerFixture() {
-    std::string source;
-    source.reserve(std::size_t{3} * 1024);
-    std::size_t block = 0;
-    while (source.size() < std::size_t{2} * 1024) {
+Lua::Str makeCompilerFixture() {
+    Lua::Str source;
+    source.reserve(Lua::usize{3} * 1024);
+    Lua::usize block = 0;
+    while (source.size() < Lua::usize{2} * 1024) {
         source += "do\n";
         source += "  local seed = " + std::to_string(block + 1) + "\n";
         source += "  local values = { seed, seed + 1, label = \"fixture\" }\n";
@@ -271,17 +272,17 @@ std::string makeCompilerFixture() {
 
 void benchmarkParseCompile(Report& report) {
     std::cerr << "[bench] parse/compile throughput\n";
-    const std::string source = makeCompilerFixture();
-    std::vector<double> throughput;
+    const Lua::Str source = makeCompilerFixture();
+    Lua::Vec<Lua::f64> throughput;
     throughput.reserve(report.config.samples);
 
     Lua::EngineContext context;
     Lua::RuntimeServices services = context.services();
 
-    for (std::size_t sample = 0; sample < report.config.samples; ++sample) {
-        std::size_t generatedInstructions = 0;
+    for (Lua::usize sample = 0; sample < report.config.samples; ++sample) {
+        Lua::usize generatedInstructions = 0;
         const auto start = Clock::now();
-        for (std::size_t iteration = 0; iteration < report.config.parseIterations; ++iteration) {
+        for (Lua::usize iteration = 0; iteration < report.config.parseIterations; ++iteration) {
             Lua::Parser parser(source, services);
             auto parsed = parser.parse();
             require(parsed.has_value(), "compiler fixture failed to parse");
@@ -292,8 +293,8 @@ void benchmarkParseCompile(Report& report) {
         }
         const auto end = Clock::now();
         require(generatedInstructions > 0, "compiler fixture generated no instructions");
-        const double seconds = elapsedSeconds(start, end);
-        const double bytes = static_cast<double>(source.size() * report.config.parseIterations);
+        const Lua::f64 seconds = elapsedSeconds(start, end);
+        const Lua::f64 bytes = static_cast<Lua::f64>(source.size() * report.config.parseIterations);
         throughput.push_back((bytes / kBytesPerMiB) / seconds);
         (void)context.gc().collect(context.strings());
     }
@@ -301,7 +302,7 @@ void benchmarkParseCompile(Report& report) {
     addMetric(report, "parse_compile_mib_per_second", "MiB/s", "higher", std::move(throughput));
 }
 
-thread_local std::uint64_t gVmInstructionCount = 0;
+thread_local Lua::u64 gVmInstructionCount = 0;
 
 void countVmInstructionHook(lua_State*, lua_Debug*) {
     ++gVmInstructionCount;
@@ -317,7 +318,7 @@ public:
         lua_sethook(state_, nullptr, 0, 0);
     }
 
-    [[nodiscard]] std::uint64_t count() const noexcept {
+    [[nodiscard]] Lua::u64 count() const noexcept {
         return gVmInstructionCount;
     }
 
@@ -325,12 +326,12 @@ private:
     lua_State* state_;
 };
 
-std::uint64_t countVmInstructions(lua_State* state, int reference, std::size_t iterations) {
-    std::uint64_t instructions = 0;
+Lua::u64 countVmInstructions(lua_State* state, int reference, Lua::usize iterations) {
+    Lua::u64 instructions = 0;
     {
         InstructionCountScope counter(state);
-        const double result =
-            invokeNumberFunction(state, reference, static_cast<double>(iterations), "VM instruction calibration");
+        const Lua::f64 result =
+            invokeNumberFunction(state, reference, static_cast<Lua::f64>(iterations), "VM instruction calibration");
         require(result == expectedVmChecksum(iterations), "VM instruction calibration checksum mismatch");
         instructions = counter.count();
     }
@@ -339,7 +340,7 @@ std::uint64_t countVmInstructions(lua_State* state, int reference, std::size_t i
 
 void benchmarkVmDispatch(Report& report) {
     std::cerr << "[bench] VM instructions per second\n";
-    constexpr std::string_view source = R"lua(
+    constexpr Lua::StrView source = R"lua(
 return function(count)
   local total = 0
   for i = 1, count do
@@ -353,27 +354,26 @@ end
     lua_State* state = owner.get();
     const int functionReference = loadReturnedFunction(state, source, "=runtime_bench_vm");
 
-    const std::uint64_t count100 = countVmInstructions(state, functionReference, 100);
-    const std::uint64_t count101 = countVmInstructions(state, functionReference, 101);
+    const Lua::u64 count100 = countVmInstructions(state, functionReference, 100);
+    const Lua::u64 count101 = countVmInstructions(state, functionReference, 101);
     require(count101 > count100, "VM instruction count did not increase with loop iterations");
-    const std::uint64_t instructionsPerIteration = count101 - count100;
+    const Lua::u64 instructionsPerIteration = count101 - count100;
     require(count100 >= instructionsPerIteration * 100, "VM instruction calibration intercept underflow");
-    const std::uint64_t fixedInstructions = count100 - instructionsPerIteration * 100;
-    const std::uint64_t count1000 = countVmInstructions(state, functionReference, 1000);
+    const Lua::u64 fixedInstructions = count100 - instructionsPerIteration * 100;
+    const Lua::u64 count1000 = countVmInstructions(state, functionReference, 1000);
     require(count1000 == fixedInstructions + instructionsPerIteration * 1000,
             "VM instruction count is not linear for the deterministic loop fixture");
 
-    std::vector<double> rates;
+    Lua::Vec<Lua::f64> rates;
     rates.reserve(report.config.samples);
-    const std::uint64_t measuredInstructions =
-        fixedInstructions + instructionsPerIteration * report.config.vmIterations;
-    for (std::size_t sample = 0; sample < report.config.samples; ++sample) {
+    const Lua::u64 measuredInstructions = fixedInstructions + instructionsPerIteration * report.config.vmIterations;
+    for (Lua::usize sample = 0; sample < report.config.samples; ++sample) {
         const auto start = Clock::now();
-        const double result = invokeNumberFunction(
-            state, functionReference, static_cast<double>(report.config.vmIterations), "VM throughput run");
+        const Lua::f64 result = invokeNumberFunction(
+            state, functionReference, static_cast<Lua::f64>(report.config.vmIterations), "VM throughput run");
         const auto end = Clock::now();
         require(result == expectedVmChecksum(report.config.vmIterations), "VM throughput checksum mismatch");
-        rates.push_back(static_cast<double>(measuredInstructions) / elapsedSeconds(start, end));
+        rates.push_back(static_cast<Lua::f64>(measuredInstructions) / elapsedSeconds(start, end));
     }
 
     luaL_unref(state, LUA_REGISTRYINDEX, functionReference);
@@ -382,22 +382,22 @@ end
 
 void benchmarkCppToLua(Report& report) {
     std::cerr << "[bench] C++ -> Lua protected call cost\n";
-    constexpr std::string_view source = "return function(value) return value + 1 end";
+    constexpr Lua::StrView source = "return function(value) return value + 1 end";
     LuaStateOwner owner(lua_open());
     lua_State* state = owner.get();
     const int functionReference = loadReturnedFunction(state, source, "=runtime_bench_cpp_to_lua");
 
-    std::vector<double> costs;
+    Lua::Vec<Lua::f64> costs;
     costs.reserve(report.config.samples);
-    for (std::size_t sample = 0; sample < report.config.samples; ++sample) {
-        double checksum = 0.0;
+    for (Lua::usize sample = 0; sample < report.config.samples; ++sample) {
+        Lua::f64 checksum = 0.0;
         const auto start = Clock::now();
-        for (std::size_t call = 1; call <= report.config.cppToLuaCalls; ++call) {
-            checksum += invokeNumberFunction(state, functionReference, static_cast<double>(call), "C++ to Lua call");
+        for (Lua::usize call = 1; call <= report.config.cppToLuaCalls; ++call) {
+            checksum += invokeNumberFunction(state, functionReference, static_cast<Lua::f64>(call), "C++ to Lua call");
         }
         const auto end = Clock::now();
-        const double count = static_cast<double>(report.config.cppToLuaCalls);
-        const double expected = count * (count + 1.0) / 2.0 + count;
+        const Lua::f64 count = static_cast<Lua::f64>(report.config.cppToLuaCalls);
+        const Lua::f64 expected = count * (count + 1.0) / 2.0 + count;
         require(checksum == expected, "C++ to Lua checksum mismatch");
         costs.push_back(elapsedSeconds(start, end) * 1.0e9 / count);
     }
@@ -406,10 +406,10 @@ void benchmarkCppToLua(Report& report) {
     addMetric(report, "cpp_to_lua_ns_per_call", "ns/call", "lower", std::move(costs));
 }
 
-std::uint64_t gHostCallCount = 0;
+Lua::u64 gHostCallCount = 0;
 
 int hostIncrement(lua_State* state) {
-    const double value = lua_tonumber(state, 1);
+    const Lua::f64 value = lua_tonumber(state, 1);
     ++gHostCallCount;
     lua_pushnumber(state, value + 1.0);
     return 1;
@@ -417,7 +417,7 @@ int hostIncrement(lua_State* state) {
 
 void benchmarkLuaToCpp(Report& report) {
     std::cerr << "[bench] Lua -> C++ call cost\n";
-    constexpr std::string_view source = R"lua(
+    constexpr Lua::StrView source = R"lua(
 local host = host_increment
 return function(count)
   local total = 0
@@ -432,17 +432,17 @@ end
     lua_setglobal(state, "host_increment");
     const int functionReference = loadReturnedFunction(state, source, "=runtime_bench_lua_to_cpp");
 
-    std::vector<double> costs;
+    Lua::Vec<Lua::f64> costs;
     costs.reserve(report.config.samples);
-    for (std::size_t sample = 0; sample < report.config.samples; ++sample) {
+    for (Lua::usize sample = 0; sample < report.config.samples; ++sample) {
         gHostCallCount = 0;
         const auto start = Clock::now();
-        const double result = invokeNumberFunction(
-            state, functionReference, static_cast<double>(report.config.luaToCppCalls), "Lua to C++ call loop");
+        const Lua::f64 result = invokeNumberFunction(
+            state, functionReference, static_cast<Lua::f64>(report.config.luaToCppCalls), "Lua to C++ call loop");
         const auto end = Clock::now();
         require(gHostCallCount == report.config.luaToCppCalls, "Lua to C++ host call count mismatch");
-        const double count = static_cast<double>(report.config.luaToCppCalls);
-        const double expected = count * (count + 1.0) / 2.0 + count;
+        const Lua::f64 count = static_cast<Lua::f64>(report.config.luaToCppCalls);
+        const Lua::f64 expected = count * (count + 1.0) / 2.0 + count;
         require(result == expected, "Lua to C++ checksum mismatch");
         costs.push_back(elapsedSeconds(start, end) * 1.0e9 / count);
     }
@@ -457,25 +457,25 @@ void benchmarkCoroutine(Report& report) {
     lua_State* mainState = owner.get();
     luaL_openlibs(mainState);
 
-    std::vector<double> costs;
+    Lua::Vec<Lua::f64> costs;
     costs.reserve(report.config.samples);
-    for (std::size_t sample = 0; sample < report.config.samples; ++sample) {
+    for (Lua::usize sample = 0; sample < report.config.samples; ++sample) {
         lua_State* child = lua_newthread(mainState);
         require(child != nullptr, "failed to create benchmark coroutine");
-        const std::string source = "for i = 1, " + std::to_string(report.config.coroutineYields) +
-                                   " do coroutine.yield(i) end return " + std::to_string(report.config.coroutineYields);
+        const Lua::Str source = "for i = 1, " + std::to_string(report.config.coroutineYields) +
+                                " do coroutine.yield(i) end return " + std::to_string(report.config.coroutineYields);
         requireLuaStatus(child, luaL_loadbuffer(child, source.data(), source.size(), "=runtime_bench_coroutine"),
                          "load coroutine fixture");
 
-        double yieldingSeconds = 0.0;
-        for (std::size_t expectedYield = 1; expectedYield <= report.config.coroutineYields; ++expectedYield) {
+        Lua::f64 yieldingSeconds = 0.0;
+        for (Lua::usize expectedYield = 1; expectedYield <= report.config.coroutineYields; ++expectedYield) {
             const auto start = Clock::now();
             const int status = lua_resume(child, 0);
             const auto end = Clock::now();
             yieldingSeconds += elapsedSeconds(start, end);
             require(status == LUA_YIELD, "coroutine did not yield at the expected boundary");
             require(lua_gettop(child) == 1, "coroutine yield did not expose exactly one result");
-            require(lua_tonumber(child, -1) == static_cast<double>(expectedYield),
+            require(lua_tonumber(child, -1) == static_cast<Lua::f64>(expectedYield),
                     "coroutine yielded an unexpected sequence value");
             lua_settop(child, 0);
         }
@@ -483,29 +483,29 @@ void benchmarkCoroutine(Report& report) {
         const int completionStatus = lua_resume(child, 0);
         require(completionStatus == LUA_OK, "coroutine did not complete after its final yield");
         require(lua_gettop(child) == 1, "completed coroutine did not expose exactly one return value");
-        require(lua_tonumber(child, -1) == static_cast<double>(report.config.coroutineYields),
+        require(lua_tonumber(child, -1) == static_cast<Lua::f64>(report.config.coroutineYields),
                 "coroutine completion checksum mismatch");
-        costs.push_back(yieldingSeconds * 1.0e9 / static_cast<double>(report.config.coroutineYields));
+        costs.push_back(yieldingSeconds * 1.0e9 / static_cast<Lua::f64>(report.config.coroutineYields));
         lua_pop(mainState, 1);
     }
 
     addMetric(report, "coroutine_resume_yield_ns", "ns/round-trip", "lower", std::move(costs));
 }
 
-double expectedTableChecksum(std::size_t iterations) {
-    std::vector<double> array(257, 0.0);
-    std::vector<double> hash(65, 0.0);
-    for (std::size_t i = 1; i <= 256; ++i) {
-        array[i] = static_cast<double>(i);
+Lua::f64 expectedTableChecksum(Lua::usize iterations) {
+    Lua::Vec<Lua::f64> array(257, 0.0);
+    Lua::Vec<Lua::f64> hash(65, 0.0);
+    for (Lua::usize i = 1; i <= 256; ++i) {
+        array[i] = static_cast<Lua::f64>(i);
     }
-    for (std::size_t i = 1; i <= 64; ++i) {
-        hash[i] = static_cast<double>(i);
+    for (Lua::usize i = 1; i <= 64; ++i) {
+        hash[i] = static_cast<Lua::f64>(i);
     }
 
-    double total = 0.0;
-    for (std::size_t i = 1; i <= iterations; ++i) {
-        const std::size_t arrayIndex = (i % 256) + 1;
-        const std::size_t hashIndex = (i % 64) + 1;
+    Lua::f64 total = 0.0;
+    for (Lua::usize i = 1; i <= iterations; ++i) {
+        const Lua::usize arrayIndex = (i % 256) + 1;
+        const Lua::usize hashIndex = (i % 64) + 1;
         total += array[arrayIndex] + hash[hashIndex];
         array[arrayIndex] += 1.0;
         hash[hashIndex] += 1.0;
@@ -515,7 +515,7 @@ double expectedTableChecksum(std::size_t iterations) {
 
 void benchmarkTableHotReadWrite(Report& report) {
     std::cerr << "[bench] table hot read/write\n";
-    constexpr std::string_view source = R"lua(
+    constexpr Lua::StrView source = R"lua(
 local array, hash, keys = {}, {}, {}
 for i = 1, 64 do keys[i] = "key_" .. i end
 local function reset()
@@ -550,18 +550,18 @@ return run, reset
     const int resetReference = luaL_ref(state, LUA_REGISTRYINDEX);
     const int runReference = luaL_ref(state, LUA_REGISTRYINDEX);
 
-    const double expected = expectedTableChecksum(report.config.tableIterations);
-    std::vector<double> rates;
+    const Lua::f64 expected = expectedTableChecksum(report.config.tableIterations);
+    Lua::Vec<Lua::f64> rates;
     rates.reserve(report.config.samples);
-    for (std::size_t sample = 0; sample < report.config.samples; ++sample) {
+    for (Lua::usize sample = 0; sample < report.config.samples; ++sample) {
         luaL_getref(state, resetReference);
         requireLuaStatus(state, lua_pcall(state, 0, 0, 0), "reset table fixture");
         const auto start = Clock::now();
-        const double result = invokeNumberFunction(
-            state, runReference, static_cast<double>(report.config.tableIterations), "table hot read/write loop");
+        const Lua::f64 result = invokeNumberFunction(
+            state, runReference, static_cast<Lua::f64>(report.config.tableIterations), "table hot read/write loop");
         const auto end = Clock::now();
         require(result == expected, "table hot read/write checksum mismatch");
-        const double operations = static_cast<double>(report.config.tableIterations) * 4.0;
+        const Lua::f64 operations = static_cast<Lua::f64>(report.config.tableIterations) * 4.0;
         rates.push_back(operations / elapsedSeconds(start, end));
     }
 
@@ -572,7 +572,7 @@ return run, reset
 
 void benchmarkClosureLifecycle(Report& report) {
     std::cerr << "[bench] 100000 closure/upvalue lifecycle\n";
-    constexpr std::string_view source = R"lua(
+    constexpr Lua::StrView source = R"lua(
 return function(count)
   local function make(value)
     return function() return value end
@@ -590,19 +590,19 @@ end
     Lua::LuaState* internal = internalState(state);
     Lua::GarbageCollector& gc = internal->getGlobalState().getGC();
     (void)gc.collect(internal);
-    const std::size_t baselineObjects = gc.getObjectCount();
+    const Lua::usize baselineObjects = gc.getObjectCount();
 
-    std::vector<double> lifecycleRates;
-    std::vector<double> allocationRates;
+    Lua::Vec<Lua::f64> lifecycleRates;
+    Lua::Vec<Lua::f64> allocationRates;
     lifecycleRates.reserve(report.config.closureSamples);
     allocationRates.reserve(report.config.closureSamples);
 
-    for (std::size_t sample = 0; sample < report.config.closureSamples; ++sample) {
-        const std::size_t grantedBefore = allocator.grantedBytes;
+    for (Lua::usize sample = 0; sample < report.config.closureSamples; ++sample) {
+        const Lua::usize grantedBefore = allocator.grantedBytes;
         allocator.resetPeak();
         const auto start = Clock::now();
         luaL_getref(state, functionReference);
-        lua_pushnumber(state, static_cast<double>(kRequiredClosureCount));
+        lua_pushnumber(state, static_cast<Lua::f64>(kRequiredClosureCount));
         requireLuaStatus(state, lua_pcall(state, 1, 4, 0), "create 100000 captured closures");
         const auto created = Clock::now();
         require(lua_istable(state, -4) != 0,
@@ -611,9 +611,9 @@ end
                     lua_typename(state, lua_type(state, -3)) + "," + lua_typename(state, lua_type(state, -2)) + "," +
                     lua_typename(state, lua_type(state, -1)) + ")");
         require(lua_tonumber(state, -3) == 1.0, "first closure captured the wrong upvalue");
-        require(lua_tonumber(state, -2) == static_cast<double>(kRequiredClosureCount / 2),
+        require(lua_tonumber(state, -2) == static_cast<Lua::f64>(kRequiredClosureCount / 2),
                 "middle closure captured the wrong upvalue");
-        require(lua_tonumber(state, -1) == static_cast<double>(kRequiredClosureCount),
+        require(lua_tonumber(state, -1) == static_cast<Lua::f64>(kRequiredClosureCount),
                 "last closure captured the wrong upvalue");
         lua_pop(state, 4);
         (void)gc.collect(internal);
@@ -622,10 +622,10 @@ end
                 "100000 closure lifecycle left unreachable GC objects behind");
         require(!allocator.accountingError, "allocator accounting failed during closure lifecycle");
 
-        const double lifecycleSeconds = elapsedSeconds(start, reclaimed);
-        const double allocationSeconds = elapsedSeconds(start, created);
-        lifecycleRates.push_back(static_cast<double>(kRequiredClosureCount) / lifecycleSeconds);
-        const double granted = static_cast<double>(allocator.grantedBytes - grantedBefore);
+        const Lua::f64 lifecycleSeconds = elapsedSeconds(start, reclaimed);
+        const Lua::f64 allocationSeconds = elapsedSeconds(start, created);
+        lifecycleRates.push_back(static_cast<Lua::f64>(kRequiredClosureCount) / lifecycleSeconds);
+        const Lua::f64 granted = static_cast<Lua::f64>(allocator.grantedBytes - grantedBefore);
         allocationRates.push_back((granted / kBytesPerMiB) / allocationSeconds);
     }
 
@@ -639,8 +639,8 @@ end
     addMetric(report, "allocation_mib_per_second", "MiB/s", "higher", std::move(allocationRates));
 }
 
-int loadTransientFrameFunction(lua_State* state, std::string_view name) {
-    constexpr std::string_view source = R"lua(
+int loadTransientFrameFunction(lua_State* state, Lua::StrView name) {
+    constexpr Lua::StrView source = R"lua(
 return function(frame)
   local checksum = 0
   for i = 1, 4 do
@@ -653,8 +653,8 @@ end
     return loadReturnedFunction(state, source, name);
 }
 
-double expectedTransientChecksum(std::size_t frame) {
-    return static_cast<double>(frame * 4 + 10);
+Lua::f64 expectedTransientChecksum(Lua::usize frame) {
+    return static_cast<Lua::f64>(frame * 4 + 10);
 }
 
 void benchmarkGcPause(Report& report) {
@@ -668,10 +668,10 @@ void benchmarkGcPause(Report& report) {
     gc.stopAutomatic();
 
     report.gcPauseSamplesUs.reserve(report.config.gcPauseFrames);
-    std::size_t completedCycles = 0;
-    for (std::size_t frame = 1; frame <= report.config.gcPauseFrames; ++frame) {
-        const double result =
-            invokeNumberFunction(state, functionReference, static_cast<double>(frame), "GC frame allocation fixture");
+    Lua::usize completedCycles = 0;
+    for (Lua::usize frame = 1; frame <= report.config.gcPauseFrames; ++frame) {
+        const Lua::f64 result =
+            invokeNumberFunction(state, functionReference, static_cast<Lua::f64>(frame), "GC frame allocation fixture");
         require(result == expectedTransientChecksum(frame), "GC frame checksum mismatch");
 
         const auto start = Clock::now();
@@ -688,10 +688,10 @@ void benchmarkGcPause(Report& report) {
     require(completedCycles > 0, "fixed-budget GC did not complete a collection cycle");
     report.gcCycles = completedCycles;
 
-    const double p50 = nearestRankPercentile(report.gcPauseSamplesUs, 0.50);
-    const double p95 = nearestRankPercentile(report.gcPauseSamplesUs, 0.95);
-    const double p99 = nearestRankPercentile(report.gcPauseSamplesUs, 0.99);
-    const double maximum = *std::max_element(report.gcPauseSamplesUs.begin(), report.gcPauseSamplesUs.end());
+    const Lua::f64 p50 = nearestRankPercentile(report.gcPauseSamplesUs, 0.50);
+    const Lua::f64 p95 = nearestRankPercentile(report.gcPauseSamplesUs, 0.95);
+    const Lua::f64 p99 = nearestRankPercentile(report.gcPauseSamplesUs, 0.99);
+    const Lua::f64 maximum = *std::max_element(report.gcPauseSamplesUs.begin(), report.gcPauseSamplesUs.end());
     require(p50 <= p95 && p95 <= p99 && p99 <= maximum, "GC pause percentiles are not monotonic");
 
     addMetric(report, "gc_pause_p50_us", "us", "lower", {p50});
@@ -707,7 +707,7 @@ void benchmarkGcPause(Report& report) {
 }
 
 int loadHeapStabilityFunction(lua_State* state) {
-    constexpr std::string_view source = R"lua(
+    constexpr Lua::StrView source = R"lua(
 local retained = {}
 for i = 1, 128 do retained[i] = { i, i * 2 } end
 return function(frame)
@@ -724,34 +724,34 @@ end
     return loadReturnedFunction(state, source, "=runtime_bench_heap_stability");
 }
 
-double expectedHeapChecksum(std::size_t frame) {
-    const std::size_t slot = (frame % 128) + 1;
-    return expectedTransientChecksum(frame) + static_cast<double>(slot * 2);
+Lua::f64 expectedHeapChecksum(Lua::usize frame) {
+    const Lua::usize slot = (frame % 128) + 1;
+    return expectedTransientChecksum(frame) + static_cast<Lua::f64>(slot * 2);
 }
 
-HeapCheckpoint captureHeapCheckpoint(std::size_t frame, const CountingAllocator& allocator,
+HeapCheckpoint captureHeapCheckpoint(Lua::usize frame, const CountingAllocator& allocator,
                                      const Lua::GarbageCollector& gc) {
     return HeapCheckpoint{frame, allocator.liveBytes, gc.getTotalMemory(), gc.getObjectCount()};
 }
 
-double heapSlopeBytesPerMillionFrames(const std::vector<HeapCheckpoint>& checkpoints) {
+Lua::f64 heapSlopeBytesPerMillionFrames(const Lua::Vec<HeapCheckpoint>& checkpoints) {
     require(checkpoints.size() >= 3, "heap stability needs at least three checkpoints");
-    const std::size_t begin = checkpoints.size() / 5;
-    const std::size_t count = checkpoints.size() - begin;
-    double meanFrame = 0.0;
-    double meanBytes = 0.0;
-    for (std::size_t i = begin; i < checkpoints.size(); ++i) {
-        meanFrame += static_cast<double>(checkpoints[i].frame);
-        meanBytes += static_cast<double>(checkpoints[i].allocatorLiveBytes);
+    const Lua::usize begin = checkpoints.size() / 5;
+    const Lua::usize count = checkpoints.size() - begin;
+    Lua::f64 meanFrame = 0.0;
+    Lua::f64 meanBytes = 0.0;
+    for (Lua::usize i = begin; i < checkpoints.size(); ++i) {
+        meanFrame += static_cast<Lua::f64>(checkpoints[i].frame);
+        meanBytes += static_cast<Lua::f64>(checkpoints[i].allocatorLiveBytes);
     }
-    meanFrame /= static_cast<double>(count);
-    meanBytes /= static_cast<double>(count);
+    meanFrame /= static_cast<Lua::f64>(count);
+    meanBytes /= static_cast<Lua::f64>(count);
 
-    double numerator = 0.0;
-    double denominator = 0.0;
-    for (std::size_t i = begin; i < checkpoints.size(); ++i) {
-        const double x = static_cast<double>(checkpoints[i].frame) - meanFrame;
-        const double y = static_cast<double>(checkpoints[i].allocatorLiveBytes) - meanBytes;
+    Lua::f64 numerator = 0.0;
+    Lua::f64 denominator = 0.0;
+    for (Lua::usize i = begin; i < checkpoints.size(); ++i) {
+        const Lua::f64 x = static_cast<Lua::f64>(checkpoints[i].frame) - meanFrame;
+        const Lua::f64 y = static_cast<Lua::f64>(checkpoints[i].allocatorLiveBytes) - meanBytes;
         numerator += x * y;
         denominator += x * x;
     }
@@ -769,22 +769,22 @@ void benchmarkHeapStability(Report& report) {
     Lua::GarbageCollector& gc = internal->getGlobalState().getGC();
     gc.stopAutomatic();
 
-    for (std::size_t frame = 1; frame <= report.config.heapWarmupFrames; ++frame) {
-        const double result =
-            invokeNumberFunction(state, functionReference, static_cast<double>(frame), "heap stability warmup");
+    for (Lua::usize frame = 1; frame <= report.config.heapWarmupFrames; ++frame) {
+        const Lua::f64 result =
+            invokeNumberFunction(state, functionReference, static_cast<Lua::f64>(frame), "heap stability warmup");
         require(result == expectedHeapChecksum(frame), "heap warmup checksum mismatch");
         (void)gc.step(internal, report.config.gcStepSize);
     }
     (void)gc.collect(internal);
     report.heapBaselineBytes = allocator.liveBytes;
 
-    const std::size_t checkpointInterval = std::max<std::size_t>(1, report.config.heapFrames / 100);
+    const Lua::usize checkpointInterval = std::max<Lua::usize>(1, report.config.heapFrames / 100);
     report.heapCheckpoints.push_back(captureHeapCheckpoint(0, allocator, gc));
-    std::size_t completedCycles = 0;
-    std::size_t nextCheckpointFrame = checkpointInterval;
-    for (std::size_t frame = 1; frame <= report.config.heapFrames; ++frame) {
-        const double result =
-            invokeNumberFunction(state, functionReference, static_cast<double>(frame), "heap stability frame");
+    Lua::usize completedCycles = 0;
+    Lua::usize nextCheckpointFrame = checkpointInterval;
+    for (Lua::usize frame = 1; frame <= report.config.heapFrames; ++frame) {
+        const Lua::f64 result =
+            invokeNumberFunction(state, functionReference, static_cast<Lua::f64>(frame), "heap stability frame");
         require(result == expectedHeapChecksum(frame), "heap stability checksum mismatch");
         const bool completed = gc.step(internal, report.config.gcStepSize);
         if (completed) {
@@ -813,7 +813,7 @@ void benchmarkHeapStability(Report& report) {
     const bool finalSizeStable = report.heapFinalBytes <= report.heapBaselineBytes ||
                                  report.heapFinalBytes - report.heapBaselineBytes <= report.heapAllowedGrowthBytes;
     const bool trendStable =
-        report.heapGrowthBytesPerMillionFrames <= static_cast<double>(report.heapMaxGrowthBytesPerMillionFrames);
+        report.heapGrowthBytesPerMillionFrames <= static_cast<Lua::f64>(report.heapMaxGrowthBytesPerMillionFrames);
     report.heapStable = finalSizeStable && trendStable;
     require(report.heapStable, "heap did not return to its warmed stable range after a full collection");
 
@@ -826,7 +826,7 @@ void benchmarkHeapStability(Report& report) {
     require(report.allocatorLiveAfterClose == 0, "heap benchmark allocator retained bytes after lua_close");
 }
 
-std::string jsonEscape(std::string_view value) {
+Lua::Str jsonEscape(Lua::StrView value) {
     std::ostringstream output;
     for (unsigned char character : value) {
         switch (character) {
@@ -863,7 +863,7 @@ std::string jsonEscape(std::string_view value) {
     return output.str();
 }
 
-std::string compilerName() {
+Lua::Str compilerName() {
 #if defined(__clang__)
     return "Clang " __clang_version__;
 #elif defined(__GNUC__)
@@ -875,7 +875,7 @@ std::string compilerName() {
 #endif
 }
 
-std::string operatingSystemName() {
+Lua::Str operatingSystemName() {
 #if defined(_WIN32)
     return "Windows";
 #elif defined(__APPLE__)
@@ -887,25 +887,25 @@ std::string operatingSystemName() {
 #endif
 }
 
-std::string gitSha() {
+Lua::Str gitSha() {
 #if defined(_WIN32)
     char* sha = nullptr;
-    std::size_t length = 0;
+    Lua::usize length = 0;
     if (_dupenv_s(&sha, &length, "GITHUB_SHA") != 0 || sha == nullptr) {
         return "unknown";
     }
-    std::string result(sha);
+    Lua::Str result(sha);
     std::free(sha);
     return result;
 #else
-    const char* sha = std::getenv("GITHUB_SHA");
+    Lua::CharPtr sha = std::getenv("GITHUB_SHA");
     return sha != nullptr ? sha : "unknown";
 #endif
 }
 
-void writeDoubleArray(std::ostream& output, const std::vector<double>& values) {
+void writeDoubleArray(std::ostream& output, const Lua::Vec<Lua::f64>& values) {
     output << '[';
-    for (std::size_t i = 0; i < values.size(); ++i) {
+    for (Lua::usize i = 0; i < values.size(); ++i) {
         if (i != 0) {
             output << ',';
         }
@@ -956,7 +956,7 @@ void writeReport(const Report& report) {
     output << "    \"heap_frames\": " << report.config.heapFrames << "\n";
     output << "  },\n";
     output << "  \"metrics\": [\n";
-    for (std::size_t i = 0; i < report.metrics.size(); ++i) {
+    for (Lua::usize i = 0; i < report.metrics.size(); ++i) {
         const Metric& metric = report.metrics[i];
         output << "    {\"name\":\"" << jsonEscape(metric.name) << "\",\"unit\":\"" << jsonEscape(metric.unit)
                << "\",\"direction\":\"" << jsonEscape(metric.direction) << "\",\"median\":" << std::setprecision(17)
@@ -983,7 +983,7 @@ void writeReport(const Report& report) {
     output << "    \"growth_bytes_per_million_frames\": " << std::setprecision(17)
            << report.heapGrowthBytesPerMillionFrames << ",\n";
     output << "    \"checkpoints\": [\n";
-    for (std::size_t i = 0; i < report.heapCheckpoints.size(); ++i) {
+    for (Lua::usize i = 0; i < report.heapCheckpoints.size(); ++i) {
         const HeapCheckpoint& checkpoint = report.heapCheckpoints[i];
         output << "      {\"frame\":" << checkpoint.frame
                << ",\"allocator_live_bytes\":" << checkpoint.allocatorLiveBytes
@@ -1000,7 +1000,7 @@ void writeReport(const Report& report) {
     require(output.good(), "failed while writing benchmark JSON output");
 }
 
-Config configForProfile(std::string profile) {
+Config configForProfile(Lua::Str profile) {
     Config config;
     config.profile = std::move(profile);
     if (config.profile == "ci") {
@@ -1038,12 +1038,12 @@ Config configForProfile(std::string profile) {
 }
 
 Config parseArguments(int argc, char** argv) {
-    std::string profile = "ci";
+    Lua::Str profile = "ci";
     std::filesystem::path jsonPath = "runtime-bench.json";
-    std::size_t samplesOverride = 0;
+    Lua::usize samplesOverride = 0;
     for (int i = 1; i < argc; ++i) {
-        const std::string argument = argv[i];
-        auto requireValue = [&](const std::string& option) -> std::string {
+        const Lua::Str argument = argv[i];
+        auto requireValue = [&](const Lua::Str& option) -> Lua::Str {
             if (i + 1 >= argc) {
                 fail(option + " requires a value");
             }
@@ -1054,7 +1054,7 @@ Config parseArguments(int argc, char** argv) {
         } else if (argument == "--json") {
             jsonPath = requireValue(argument);
         } else if (argument == "--samples") {
-            samplesOverride = static_cast<std::size_t>(std::stoull(requireValue(argument)));
+            samplesOverride = static_cast<Lua::usize>(std::stoull(requireValue(argument)));
             require(samplesOverride > 0, "--samples must be greater than zero");
         } else if (argument == "--help") {
             std::cout << "usage: lua_runtime_bench [--profile ci|full|endurance] [--samples N] [--json PATH]\n";

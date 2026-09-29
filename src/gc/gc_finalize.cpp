@@ -3,6 +3,7 @@
  * @brief 垃圾回收器终结器处理实现
  */
 
+#include "common/types.hpp"
 #include "gc/garbage_collector.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"

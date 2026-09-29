@@ -1,9 +1,10 @@
-﻿/**
+/**
  * @file value_serializer.cpp
  * @brief Value → JSON 字符串序列化实现
  */
 
 #include "debug/value_serializer.hpp"
+#include "common/types.hpp"
 #include "core/gc_string.hpp"
 #include "core/table.hpp"
 #include "core/function.hpp"
@@ -33,7 +34,7 @@ Str ptrToHex(const void* p) {
 // 公开接口实现
 // =========================================================================
 
-const char* getValueTypeName(ValueType type) {
+CharPtr getValueTypeName(ValueType type) {
     switch (type) {
     case ValueType::Nil:
         return "nil";
@@ -152,7 +153,7 @@ Str serializeRegisters(const Value* base, i32 maxStack, Proto* proto, i32 pc) {
             out += ",";
 
         // 获取局部变量名
-        const char* name = nullptr;
+        CharPtr name = nullptr;
         if (proto) {
             name = proto->getLocalName(i + 1, pc); // localNumber 从 1 开始
         }

@@ -3,6 +3,7 @@
  * @brief Minimal PR-1 tests for result-type compatibility helpers.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 
@@ -14,7 +15,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Codegen Result Types";
+constexpr Lua::CharPtr kSuiteName = "Codegen Result Types";
 
 struct ValuePayloadSnapshot {
     ValueResult::Kind payloadKind = ValueResult::Kind::None;
@@ -33,9 +34,7 @@ struct ValuePayloadSnapshot {
 
 ValuePayloadSnapshot snapshotValuePayload(const ValueResult& value) {
     return value.visit(ValueResultVisitor{
-        [](const ValueResult::None&) -> ValuePayloadSnapshot {
-            return {};
-        },
+        [](const ValueResult::None&) -> ValuePayloadSnapshot { return {}; },
         [](const ValueResult::Immediate& immediate) -> ValuePayloadSnapshot {
             ValuePayloadSnapshot result;
             result.payloadKind = ValueResult::Kind::Immediate;
@@ -92,7 +91,7 @@ ValuePayloadSnapshot snapshotValuePayload(const ValueResult& value) {
     });
 }
 
-}  // namespace
+} // namespace
 
 void testDefaultResultTypeState(TestSuite& suite) {
     PatchList patchList;
@@ -112,7 +111,8 @@ void testDefaultResultTypeState(TestSuite& suite) {
     ASSERT_EQ(suite, static_cast<int>(ValueResult::Kind::None),
               static_cast<int>(snapshotValuePayload(value).payloadKind), "ValueResult default payload kind");
     ASSERT_EQ(suite, static_cast<int>(LValueRef::Kind::None), static_cast<int>(lvalue.kind), "LValueRef default kind");
-    ASSERT_EQ(suite, static_cast<int>(CallResultInfo::Kind::None), static_cast<int>(call.kind), "CallResultInfo default kind");
+    ASSERT_EQ(suite, static_cast<int>(CallResultInfo::Kind::None), static_cast<int>(call.kind),
+              "CallResultInfo default kind");
     ASSERT_FALSE(suite, lvalue.valid(), "LValueRef default invalid");
     ASSERT_FALSE(suite, call.valid(), "CallResultInfo default invalid");
 }
@@ -141,11 +141,11 @@ void testPatchListAppendAndMerge(TestSuite& suite) {
 void testValueResultVariantPrototype(TestSuite& suite) {
     using Variant = ValueResult::Variant;
 
-    constexpr bool usesStdVariant = std::is_same_v<
-        Variant,
-        std::variant<ValueResult::None, ValueResult::Immediate, ValueResult::ConstantRef,
-                     ValueResult::RegisterRef, ValueResult::PendingLoad, ValueResult::Relocatable,
-                     ValueResult::MultiRet, ValueResult::PendingJump>>;
+    constexpr bool usesStdVariant =
+        std::is_same_v<Variant,
+                       std::variant<ValueResult::None, ValueResult::Immediate, ValueResult::ConstantRef,
+                                    ValueResult::RegisterRef, ValueResult::PendingLoad, ValueResult::Relocatable,
+                                    ValueResult::MultiRet, ValueResult::PendingJump>>;
     ASSERT_TRUE(suite, usesStdVariant, "ValueResult exposes a std::variant prototype payload");
 
     ValueResult none;
@@ -164,8 +164,8 @@ void testValueResultVariantPrototype(TestSuite& suite) {
     ValuePayloadSnapshot localPayload = snapshotValuePayload(local);
     ASSERT_TRUE(suite, localPayload.payloadKind == ValueResult::Kind::Register,
                 "local ValueResult uses RegisterRef payload");
-    ASSERT_EQ(suite, static_cast<int>(ValueResult::AccessKind::Local),
-              static_cast<int>(localPayload.payloadAccess), "register payload keeps access");
+    ASSERT_EQ(suite, static_cast<int>(ValueResult::AccessKind::Local), static_cast<int>(localPayload.payloadAccess),
+              "register payload keeps access");
     ASSERT_EQ(suite, 3, localPayload.payloadReg, "register payload keeps register index");
 
     ValueResult global = ValueResult::makePendingLoad(ValueResult::AccessKind::Global, -1, 7, -1);
@@ -188,9 +188,7 @@ void testValueResultPayloadVisitReadsVariant(TestSuite& suite) {
         [](const ValueResult::Immediate& immediate) -> f64 {
             return immediate.kind == ValueResult::ImmediateKind::Number ? immediate.numberValue : -1.0;
         },
-        [](const auto&) -> f64 {
-            return -1.0;
-        },
+        [](const auto&) -> f64 { return -1.0; },
     });
     ASSERT_EQ(suite, 12.5, visitedNumber, "payload visit reads the variant number");
 
@@ -199,9 +197,7 @@ void testValueResultPayloadVisitReadsVariant(TestSuite& suite) {
         [](const ValueResult::MultiRet& multi) -> i32 {
             return multi.access == ValueResult::AccessKind::Call ? multi.reg : -1;
         },
-        [](const auto&) -> i32 {
-            return -1;
-        },
+        [](const auto&) -> i32 { return -1; },
     });
     ASSERT_EQ(suite, 2, visitedBase, "payload visit reads the multi-ret base");
 }

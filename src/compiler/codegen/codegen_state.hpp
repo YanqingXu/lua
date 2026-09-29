@@ -5,6 +5,7 @@
  * @brief 代码生成器各实现分片共享的可变状态
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/bytecode_builder.hpp"
 #include "compiler/codegen/codegen_context.hpp"
 #include "core/string_pool.hpp"
@@ -36,7 +37,7 @@ struct CodegenState {
     BlockManager blockManager;
     UpvalueContext upvalueContext;
     BytecodeBuilder bytecode;
-    std::shared_ptr<CompilationBudget> compilationBudget;
+    Ptr<CompilationBudget> compilationBudget;
 
     explicit CodegenState(RuntimeServices runtimeServices)
         : services(runtimeServices), pool(&runtimeServices.strings),

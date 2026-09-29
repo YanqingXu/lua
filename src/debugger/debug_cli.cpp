@@ -4,6 +4,7 @@
  */
 
 #include "debugger/debug_cli.hpp"
+#include "common/types.hpp"
 
 #include <charconv>
 #include <sstream>
@@ -16,7 +17,7 @@ DebugResult<i32> parseLine(StrView text) {
     i32 line = 0;
     const auto parsed = std::from_chars(text.data(), text.data() + text.size(), line);
     if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() || line <= 0) {
-        return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "break expects path:positive-line"});
+        return Unexpect<DebugError>(DebugError{DebugErrorCode::InvalidReference, "break expects path:positive-line"});
     }
     return line;
 }
@@ -30,15 +31,15 @@ DebugResult<Str> DebugCli::execute(StrView command) {
 
     if (verb == "run") {
         DebugResult<void> result = runtime_.configurationDone();
-        return result ? DebugResult<Str>{"running"} : DebugResult<Str>{std::unexpected(result.error())};
+        return result ? DebugResult<Str>{"running"} : DebugResult<Str>{Unexpect<DebugError>(result.error())};
     }
     if (verb == "pause") {
         DebugResult<void> result = runtime_.pause(ThreadId{1});
-        return result ? DebugResult<Str>{"pause pending"} : DebugResult<Str>{std::unexpected(result.error())};
+        return result ? DebugResult<Str>{"pause pending"} : DebugResult<Str>{Unexpect<DebugError>(result.error())};
     }
     if (verb == "continue") {
         DebugResult<void> result = runtime_.continueExecution(ThreadId{1});
-        return result ? DebugResult<Str>{"continued"} : DebugResult<Str>{std::unexpected(result.error())};
+        return result ? DebugResult<Str>{"continued"} : DebugResult<Str>{Unexpect<DebugError>(result.error())};
     }
     if (verb == "backtrace") {
         return backtrace();
@@ -49,32 +50,33 @@ DebugResult<Str> DebugCli::execute(StrView command) {
     if (verb == "break") {
         const usize lineSeparator = argument.rfind(':');
         if (lineSeparator == StrView::npos || lineSeparator == 0) {
-            return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "break expects path:positive-line"});
+            return Unexpect<DebugError>(
+                DebugError{DebugErrorCode::InvalidReference, "break expects path:positive-line"});
         }
         const DebugResult<i32> line = parseLine(argument.substr(lineSeparator + 1));
         if (!line) {
-            return std::unexpected(line.error());
+            return Unexpect<DebugError>(line.error());
         }
         const SourceId source = runtime_.registerFilePath(argument.substr(0, lineSeparator));
         const SourceBreakpoint requested{*line};
         const DebugResult<Vec<BreakpointBinding>> result = runtime_.setBreakpoints(source, {&requested, 1});
         if (!result || result->empty()) {
-            return result ? DebugResult<Str>{std::unexpected(
+            return result ? DebugResult<Str>{Unexpect<DebugError>(
                                 DebugError{DebugErrorCode::RuntimeFailure, "breakpoint response is empty"})}
-                          : DebugResult<Str>{std::unexpected(result.error())};
+                          : DebugResult<Str>{Unexpect<DebugError>(result.error())};
         }
         const BreakpointBinding& binding = result->front();
         return Str("breakpoint ") + (binding.verified ? "verified" : "pending") + " line " +
                std::to_string(binding.line);
     }
 
-    return std::unexpected(DebugError{DebugErrorCode::Unsupported, "unknown debugger command"});
+    return Unexpect<DebugError>(DebugError{DebugErrorCode::Unsupported, "unknown debugger command"});
 }
 
 DebugResult<Str> DebugCli::backtrace() {
     const DebugResult<Vec<DebugStackFrame>> frames = runtime_.stackTrace(ThreadId{1}, 0, 100);
     if (!frames) {
-        return std::unexpected(frames.error());
+        return Unexpect<DebugError>(frames.error());
     }
 
     std::ostringstream output;
@@ -89,12 +91,12 @@ DebugResult<Str> DebugCli::backtrace() {
 DebugResult<Str> DebugCli::locals() {
     const DebugResult<Vec<DebugStackFrame>> frames = runtime_.stackTrace(ThreadId{1}, 0, 1);
     if (!frames || frames->empty()) {
-        return frames ? DebugResult<Str>{std::unexpected(DebugError{DebugErrorCode::InvalidReference, "no frame"})}
-                      : DebugResult<Str>{std::unexpected(frames.error())};
+        return frames ? DebugResult<Str>{Unexpect<DebugError>(DebugError{DebugErrorCode::InvalidReference, "no frame"})}
+                      : DebugResult<Str>{Unexpect<DebugError>(frames.error())};
     }
     const DebugResult<Vec<DebugScope>> frameScopes = runtime_.scopes(frames->front().id);
     if (!frameScopes) {
-        return std::unexpected(frameScopes.error());
+        return Unexpect<DebugError>(frameScopes.error());
     }
     for (const DebugScope& scope : *frameScopes) {
         if (scope.kind != DebugScopeKind::Locals) {
@@ -102,7 +104,7 @@ DebugResult<Str> DebugCli::locals() {
         }
         const DebugResult<Vec<DebugVariable>> frameLocals = runtime_.variables(scope.variablesReference, 0, 100);
         if (!frameLocals) {
-            return std::unexpected(frameLocals.error());
+            return Unexpect<DebugError>(frameLocals.error());
         }
         std::ostringstream output;
         for (const DebugVariable& variable : *frameLocals) {

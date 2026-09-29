@@ -4,6 +4,7 @@
  */
 
 #include "debugger/remote_messages.hpp"
+#include "common/types.hpp"
 
 #include <limits>
 
@@ -42,13 +43,13 @@ ProtocolResult<DebugVariable> readVariable(ProtocolReader& reader) {
     auto type = reader.readString();
     auto hasEvaluateName = reader.readBool();
     if (!name || !value || !type || !hasEvaluateName) {
-        return std::unexpected(malformed());
+        return Unexpect<ProtocolError>(malformed());
     }
     Opt<Str> evaluateName;
     if (*hasEvaluateName) {
         auto parsed = reader.readString();
         if (!parsed) {
-            return std::unexpected(parsed.error());
+            return Unexpect<ProtocolError>(parsed.error());
         }
         evaluateName = std::move(*parsed);
     }
@@ -57,7 +58,7 @@ ProtocolResult<DebugVariable> readVariable(ProtocolReader& reader) {
     auto indexed = reader.readU64();
     if (!reference || !named || !indexed || *named > std::numeric_limits<usize>::max() ||
         *indexed > std::numeric_limits<usize>::max()) {
-        return std::unexpected(malformed());
+        return Unexpect<ProtocolError>(malformed());
     }
     return DebugVariable{std::move(*name),
                          std::move(*value),
@@ -120,14 +121,14 @@ ProtocolResult<Vec<u8>> encodeErrorMessage(StrView message) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<Str> decodeErrorMessage(std::span<const u8> payload) {
+ProtocolResult<Str> decodeErrorMessage(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto message = reader.readString();
     if (!message) {
-        return std::unexpected(message.error());
+        return Unexpect<ProtocolError>(message.error());
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return message;
 }
@@ -136,7 +137,7 @@ ProtocolResult<Vec<u8>> encodeBreakpointRequest(const RemoteBreakpointRequest& r
     ProtocolWriter writer;
     writer.writeString(request.sourcePath);
     if (!writeCount(writer, request.breakpoints.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many remote breakpoints", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::ResourceLimit, "too many remote breakpoints", 0});
     }
     for (const SourceBreakpoint& breakpoint : request.breakpoints) {
         writer.writeI64(breakpoint.line);
@@ -144,12 +145,12 @@ ProtocolResult<Vec<u8>> encodeBreakpointRequest(const RemoteBreakpointRequest& r
     return std::move(writer).finish();
 }
 
-ProtocolResult<RemoteBreakpointRequest> decodeBreakpointRequest(std::span<const u8> payload) {
+ProtocolResult<RemoteBreakpointRequest> decodeBreakpointRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto source = reader.readString();
     auto count = reader.readCount();
     if (!source || !count || source->empty()) {
-        return std::unexpected(malformed("remote breakpoint source must be non-empty"));
+        return Unexpect<ProtocolError>(malformed("remote breakpoint source must be non-empty"));
     }
     RemoteBreakpointRequest result;
     result.sourcePath = std::move(*source);
@@ -157,12 +158,12 @@ ProtocolResult<RemoteBreakpointRequest> decodeBreakpointRequest(std::span<const 
     for (usize index = 0; index < *count; ++index) {
         auto line = reader.readI64();
         if (!line || *line < 1 || *line > std::numeric_limits<i32>::max()) {
-            return std::unexpected(malformed("remote breakpoint line is out of range"));
+            return Unexpect<ProtocolError>(malformed("remote breakpoint line is out of range"));
         }
         result.breakpoints.push_back({static_cast<i32>(*line)});
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
@@ -171,7 +172,7 @@ ProtocolResult<Vec<u8>> encodeAdvancedBreakpointRequest(const RemoteBreakpointRe
     ProtocolWriter writer;
     writer.writeString(request.sourcePath);
     if (!writeCount(writer, request.breakpoints.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many remote breakpoints", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::ResourceLimit, "too many remote breakpoints", 0});
     }
     for (const SourceBreakpoint& breakpoint : request.breakpoints) {
         writer.writeI64(breakpoint.line);
@@ -182,12 +183,12 @@ ProtocolResult<Vec<u8>> encodeAdvancedBreakpointRequest(const RemoteBreakpointRe
     return std::move(writer).finish();
 }
 
-ProtocolResult<RemoteBreakpointRequest> decodeAdvancedBreakpointRequest(std::span<const u8> payload) {
+ProtocolResult<RemoteBreakpointRequest> decodeAdvancedBreakpointRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto source = reader.readString();
     auto count = reader.readCount();
     if (!source || !count || source->empty()) {
-        return std::unexpected(malformed("remote breakpoint source must be non-empty"));
+        return Unexpect<ProtocolError>(malformed("remote breakpoint source must be non-empty"));
     }
     RemoteBreakpointRequest result;
     result.sourcePath = std::move(*source);
@@ -199,23 +200,22 @@ ProtocolResult<RemoteBreakpointRequest> decodeAdvancedBreakpointRequest(std::spa
         auto logMessage = reader.readString();
         if (!line || !condition || !hitCondition || !logMessage || *line < 1 ||
             *line > std::numeric_limits<i32>::max()) {
-            return std::unexpected(malformed("advanced remote breakpoint is malformed"));
+            return Unexpect<ProtocolError>(malformed("advanced remote breakpoint is malformed"));
         }
-        result.breakpoints.push_back({static_cast<i32>(*line), std::move(*condition),
-                                      std::move(*hitCondition), std::move(*logMessage)});
+        result.breakpoints.push_back(
+            {static_cast<i32>(*line), std::move(*condition), std::move(*hitCondition), std::move(*logMessage)});
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
 
-ProtocolResult<Vec<u8>>
-encodeFunctionBreakpointRequest(std::span<const FunctionBreakpoint> breakpoints) {
+ProtocolResult<Vec<u8>> encodeFunctionBreakpointRequest(Span<const FunctionBreakpoint> breakpoints) {
     ProtocolWriter writer;
     if (!writeCount(writer, breakpoints.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit,
-                                             "too many remote function breakpoints", 0});
+        return Unexpect<ProtocolError>(
+            ProtocolError{ProtocolStatus::ResourceLimit, "too many remote function breakpoints", 0});
     }
     for (const FunctionBreakpoint& breakpoint : breakpoints) {
         writer.writeString(breakpoint.name);
@@ -225,12 +225,11 @@ encodeFunctionBreakpointRequest(std::span<const FunctionBreakpoint> breakpoints)
     return std::move(writer).finish();
 }
 
-ProtocolResult<Vec<FunctionBreakpoint>>
-decodeFunctionBreakpointRequest(std::span<const u8> payload) {
+ProtocolResult<Vec<FunctionBreakpoint>> decodeFunctionBreakpointRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto count = reader.readCount();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     Vec<FunctionBreakpoint> result;
     result.reserve(*count);
@@ -239,20 +238,20 @@ decodeFunctionBreakpointRequest(std::span<const u8> payload) {
         auto condition = reader.readString();
         auto hitCondition = reader.readString();
         if (!name || !condition || !hitCondition || name->empty()) {
-            return std::unexpected(malformed("remote function breakpoint is malformed"));
+            return Unexpect<ProtocolError>(malformed("remote function breakpoint is malformed"));
         }
         result.push_back({std::move(*name), std::move(*condition), std::move(*hitCondition)});
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
 
-ProtocolResult<Vec<u8>> encodeBreakpointBindings(std::span<const BreakpointBinding> bindings) {
+ProtocolResult<Vec<u8>> encodeBreakpointBindings(Span<const BreakpointBinding> bindings) {
     ProtocolWriter writer;
     if (!writeCount(writer, bindings.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many breakpoint bindings", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::ResourceLimit, "too many breakpoint bindings", 0});
     }
     for (const BreakpointBinding& binding : bindings) {
         writer.writeU64(binding.id.value());
@@ -265,11 +264,11 @@ ProtocolResult<Vec<u8>> encodeBreakpointBindings(std::span<const BreakpointBindi
     return std::move(writer).finish();
 }
 
-ProtocolResult<Vec<BreakpointBinding>> decodeBreakpointBindings(std::span<const u8> payload) {
+ProtocolResult<Vec<BreakpointBinding>> decodeBreakpointBindings(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto count = reader.readCount();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     Vec<BreakpointBinding> result;
     result.reserve(*count);
@@ -283,23 +282,22 @@ ProtocolResult<Vec<BreakpointBinding>> decodeBreakpointBindings(std::span<const 
         if (!id || !source || !requested || !line || !verified || !message ||
             *requested < std::numeric_limits<i32>::min() || *requested > std::numeric_limits<i32>::max() ||
             *line < std::numeric_limits<i32>::min() || *line > std::numeric_limits<i32>::max()) {
-            return std::unexpected(malformed());
+            return Unexpect<ProtocolError>(malformed());
         }
         result.push_back({BreakpointId{*id}, SourceId{*source}, static_cast<i32>(*requested), static_cast<i32>(*line),
                           *verified, std::move(*message)});
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
 
-ProtocolResult<Vec<u8>>
-encodeFunctionBreakpointBindings(std::span<const BreakpointBinding> bindings) {
+ProtocolResult<Vec<u8>> encodeFunctionBreakpointBindings(Span<const BreakpointBinding> bindings) {
     ProtocolWriter writer;
     if (!writeCount(writer, bindings.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit,
-                                             "too many function breakpoint bindings", 0});
+        return Unexpect<ProtocolError>(
+            ProtocolError{ProtocolStatus::ResourceLimit, "too many function breakpoint bindings", 0});
     }
     for (const BreakpointBinding& binding : bindings) {
         writer.writeU64(binding.id.value());
@@ -312,12 +310,11 @@ encodeFunctionBreakpointBindings(std::span<const BreakpointBinding> bindings) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<Vec<BreakpointBinding>>
-decodeFunctionBreakpointBindings(std::span<const u8> payload) {
+ProtocolResult<Vec<BreakpointBinding>> decodeFunctionBreakpointBindings(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto count = reader.readCount();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     Vec<BreakpointBinding> result;
     result.reserve(*count);
@@ -330,7 +327,7 @@ decodeFunctionBreakpointBindings(std::span<const u8> payload) {
         auto functionName = reader.readString();
         if (!id || !source || !line || !verified || !message || !functionName ||
             *line < std::numeric_limits<i32>::min() || *line > std::numeric_limits<i32>::max()) {
-            return std::unexpected(malformed("remote function breakpoint binding is malformed"));
+            return Unexpect<ProtocolError>(malformed("remote function breakpoint binding is malformed"));
         }
         BreakpointBinding binding;
         binding.id = BreakpointId{*id};
@@ -344,7 +341,7 @@ decodeFunctionBreakpointBindings(std::span<const u8> payload) {
         result.push_back(std::move(binding));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
@@ -355,14 +352,14 @@ ProtocolResult<Vec<u8>> encodeThreadRequest(ThreadId thread) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<ThreadId> decodeThreadRequest(std::span<const u8> payload) {
+ProtocolResult<ThreadId> decodeThreadRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto id = reader.readU64();
     if (!id || *id == 0) {
-        return std::unexpected(malformed("remote thread ID must be non-zero"));
+        return Unexpect<ProtocolError>(malformed("remote thread ID must be non-zero"));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return ThreadId{*id};
 }
@@ -375,17 +372,17 @@ ProtocolResult<Vec<u8>> encodeStackTraceRequest(const RemoteStackTraceRequest& r
     return std::move(writer).finish();
 }
 
-ProtocolResult<RemoteStackTraceRequest> decodeStackTraceRequest(std::span<const u8> payload) {
+ProtocolResult<RemoteStackTraceRequest> decodeStackTraceRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto thread = reader.readU64();
     auto start = reader.readU64();
     auto levels = reader.readU64();
     if (!thread || !start || !levels || *thread == 0 || *start > std::numeric_limits<usize>::max() ||
         *levels > std::numeric_limits<usize>::max()) {
-        return std::unexpected(malformed());
+        return Unexpect<ProtocolError>(malformed());
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return RemoteStackTraceRequest{ThreadId{*thread}, static_cast<usize>(*start), static_cast<usize>(*levels)};
 }
@@ -396,14 +393,14 @@ ProtocolResult<Vec<u8>> encodeFrameRequest(FrameId frame) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<FrameId> decodeFrameRequest(std::span<const u8> payload) {
+ProtocolResult<FrameId> decodeFrameRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto id = reader.readU64();
     if (!id || *id == 0) {
-        return std::unexpected(malformed("remote frame ID must be non-zero"));
+        return Unexpect<ProtocolError>(malformed("remote frame ID must be non-zero"));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return FrameId{*id};
 }
@@ -417,7 +414,7 @@ ProtocolResult<Vec<u8>> encodeVariablesRequest(const RemoteVariablesRequest& req
     return std::move(writer).finish();
 }
 
-ProtocolResult<RemoteVariablesRequest> decodeVariablesRequest(std::span<const u8> payload) {
+ProtocolResult<RemoteVariablesRequest> decodeVariablesRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto reference = reader.readU64();
     auto start = reader.readU64();
@@ -425,13 +422,13 @@ ProtocolResult<RemoteVariablesRequest> decodeVariablesRequest(std::span<const u8
     auto filter = reader.readU8();
     if (!reference || !start || !count || !filter || *reference == 0 || *start > std::numeric_limits<usize>::max() ||
         *count > std::numeric_limits<usize>::max() || *filter > static_cast<u8>(DebugVariableFilter::Named)) {
-        return std::unexpected(malformed());
+        return Unexpect<ProtocolError>(malformed());
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
-    return RemoteVariablesRequest{VariableReference{*reference}, static_cast<usize>(*start),
-                                  static_cast<usize>(*count), static_cast<DebugVariableFilter>(*filter)};
+    return RemoteVariablesRequest{VariableReference{*reference}, static_cast<usize>(*start), static_cast<usize>(*count),
+                                  static_cast<DebugVariableFilter>(*filter)};
 }
 
 ProtocolResult<Vec<u8>> encodeEvaluateRequest(const RemoteEvaluateRequest& request) {
@@ -441,15 +438,15 @@ ProtocolResult<Vec<u8>> encodeEvaluateRequest(const RemoteEvaluateRequest& reque
     return std::move(writer).finish();
 }
 
-ProtocolResult<RemoteEvaluateRequest> decodeEvaluateRequest(std::span<const u8> payload) {
+ProtocolResult<RemoteEvaluateRequest> decodeEvaluateRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto frame = reader.readU64();
     auto expression = reader.readString();
     if (!frame || !expression || *frame == 0 || expression->empty()) {
-        return std::unexpected(malformed());
+        return Unexpect<ProtocolError>(malformed());
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return RemoteEvaluateRequest{FrameId{*frame}, std::move(*expression)};
 }
@@ -462,19 +459,18 @@ ProtocolResult<Vec<u8>> encodeSetVariableRequest(const RemoteSetVariableRequest&
     return std::move(writer).finish();
 }
 
-ProtocolResult<RemoteSetVariableRequest> decodeSetVariableRequest(std::span<const u8> payload) {
+ProtocolResult<RemoteSetVariableRequest> decodeSetVariableRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto reference = reader.readU64();
     auto name = reader.readString();
     auto valueExpression = reader.readString();
     if (!reference || !name || !valueExpression || *reference == 0 || name->empty() || valueExpression->empty()) {
-        return std::unexpected(malformed("remote setVariable request is malformed"));
+        return Unexpect<ProtocolError>(malformed("remote setVariable request is malformed"));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
-    return RemoteSetVariableRequest{VariableReference{*reference}, std::move(*name),
-                                    std::move(*valueExpression)};
+    return RemoteSetVariableRequest{VariableReference{*reference}, std::move(*name), std::move(*valueExpression)};
 }
 
 ProtocolResult<Vec<u8>> encodeBooleanRequest(bool value) {
@@ -483,14 +479,14 @@ ProtocolResult<Vec<u8>> encodeBooleanRequest(bool value) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<bool> decodeBooleanRequest(std::span<const u8> payload) {
+ProtocolResult<bool> decodeBooleanRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto value = reader.readBool();
     if (!value) {
-        return std::unexpected(value.error());
+        return Unexpect<ProtocolError>(value.error());
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return value;
 }
@@ -501,22 +497,22 @@ ProtocolResult<Vec<u8>> encodeStateRequest(StateId state) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<StateId> decodeStateRequest(std::span<const u8> payload) {
+ProtocolResult<StateId> decodeStateRequest(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto id = reader.readU64();
     if (!id || *id == 0) {
-        return std::unexpected(malformed("remote state ID must be non-zero"));
+        return Unexpect<ProtocolError>(malformed("remote state ID must be non-zero"));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return StateId{*id};
 }
 
-ProtocolResult<Vec<u8>> encodeThreads(std::span<const DebugThread> threads) {
+ProtocolResult<Vec<u8>> encodeThreads(Span<const DebugThread> threads) {
     ProtocolWriter writer;
     if (!writeCount(writer, threads.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many debug threads", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::ResourceLimit, "too many debug threads", 0});
     }
     for (const DebugThread& thread : threads) {
         writer.writeU64(thread.id.value());
@@ -526,11 +522,11 @@ ProtocolResult<Vec<u8>> encodeThreads(std::span<const DebugThread> threads) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<Vec<DebugThread>> decodeThreads(std::span<const u8> payload) {
+ProtocolResult<Vec<DebugThread>> decodeThreads(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto count = reader.readCount();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     Vec<DebugThread> result;
     result.reserve(*count);
@@ -539,20 +535,20 @@ ProtocolResult<Vec<DebugThread>> decodeThreads(std::span<const u8> payload) {
         auto name = reader.readString();
         auto state = reader.readU8();
         if (!id || !name || !state || *id == 0 || *state > static_cast<u8>(DebugThreadState::Exited)) {
-            return std::unexpected(malformed());
+            return Unexpect<ProtocolError>(malformed());
         }
         result.push_back({ThreadId{*id}, std::move(*name), static_cast<DebugThreadState>(*state)});
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
 
-ProtocolResult<Vec<u8>> encodeStates(std::span<const DebugState> states) {
+ProtocolResult<Vec<u8>> encodeStates(Span<const DebugState> states) {
     ProtocolWriter writer;
     if (!writeCount(writer, states.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many debug states", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::ResourceLimit, "too many debug states", 0});
     }
     for (const DebugState& state : states) {
         writer.writeU64(state.id.value());
@@ -565,11 +561,11 @@ ProtocolResult<Vec<u8>> encodeStates(std::span<const DebugState> states) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<Vec<DebugState>> decodeStates(std::span<const u8> payload) {
+ProtocolResult<Vec<DebugState>> decodeStates(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto count = reader.readCount();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     Vec<DebugState> result;
     result.reserve(*count);
@@ -582,21 +578,21 @@ ProtocolResult<Vec<DebugState>> decodeStates(std::span<const u8> payload) {
         auto selected = reader.readBool();
         if (!id || !thread || !name || !label || !state || !selected || *id == 0 || *thread == 0 ||
             *state > static_cast<u8>(DebugThreadState::Exited)) {
-            return std::unexpected(malformed());
+            return Unexpect<ProtocolError>(malformed());
         }
         result.push_back({StateId{*id}, ThreadId{*thread}, std::move(*name), std::move(*label),
                           static_cast<DebugThreadState>(*state), *selected});
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
 
-ProtocolResult<Vec<u8>> encodeStackFrames(std::span<const RemoteStackFrame> frames) {
+ProtocolResult<Vec<u8>> encodeStackFrames(Span<const RemoteStackFrame> frames) {
     ProtocolWriter writer;
     if (!writeCount(writer, frames.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many stack frames", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::ResourceLimit, "too many stack frames", 0});
     }
     for (const RemoteStackFrame& remote : frames) {
         const DebugStackFrame& frame = remote.frame;
@@ -614,11 +610,11 @@ ProtocolResult<Vec<u8>> encodeStackFrames(std::span<const RemoteStackFrame> fram
     return std::move(writer).finish();
 }
 
-ProtocolResult<Vec<RemoteStackFrame>> decodeStackFrames(std::span<const u8> payload) {
+ProtocolResult<Vec<RemoteStackFrame>> decodeStackFrames(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto count = reader.readCount();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     Vec<RemoteStackFrame> result;
     result.reserve(*count);
@@ -633,30 +629,28 @@ ProtocolResult<Vec<RemoteStackFrame>> decodeStackFrames(std::span<const u8> payl
         auto native = reader.readBool();
         auto sourceName = reader.readString();
         auto sourceIsFile = reader.readBool();
-        if (!id || !thread || !name || !source || !line || !column || !pc || !native || !sourceName ||
-            !sourceIsFile || *line < std::numeric_limits<i32>::min() || *line > std::numeric_limits<i32>::max() ||
+        if (!id || !thread || !name || !source || !line || !column || !pc || !native || !sourceName || !sourceIsFile ||
+            *line < std::numeric_limits<i32>::min() || *line > std::numeric_limits<i32>::max() ||
             *column < std::numeric_limits<i32>::min() || *column > std::numeric_limits<i32>::max() ||
             *pc > std::numeric_limits<usize>::max()) {
-            return std::unexpected(malformed());
+            return Unexpect<ProtocolError>(malformed());
         }
-        DebugStackFrame frame{FrameId{*id},
-                              ThreadId{*thread},
-                              std::move(*name),
+        DebugStackFrame frame{FrameId{*id}, ThreadId{*thread}, std::move(*name),
                               SourceLocation{SourceId{*source}, static_cast<i32>(*line), static_cast<i32>(*column),
                                              static_cast<usize>(*pc)},
                               *native};
         result.push_back({std::move(frame), std::move(*sourceName), *sourceIsFile});
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
 
-ProtocolResult<Vec<u8>> encodeScopes(std::span<const DebugScope> scopes) {
+ProtocolResult<Vec<u8>> encodeScopes(Span<const DebugScope> scopes) {
     ProtocolWriter writer;
     if (!writeCount(writer, scopes.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many scopes", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::ResourceLimit, "too many scopes", 0});
     }
     for (const DebugScope& scope : scopes) {
         writer.writeString(scope.name);
@@ -667,11 +661,11 @@ ProtocolResult<Vec<u8>> encodeScopes(std::span<const DebugScope> scopes) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<Vec<DebugScope>> decodeScopes(std::span<const u8> payload) {
+ProtocolResult<Vec<DebugScope>> decodeScopes(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto count = reader.readCount();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     Vec<DebugScope> result;
     result.reserve(*count);
@@ -681,21 +675,21 @@ ProtocolResult<Vec<DebugScope>> decodeScopes(std::span<const u8> payload) {
         auto reference = reader.readU64();
         auto expensive = reader.readBool();
         if (!name || !kind || !reference || !expensive || *kind > static_cast<u8>(DebugScopeKind::Exception)) {
-            return std::unexpected(malformed());
+            return Unexpect<ProtocolError>(malformed());
         }
-        result.push_back({std::move(*name), static_cast<DebugScopeKind>(*kind), VariableReference{*reference},
-                          *expensive});
+        result.push_back(
+            {std::move(*name), static_cast<DebugScopeKind>(*kind), VariableReference{*reference}, *expensive});
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
 
-ProtocolResult<Vec<u8>> encodeVariables(std::span<const DebugVariable> variables) {
+ProtocolResult<Vec<u8>> encodeVariables(Span<const DebugVariable> variables) {
     ProtocolWriter writer;
     if (!writeCount(writer, variables.size())) {
-        return std::unexpected(ProtocolError{ProtocolStatus::ResourceLimit, "too many variables", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::ResourceLimit, "too many variables", 0});
     }
     for (const DebugVariable& variable : variables) {
         writeVariable(writer, variable);
@@ -703,23 +697,23 @@ ProtocolResult<Vec<u8>> encodeVariables(std::span<const DebugVariable> variables
     return std::move(writer).finish();
 }
 
-ProtocolResult<Vec<DebugVariable>> decodeVariables(std::span<const u8> payload) {
+ProtocolResult<Vec<DebugVariable>> decodeVariables(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto count = reader.readCount();
     if (!count) {
-        return std::unexpected(count.error());
+        return Unexpect<ProtocolError>(count.error());
     }
     Vec<DebugVariable> result;
     result.reserve(*count);
     for (usize index = 0; index < *count; ++index) {
         auto variable = readVariable(reader);
         if (!variable) {
-            return std::unexpected(variable.error());
+            return Unexpect<ProtocolError>(variable.error());
         }
         result.push_back(std::move(*variable));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return result;
 }
@@ -730,14 +724,14 @@ ProtocolResult<Vec<u8>> encodeVariable(const DebugVariable& variable) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<DebugVariable> decodeVariable(std::span<const u8> payload) {
+ProtocolResult<DebugVariable> decodeVariable(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto variable = readVariable(reader);
     if (!variable) {
-        return std::unexpected(variable.error());
+        return Unexpect<ProtocolError>(variable.error());
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return variable;
 }
@@ -751,7 +745,7 @@ ProtocolResult<Vec<u8>> encodeExceptionInfo(const DebugExceptionInfo& exception)
     return std::move(writer).finish();
 }
 
-ProtocolResult<DebugExceptionInfo> decodeExceptionInfo(std::span<const u8> payload) {
+ProtocolResult<DebugExceptionInfo> decodeExceptionInfo(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto id = reader.readString();
     auto description = reader.readString();
@@ -759,10 +753,10 @@ ProtocolResult<DebugExceptionInfo> decodeExceptionInfo(std::span<const u8> paylo
     auto category = reader.readU8();
     if (!id || !description || !breakMode || !category ||
         *category > static_cast<u8>(DebugExceptionCategory::HostCancellation)) {
-        return std::unexpected(malformed());
+        return Unexpect<ProtocolError>(malformed());
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return DebugExceptionInfo{std::move(*id), std::move(*description), std::move(*breakMode),
                               static_cast<DebugExceptionCategory>(*category)};
@@ -776,17 +770,17 @@ ProtocolResult<Vec<u8>> encodeStoppedEvent(const RemoteStoppedEvent& event) {
     return std::move(writer).finish();
 }
 
-ProtocolResult<RemoteStoppedEvent> decodeStoppedEvent(std::span<const u8> payload) {
+ProtocolResult<RemoteStoppedEvent> decodeStoppedEvent(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto reason = reader.readU8();
     auto thread = reader.readU64();
     auto generation = reader.readU64();
     if (!reason || !thread || !generation || *reason > static_cast<u8>(DebugStopReason::Exception) || *thread == 0 ||
         *generation == 0) {
-        return std::unexpected(malformed());
+        return Unexpect<ProtocolError>(malformed());
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return RemoteStoppedEvent{static_cast<DebugStopReason>(*reason), ThreadId{*thread}, PauseGeneration{*generation}};
 }
@@ -803,12 +797,12 @@ ProtocolResult<Vec<u8>> encodeTerminatedEvent(const RemoteTerminatedEvent& event
     return std::move(writer).finish();
 }
 
-ProtocolResult<RemoteTerminatedEvent> decodeTerminatedEvent(std::span<const u8> payload) {
+ProtocolResult<RemoteTerminatedEvent> decodeTerminatedEvent(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto reason = reader.readU8();
     auto hasError = reader.readBool();
     if (!reason || !hasError || *reason > static_cast<u8>(DebugTerminationReason::Cancelled)) {
-        return std::unexpected(malformed());
+        return Unexpect<ProtocolError>(malformed());
     }
     Opt<DebugError> error;
     if (*hasError) {
@@ -816,24 +810,25 @@ ProtocolResult<RemoteTerminatedEvent> decodeTerminatedEvent(std::span<const u8> 
         auto message = reader.readString();
         auto retryable = reader.readBool();
         if (!code || !message || !retryable || *code > static_cast<u8>(DebugErrorCode::RuntimeFailure)) {
-            return std::unexpected(malformed());
+            return Unexpect<ProtocolError>(malformed());
         }
         error = DebugError{static_cast<DebugErrorCode>(*code), std::move(*message), *retryable};
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return RemoteTerminatedEvent{static_cast<DebugTerminationReason>(*reason), std::move(error)};
 }
 
 ProtocolResult<Vec<u8>> encodeDebugStateEvent(const DebugState& state) {
-    return encodeStates(std::span<const DebugState>(&state, 1));
+    return encodeStates(Span<const DebugState>(&state, 1));
 }
 
-ProtocolResult<DebugState> decodeDebugStateEvent(std::span<const u8> payload) {
+ProtocolResult<DebugState> decodeDebugStateEvent(Span<const u8> payload) {
     auto states = decodeStates(payload);
     if (!states || states->size() != 1) {
-        return std::unexpected(states ? malformed("state event must contain exactly one state") : states.error());
+        return Unexpect<ProtocolError>(states ? malformed("state event must contain exactly one state")
+                                              : states.error());
     }
     return std::move(states->front());
 }
@@ -845,15 +840,15 @@ ProtocolResult<Vec<u8>> encodeOutputEvent(StrView text, DebugOutputCategory cate
     return std::move(writer).finish();
 }
 
-ProtocolResult<std::pair<Str, DebugOutputCategory>> decodeOutputEvent(std::span<const u8> payload) {
+ProtocolResult<std::pair<Str, DebugOutputCategory>> decodeOutputEvent(Span<const u8> payload) {
     ProtocolReader reader(payload);
     auto category = reader.readU8();
     auto text = reader.readString();
     if (!category || !text || *category > static_cast<u8>(DebugOutputCategory::Stderr)) {
-        return std::unexpected(malformed("remote output event is malformed"));
+        return Unexpect<ProtocolError>(malformed("remote output event is malformed"));
     }
     if (auto complete = reader.finish(); !complete) {
-        return std::unexpected(complete.error());
+        return Unexpect<ProtocolError>(complete.error());
     }
     return std::pair<Str, DebugOutputCategory>{std::move(*text), static_cast<DebugOutputCategory>(*category)};
 }

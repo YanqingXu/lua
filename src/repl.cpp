@@ -4,6 +4,7 @@
  */
 
 #include "repl.hpp"
+#include "common/types.hpp"
 
 #include "core/function.hpp"
 #include "core/gc_string.hpp"
@@ -231,11 +232,11 @@ private:
 
 } // namespace
 
-void setProgName(const char* name) {
+void setProgName(CharPtr name) {
     detail::globalContext().setProgramName(name);
 }
 
-const char* getProgName() {
+CharPtr getProgName() {
     return detail::globalContext().programName();
 }
 
@@ -247,11 +248,11 @@ ErrorColorMode getErrorColorMode() {
     return detail::globalContext().errorColorMode();
 }
 
-void reportError(const char* msg, bool showProgName) {
+void reportError(CharPtr msg, bool showProgName) {
     detail::reportError(detail::globalContext(), std::cerr, msg, showProgName);
 }
 
-void reportError(const char* source, int line, const char* msg, bool showProgName) {
+void reportError(CharPtr source, int line, CharPtr msg, bool showProgName) {
     detail::reportError(detail::globalContext(), std::cerr, source, line, msg, showProgName);
 }
 

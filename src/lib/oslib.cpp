@@ -3,6 +3,7 @@
  * @brief Lua 操作系统标准库的实现
  */
 
+#include "common/types.hpp"
 #include "lib/oslib.hpp"
 #include "lib/iolib.hpp"
 #include "lib/lib_registry.hpp"
@@ -34,17 +35,17 @@ namespace Lua {
 // 辅助函数
 // ===================================================================
 
-static std::string errnoMessage(int err) {
+static Str errnoMessage(int err) {
 #ifdef _MSC_VER
     char buf[256] = {};
     strerror_s(buf, sizeof(buf), err);
-    return std::string(buf);
+    return Str(buf);
 #else
-    return std::string(std::strerror(err));
+    return Str(std::strerror(err));
 #endif
 }
 
-static i32 pushFileErrorResult(LuaState* L, const char* filename, int err) {
+static i32 pushFileErrorResult(LuaState* L, CharPtr filename, int err) {
     if (err == 0) {
         err = errno;
     }
@@ -52,9 +53,9 @@ static i32 pushFileErrorResult(LuaState* L, const char* filename, int err) {
         err = EINVAL;
     }
 
-    std::string message;
+    Str message;
     if (filename != nullptr && filename[0] != '\0') {
-        message = std::string(filename) + ": " + errnoMessage(err);
+        message = Str(filename) + ": " + errnoMessage(err);
     } else {
         message = errnoMessage(err);
     }
@@ -65,7 +66,7 @@ static i32 pushFileErrorResult(LuaState* L, const char* filename, int err) {
     return 3;
 }
 
-static i32 checkedOSInteger(LuaState* L, LuaNumber value, const char* message) {
+static i32 checkedOSInteger(LuaState* L, LuaNumber value, CharPtr message) {
     const auto converted = checkedLuaInteger(value);
     if (!converted) {
         L->error(message);
@@ -73,7 +74,7 @@ static i32 checkedOSInteger(LuaState* L, LuaNumber value, const char* message) {
     return *converted;
 }
 
-static i32 checkedOSInteger(LuaState* L, i32 index, const char* message) {
+static i32 checkedOSInteger(LuaState* L, i32 index, CharPtr message) {
     if (!L->isNumber(index)) {
         L->error(message);
     }
@@ -83,7 +84,7 @@ static i32 checkedOSInteger(LuaState* L, i32 index, const char* message) {
 /**
  * @brief 设置日期表的整数字段
  */
-static void setfield(LuaState* L, Table* t, const char* key, i32 value) {
+static void setfield(LuaState* L, Table* t, CharPtr key, i32 value) {
     GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
     t->set(Value(keyStr), Value(static_cast<f64>(value)));
 }
@@ -91,7 +92,7 @@ static void setfield(LuaState* L, Table* t, const char* key, i32 value) {
 /**
  * @brief 设置日期表的布尔字段
  */
-static void setboolfield(LuaState* L, Table* t, const char* key, i32 value) {
+static void setboolfield(LuaState* L, Table* t, CharPtr key, i32 value) {
     if (value < 0)
         return; // 未定义，不设置
     GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
@@ -101,7 +102,7 @@ static void setboolfield(LuaState* L, Table* t, const char* key, i32 value) {
 /**
  * @brief 获取日期表的整数字段
  */
-static i32 getfield(LuaState* L, Table* t, const char* key, i32 defaultValue) {
+static i32 getfield(LuaState* L, Table* t, CharPtr key, i32 defaultValue) {
     GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
     Value v = t->get(Value(keyStr));
     if (v.isNumber()) {
@@ -116,7 +117,7 @@ static i32 getfield(LuaState* L, Table* t, const char* key, i32 defaultValue) {
 /**
  * @brief 获取日期表的布尔字段
  */
-static i32 getboolfield(LuaState* L, Table* t, const char* key) {
+static i32 getboolfield(LuaState* L, Table* t, CharPtr key) {
     GCString* keyStr = L->getGlobalState().getStringPool().intern(key);
     Value v = t->get(Value(keyStr));
     if (v.isNil())
@@ -166,7 +167,7 @@ i32 luaOS_execute(LuaState* L) {
         L->error("execute: command must be a string");
     }
 
-    const char* command = L->toString(1);
+    CharPtr command = L->toString(1);
 #ifdef _WIN32
     Str wrappedCommand;
     if (command != nullptr && command[0] == '"') {
@@ -202,11 +203,11 @@ i32 luaOS_getenv(LuaState* L) {
         L->error("getenv: argument must be a string");
     }
 
-    const char* varName = L->toString(1);
+    CharPtr varName = L->toString(1);
 
 #ifdef _WIN32
     char* rawValue = nullptr;
-    size_t len = 0;
+    usize len = 0;
     errno_t err = _dupenv_s(&rawValue, &len, varName);
     std::unique_ptr<char, decltype(&std::free)> value(rawValue, &std::free);
     if (err == 0 && value != nullptr) {
@@ -216,7 +217,7 @@ i32 luaOS_getenv(LuaState* L) {
         L->pushNil();
     }
 #else
-    const char* value = std::getenv(varName);
+    CharPtr value = std::getenv(varName);
     if (value) {
         GCString* str = L->getGlobalState().getStringPool().intern(value);
         L->pushString(str);
@@ -236,7 +237,7 @@ i32 luaOS_remove(LuaState* L) {
         L->error("remove: argument must be a string");
     }
 
-    const char* filename = L->toString(1);
+    CharPtr filename = L->toString(1);
     errno = 0;
     if (std::remove(filename) == 0) {
         L->pushBoolean(true);
@@ -266,8 +267,8 @@ i32 luaOS_rename(LuaState* L) {
         L->error("rename: arguments must be strings");
     }
 
-    const char* oldName = L->toString(1);
-    const char* newName = L->toString(2);
+    CharPtr oldName = L->toString(1);
+    CharPtr newName = L->toString(2);
 
     errno = 0;
     if (std::rename(oldName, newName) == 0) {
@@ -292,7 +293,7 @@ i32 luaOS_rename(LuaState* L) {
 i32 luaOS_setlocale(LuaState* L) {
     L->requireSandboxCapability(SandboxCapability::Process);
     i32 nargs = L->getTop();
-    const char* locale = nullptr;
+    CharPtr locale = nullptr;
     if (nargs >= 1 && !L->isNil(1)) {
         if (!L->isString(1)) {
             L->error("setlocale: argument must be a string");
@@ -305,7 +306,7 @@ i32 luaOS_setlocale(LuaState* L) {
         if (!L->isString(2)) {
             L->error("setlocale: category must be a string");
         }
-        const char* catStr = L->toString(2);
+        CharPtr catStr = L->toString(2);
         if (std::strcmp(catStr, "all") == 0)
             category = LC_ALL;
         else if (std::strcmp(catStr, "collate") == 0)
@@ -322,7 +323,7 @@ i32 luaOS_setlocale(LuaState* L) {
             L->error("setlocale: invalid category");
     }
 
-    const char* result = std::setlocale(category, locale);
+    CharPtr result = std::setlocale(category, locale);
     if (result) {
         GCString* str = L->getGlobalState().getStringPool().intern(result);
         L->pushString(str);
@@ -335,7 +336,7 @@ i32 luaOS_setlocale(LuaState* L) {
 i32 luaOS_tmpname(LuaState* L) {
     L->requireSandboxCapability(SandboxCapability::Filesystem);
 #ifdef _WIN32
-    std::array<char, L_tmpnam> tmpBuffer{};
+    Arr<char, L_tmpnam> tmpBuffer{};
     errno_t err = tmpnam_s(tmpBuffer.data(), tmpBuffer.size());
     if (err == 0) {
         GCString* str = L->getGlobalState().getStringPool().intern(tmpBuffer.data());
@@ -344,7 +345,7 @@ i32 luaOS_tmpname(LuaState* L) {
         L->error("tmpname: unable to generate a unique filename");
     }
 #else
-    std::array<char, L_tmpnam> tmpBuffer{};
+    Arr<char, L_tmpnam> tmpBuffer{};
     if (std::tmpnam(tmpBuffer.data())) {
         GCString* str = L->getGlobalState().getStringPool().intern(tmpBuffer.data());
         L->pushString(str);
@@ -392,7 +393,7 @@ i32 luaOS_time(LuaState* L) {
 
 i32 luaOS_date(LuaState* L) {
     // 获取格式字符串（默认为"%c"）
-    const char* format = "%c";
+    CharPtr format = "%c";
     if (L->getTop() >= 1 && L->isString(1)) {
         format = L->toString(1);
     }
@@ -451,8 +452,8 @@ i32 luaOS_date(LuaState* L) {
         L->pushTable(table);
     } else {
         // 使用strftime格式化
-        std::array<char, 256> buffer{};
-        std::size_t result = std::strftime(buffer.data(), buffer.size(), format, stm);
+        Arr<char, 256> buffer{};
+        usize result = std::strftime(buffer.data(), buffer.size(), format, stm);
 
         if (result == 0) {
             GCString* str = L->getGlobalState().getStringPool().intern("");

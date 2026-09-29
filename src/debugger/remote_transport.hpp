@@ -6,6 +6,7 @@
  */
 
 #include "debugger/remote_protocol.hpp"
+#include "common/types.hpp"
 
 #include <atomic>
 #include <span>
@@ -24,7 +25,7 @@ public:
 
     [[nodiscard]] static ProtocolResult<TcpConnection> connect(StrView address, u16 port, u32 timeoutMs);
     [[nodiscard]] bool valid() const noexcept;
-    [[nodiscard]] ProtocolResult<void> sendAll(std::span<const u8> bytes);
+    [[nodiscard]] ProtocolResult<void> sendAll(Span<const u8> bytes);
     [[nodiscard]] ProtocolResult<Vec<u8>> receiveSome(usize maxBytes = usize{64} * 1024U);
     [[nodiscard]] ProtocolResult<void> setTimeouts(u32 receiveTimeoutMs, u32 sendTimeoutMs);
     void close() noexcept;
@@ -32,7 +33,7 @@ public:
 private:
     friend class TcpListener;
     explicit TcpConnection(isize socket) noexcept : socket_(socket) {}
-    std::atomic<isize> socket_{-1};
+    Atom<isize> socket_{-1};
 };
 
 class TcpListener {
@@ -52,7 +53,7 @@ public:
     void close() noexcept;
 
 private:
-    std::atomic<isize> socket_{-1};
+    Atom<isize> socket_{-1};
     u16 localPort_ = 0;
 };
 

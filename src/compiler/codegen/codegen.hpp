@@ -20,6 +20,7 @@
  * - 通过 RegisterAllocator 管理临时寄存器与 maxStackSize
  */
 
+#include "common/types.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/opcode.hpp"
 #include "compiler/codegen/codegen_types.hpp"
@@ -94,7 +95,7 @@ public:
      * @param chunk 抽象语法树根节点
      * @return 由垃圾回收器托管的非拥有型函数原型指针，或代码生成错误
      */
-    [[nodiscard]] std::expected<Proto*, CodegenError> tryGenerate(const Chunk& chunk, StrView sourceName = {});
+    [[nodiscard]] Expect<Proto*, CodegenError> tryGenerate(const Chunk& chunk, StrView sourceName = {});
 
     // =====================================================================
     /** @brief 符号绑定（第 8 次拉取请求）。 */

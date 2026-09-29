@@ -3,6 +3,7 @@
  * @brief Lua字节码生成器实现
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/codegen/gc_allocation_guard.hpp"
 #include "core/gc_string.hpp"
@@ -48,7 +49,7 @@ Proto* CodeGenerator::generate(const Chunk& chunk, StrView sourceName) {
     return *generated;
 }
 
-std::expected<Proto*, CodegenError> CodeGenerator::tryGenerate(const Chunk& chunk, StrView sourceName) {
+Expect<Proto*, CodegenError> CodeGenerator::tryGenerate(const Chunk& chunk, StrView sourceName) {
     try {
         return generateUnchecked(chunk, sourceName);
     } catch (const std::bad_alloc&) {
@@ -56,13 +57,13 @@ std::expected<Proto*, CodegenError> CodeGenerator::tryGenerate(const Chunk& chun
         throw;
     } catch (const CodegenError& error) {
         discardCurrentProto();
-        return std::unexpected(error);
+        return Unexpect<CodegenError>(error);
     } catch (const LuaError& error) {
         discardCurrentProto();
-        return std::unexpected(CodegenError(error.what()));
+        return Unexpect<CodegenError>(CodegenError(error.what()));
     } catch (const std::exception& error) {
         discardCurrentProto();
-        return std::unexpected(CodegenError(error.what()));
+        return Unexpect<CodegenError>(CodegenError(error.what()));
     }
 }
 

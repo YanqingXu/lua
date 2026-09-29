@@ -5,6 +5,7 @@
  * 实现语句块、控制流语句、局部声明、返回语句、赋值语句和函数调用语句解析。
  */
 
+#include "common/types.hpp"
 #include "parser_impl.hpp"
 #include "parser_utils.hpp"
 
@@ -18,10 +19,7 @@ Vec<StmtPtr> Parser::Impl::parseBlock() {
     Vec<StmtPtr> statements;
     bool mayConsumeSeparator = false;
 
-    while (!check(TokenType::Eos) &&
-           !check(TokenType::End) &&
-           !check(TokenType::Else) &&
-           !check(TokenType::Elseif) &&
+    while (!check(TokenType::Eos) && !check(TokenType::End) && !check(TokenType::Else) && !check(TokenType::Elseif) &&
            !check(TokenType::Until)) {
         try {
             if (check(static_cast<TokenType>(';'))) {
@@ -59,24 +57,24 @@ Vec<StmtPtr> Parser::Impl::parseBlock() {
 
 StmtPtr Parser::Impl::parseStatement() {
     switch (current().type) {
-        case TokenType::If:
-            return parseIfStmt();
-        case TokenType::While:
-            return parseWhileStmt();
-        case TokenType::Do:
-            return parseDoStmt();
-        case TokenType::For:
-            return parseForStmt();
-        case TokenType::Repeat:
-            return parseRepeatStmt();
-        case TokenType::Function:
-            return parseFunctionStmt();
-        case TokenType::Local:
-            return parseLocalStmt();
-        case TokenType::Break:
-            return parseBreakStmt();
-        default:
-            return parseExprStmt();
+    case TokenType::If:
+        return parseIfStmt();
+    case TokenType::While:
+        return parseWhileStmt();
+    case TokenType::Do:
+        return parseDoStmt();
+    case TokenType::For:
+        return parseForStmt();
+    case TokenType::Repeat:
+        return parseRepeatStmt();
+    case TokenType::Function:
+        return parseFunctionStmt();
+    case TokenType::Local:
+        return parseLocalStmt();
+    case TokenType::Break:
+        return parseBreakStmt();
+    default:
+        return parseExprStmt();
     }
 }
 
@@ -321,12 +319,8 @@ StmtPtr Parser::Impl::parseReturnStmt() {
     returnStmt.line = line;
     returnStmt.column = column;
 
-    if (!check(TokenType::End) &&
-        !check(TokenType::Eos) &&
-        !check(TokenType::Else) &&
-        !check(TokenType::Elseif) &&
-        !check(TokenType::Until) &&
-        !check(static_cast<TokenType>(';'))) {
+    if (!check(TokenType::End) && !check(TokenType::Eos) && !check(TokenType::Else) && !check(TokenType::Elseif) &&
+        !check(TokenType::Until) && !check(static_cast<TokenType>(';'))) {
         returnStmt.values = parseExprList();
     }
 
@@ -390,4 +384,4 @@ StmtPtr Parser::Impl::parseExprStmt() {
     }
 }
 
-}
+} // namespace Lua

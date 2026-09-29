@@ -6,6 +6,7 @@
  */
 
 #include "debugger/remote_protocol_generated.hpp"
+#include "common/types.hpp"
 
 #include <expected>
 #include <span>
@@ -18,7 +19,7 @@ struct ProtocolError {
     usize offset = 0;
 };
 
-template <typename T> using ProtocolResult = std::expected<T, ProtocolError>;
+template <typename T> using ProtocolResult = Expect<T, ProtocolError>;
 
 struct ProtocolFrame {
     u16 major = kProtocolVersionMajor;
@@ -42,7 +43,7 @@ public:
     void writeI64(i64 value);
     void writeBool(bool value);
     void writeString(StrView value);
-    void writeBytes(std::span<const u8> value);
+    void writeBytes(Span<const u8> value);
 
     [[nodiscard]] ProtocolResult<Vec<u8>> finish() &&;
 
@@ -56,7 +57,7 @@ private:
 
 class ProtocolReader {
 public:
-    explicit ProtocolReader(std::span<const u8> bytes, usize maxStringBytes = kProtocolMaxStringBytes,
+    explicit ProtocolReader(Span<const u8> bytes, usize maxStringBytes = kProtocolMaxStringBytes,
                             usize maxCollectionItems = kProtocolMaxCollectionItems);
 
     [[nodiscard]] ProtocolResult<u8> readU8();
@@ -75,7 +76,7 @@ private:
     [[nodiscard]] ProtocolError failure(Str message) const;
     [[nodiscard]] bool available(usize bytes) const noexcept;
 
-    std::span<const u8> bytes_;
+    Span<const u8> bytes_;
     usize offset_ = 0;
     usize maxStringBytes_;
     usize maxCollectionItems_;
@@ -83,14 +84,14 @@ private:
 
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeProtocolFrame(const ProtocolFrame& frame,
                                                           usize maxFrameBytes = kProtocolMaxFrameBytes);
-[[nodiscard]] ProtocolResult<ProtocolFrame> decodeProtocolFrame(std::span<const u8> frameBytes,
+[[nodiscard]] ProtocolResult<ProtocolFrame> decodeProtocolFrame(Span<const u8> frameBytes,
                                                                 usize maxFrameBytes = kProtocolMaxFrameBytes);
 
 class ProtocolFrameDecoder {
 public:
     explicit ProtocolFrameDecoder(usize maxFrameBytes = kProtocolMaxFrameBytes);
 
-    [[nodiscard]] ProtocolResult<Vec<ProtocolFrame>> feed(std::span<const u8> bytes);
+    [[nodiscard]] ProtocolResult<Vec<ProtocolFrame>> feed(Span<const u8> bytes);
     [[nodiscard]] ProtocolResult<Vec<ProtocolFrame>> feed(StrView bytes);
     [[nodiscard]] ProtocolResult<void> finish() const;
     void reset() noexcept;
@@ -124,9 +125,9 @@ struct ProtocolHelloAck {
 };
 
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeHello(const ProtocolHello& hello);
-[[nodiscard]] ProtocolResult<ProtocolHello> decodeHello(std::span<const u8> payload);
+[[nodiscard]] ProtocolResult<ProtocolHello> decodeHello(Span<const u8> payload);
 [[nodiscard]] ProtocolResult<Vec<u8>> encodeHelloAck(const ProtocolHelloAck& hello);
-[[nodiscard]] ProtocolResult<ProtocolHelloAck> decodeHelloAck(std::span<const u8> payload);
+[[nodiscard]] ProtocolResult<ProtocolHelloAck> decodeHelloAck(Span<const u8> payload);
 [[nodiscard]] ProtocolResult<ProtocolHelloAck> negotiateHello(const ProtocolHello& hello, u64 availableCapabilities,
                                                               u64 sessionId, StrView serverVersion);
 

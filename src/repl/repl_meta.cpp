@@ -4,6 +4,7 @@
  */
 
 #include "repl/repl_meta.hpp"
+#include "common/types.hpp"
 
 #include "bytecode/bytecode_printer.hpp"
 #include "common/lua_error.hpp"
@@ -25,13 +26,13 @@
 namespace Lua::REPL {
 namespace detail {
 
-std::expected<Proto*, ParseError> compileForBytecode(LuaState* L, const Str& source) {
+Expect<Proto*, ParseError> compileForBytecode(LuaState* L, const Str& source) {
     RuntimeServices services(L->getGlobalState());
 
     Parser parser(source, services);
     auto parsed = parser.parse();
     if (!parsed) {
-        return std::unexpected(parsed.error());
+        return Unexpect<ParseError>(parsed.error());
     }
 
     CodeGenerator codegen(services);
@@ -43,13 +44,13 @@ std::expected<Proto*, ParseError> compileForBytecode(LuaState* L, const Str& sou
     return proto;
 }
 
-std::expected<Chunk, ParseError> parseForAst(LuaState* L, const Str& source) {
+Expect<Chunk, ParseError> parseForAst(LuaState* L, const Str& source) {
     RuntimeServices services(L->getGlobalState());
 
     Parser parser(source, services);
     auto parsed = parser.parse();
     if (!parsed) {
-        return std::unexpected(parsed.error());
+        return Unexpect<ParseError>(parsed.error());
     }
 
     return std::move(*parsed);
@@ -71,11 +72,11 @@ GcSnapshot captureGcSnapshot(RuntimeServices& services) {
     return snapshot;
 }
 
-double memoryKilobytes(usize bytes) {
-    return static_cast<double>(bytes) / 1024.0;
+f64 memoryKilobytes(usize bytes) {
+    return static_cast<f64>(bytes) / 1024.0;
 }
 
-void printGcSnapshot(std::ostream& out, std::string_view label, const GcSnapshot& snapshot) {
+void printGcSnapshot(std::ostream& out, StrView label, const GcSnapshot& snapshot) {
     out << label << '\n';
     out << "    objects: " << snapshot.objects << '\n';
     out << "    roots: " << snapshot.roots << '\n';
@@ -98,7 +99,7 @@ void printGcStrategy(RuntimeServices& services, std::ostream& out) {
     out << "  switch: collectgarbage(\"strategy\", \"mark-sweep\"|\"incremental\")" << '\n';
 }
 
-const char* binaryOpName(BinaryExpr::Op op) {
+CharPtr binaryOpName(BinaryExpr::Op op) {
     switch (op) {
     case BinaryExpr::Op::Add:
         return "Add";
@@ -135,7 +136,7 @@ const char* binaryOpName(BinaryExpr::Op op) {
     return "Unknown";
 }
 
-const char* unaryOpName(UnaryExpr::Op op) {
+CharPtr unaryOpName(UnaryExpr::Op op) {
     switch (op) {
     case UnaryExpr::Op::Not:
         return "Not";
@@ -385,11 +386,11 @@ private:
         AstPrinter& printer_;
     };
 
-    template <typename Node> void lineWithLocation(std::string_view label, const Node& node) {
+    template <typename Node> void lineWithLocation(StrView label, const Node& node) {
         line(std::format("{} @ {}:{}", label, node.line, node.column));
     }
 
-    void line(std::string_view text) {
+    void line(StrView text) {
         out_ << Str(indent_ * 2, ' ') << text << '\n';
     }
 
@@ -401,7 +402,7 @@ private:
         visit(stmt);
     }
 
-    void printExprField(std::string_view label, const Expr* expr) {
+    void printExprField(StrView label, const Expr* expr) {
         line(std::format("{}:", label));
         IndentGuard indent(*this);
         if (expr == nullptr) {
@@ -440,7 +441,7 @@ private:
         return text;
     }
 
-    Str functionLabel(std::string_view nodeName, const Vec<Str>& params, bool isVararg) {
+    Str functionLabel(StrView nodeName, const Vec<Str>& params, bool isVararg) {
         return std::format("{} params=[{}] vararg={}", nodeName, joinNames(params), isVararg ? "true" : "false");
     }
 

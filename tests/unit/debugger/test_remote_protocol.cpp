@@ -3,6 +3,7 @@
  * @brief YLDP framing, compatibility, limits, and malformed-input tests.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "debugger/remote_protocol.hpp"
@@ -25,16 +26,16 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Debugger Remote Protocol";
+constexpr Lua::CharPtr kSuiteName = "Debugger Remote Protocol";
 
-std::span<const u8> bytesOf(const Vec<u8>& bytes) {
-    return std::span<const u8>(bytes.data(), bytes.size());
+Lua::Span<const u8> bytesOf(const Vec<u8>& bytes) {
+    return Lua::Span<const u8>(bytes.data(), bytes.size());
 }
 
 ProtocolResult<void> sendFrame(TcpConnection& connection, ProtocolFrame frame) {
     auto bytes = encodeProtocolFrame(frame);
     if (!bytes) {
-        return std::unexpected(bytes.error());
+        return Lua::Unexpect<ProtocolError>(bytes.error());
     }
     return connection.sendAll(bytesOf(*bytes));
 }
@@ -50,11 +51,11 @@ public:
             }
             auto bytes = connection.receiveSome();
             if (!bytes) {
-                return std::unexpected(bytes.error());
+                return Lua::Unexpect<ProtocolError>(bytes.error());
             }
             auto frames = decoder_.feed(bytesOf(*bytes));
             if (!frames) {
-                return std::unexpected(frames.error());
+                return Lua::Unexpect<ProtocolError>(frames.error());
             }
             for (ProtocolFrame& frame : *frames) {
                 pending_.push_back(std::move(frame));
@@ -75,7 +76,7 @@ ProtocolResult<ProtocolFrame> exchangeRequest(TcpConnection& connection, Protoco
     request.requestId = requestId;
     request.payload = std::move(payload);
     if (auto sent = sendFrame(connection, std::move(request)); !sent) {
-        return std::unexpected(sent.error());
+        return Lua::Unexpect<ProtocolError>(sent.error());
     }
     return reader.receive(connection);
 }
@@ -95,14 +96,14 @@ ProtocolResult<ProtocolFrame> exchangeHello(TcpConnection& connection, ProtocolF
     hello.stateSelector = std::move(stateSelector);
     auto payload = encodeHello(hello);
     if (!payload) {
-        return std::unexpected(payload.error());
+        return Lua::Unexpect<ProtocolError>(payload.error());
     }
     ProtocolFrame frame;
     frame.kind = ProtocolMessageKind::Hello;
     frame.requestId = requestId;
     frame.payload = std::move(*payload);
     if (auto sent = sendFrame(connection, std::move(frame)); !sent) {
-        return std::unexpected(sent.error());
+        return Lua::Unexpect<ProtocolError>(sent.error());
     }
     return reader.receive(connection);
 }
@@ -131,12 +132,12 @@ void testRemoteProtocolPrimitives(TestSuite& suite) {
     writer.writeI64(-42);
     writer.writeBool(true);
     writer.writeString("YanLua");
-    const std::array raw{u8{1}, u8{2}, u8{3}};
+    const Lua::Arr<u8, 3> raw{u8{1}, u8{2}, u8{3}};
     writer.writeBytes(raw);
     auto payload = std::move(writer).finish();
     ASSERT_TRUE(suite, payload.has_value(), "Bounded protocol writer encodes primitive values");
 
-    ProtocolReader reader(payload ? bytesOf(*payload) : std::span<const u8>{});
+    ProtocolReader reader(payload ? bytesOf(*payload) : Lua::Span<const u8>{});
     const auto value8 = reader.readU8();
     const auto value16 = reader.readU16();
     const auto value32 = reader.readU32();
@@ -160,7 +161,7 @@ void testRemoteProtocolPrimitives(TestSuite& suite) {
     ASSERT_TRUE(suite, !rejected && rejected.error().status == ProtocolStatus::ResourceLimit,
                 "Protocol writer rejects payload growth beyond its configured limit");
 
-    const std::array invalidBool{u8{2}};
+    const Lua::Arr<u8, 1> invalidBool{u8{2}};
     ProtocolReader invalidReader(invalidBool);
     ASSERT_FALSE(suite, invalidReader.readBool(), "Protocol reader rejects non-canonical booleans");
 }
@@ -174,7 +175,7 @@ void testRemoteProtocolFrames(TestSuite& suite) {
     auto encoded = encodeProtocolFrame(original);
     ASSERT_TRUE(suite, encoded.has_value(), "YLDP frame encoder accepts a bounded request");
     const auto decoded = encoded ? decodeProtocolFrame(bytesOf(*encoded))
-                                 : ProtocolResult<ProtocolFrame>(std::unexpected(ProtocolError{}));
+                                 : ProtocolResult<ProtocolFrame>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decoded && decoded->major == kProtocolVersionMajor && decoded->kind == ProtocolMessageKind::Request &&
                     decoded->command == ProtocolCommand::Evaluate && decoded->requestId == original.requestId &&
@@ -185,7 +186,7 @@ void testRemoteProtocolFrames(TestSuite& suite) {
     Vec<ProtocolFrame> fragments;
     if (encoded) {
         for (const u8 byte : *encoded) {
-            const std::array one{byte};
+            const Lua::Arr<u8, 1> one{byte};
             auto batch = fragmented.feed(one);
             if (batch) {
                 for (ProtocolFrame& frame : *batch) {
@@ -231,18 +232,18 @@ void testRemoteProtocolMalformedInputs(TestSuite& suite) {
     ASSERT_FALSE(suite, decodeProtocolFrame(bytesOf(badReserved)), "YLDP rejects non-zero reserved header bits");
 
     ProtocolFrameDecoder shortLength;
-    const std::array impossibleLength{u8{0}, u8{0}, u8{0}, u8{1}};
+    const Lua::Arr<u8, 4> impossibleLength{u8{0}, u8{0}, u8{0}, u8{1}};
     ASSERT_FALSE(suite, shortLength.feed(impossibleLength), "YLDP rejects lengths smaller than the fixed header");
 
     ProtocolFrameDecoder oversized(64);
-    const std::array largeLength{u8{0}, u8{0}, u8{1}, u8{0}};
+    const Lua::Arr<u8, 4> largeLength{u8{0}, u8{0}, u8{1}, u8{0}};
     const auto large = oversized.feed(largeLength);
     ASSERT_TRUE(suite, !large && large.error().status == ProtocolStatus::ResourceLimit,
                 "YLDP rejects an oversized frame before allocating its declared body");
 
     ProtocolFrameDecoder earlyEof;
     const usize partialSize = encoded.size() > 2 ? encoded.size() - 2 : 0;
-    const auto partial = earlyEof.feed(std::span<const u8>(encoded.data(), partialSize));
+    const auto partial = earlyEof.feed(Lua::Span<const u8>(encoded.data(), partialSize));
     ASSERT_TRUE(suite, partial.has_value() && !earlyEof.finish(), "YLDP reports bounded early EOF for a partial frame");
 }
 
@@ -256,8 +257,8 @@ void testRemoteProtocolHandshake(TestSuite& suite) {
                                   capabilityBit(ProtocolCapability::MultipleStates);
     hello.stateSelector = "game";
     const auto payload = encodeHello(hello);
-    const auto decoded =
-        payload ? decodeHello(bytesOf(*payload)) : ProtocolResult<ProtocolHello>(std::unexpected(ProtocolError{}));
+    const auto decoded = payload ? decodeHello(bytesOf(*payload))
+                                 : ProtocolResult<ProtocolHello>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decoded && decoded->clientName == hello.clientName && decoded->authToken == hello.authToken &&
                     decoded->stateSelector == "game",
@@ -266,20 +267,20 @@ void testRemoteProtocolHandshake(TestSuite& suite) {
     const u64 available =
         capabilityBit(ProtocolCapability::Breakpoints) | capabilityBit(ProtocolCapability::GlobalPauseOnly);
     const auto negotiated = decoded ? negotiateHello(*decoded, available, 73, "1.2.3")
-                                    : ProtocolResult<ProtocolHelloAck>(std::unexpected(ProtocolError{}));
+                                    : ProtocolResult<ProtocolHelloAck>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 negotiated && negotiated->sessionId == 73 &&
                     negotiated->capabilities == capabilityBit(ProtocolCapability::Breakpoints),
                 "Handshake selects only the intersection of requested and available capabilities");
-    const auto ackPayload =
-        negotiated ? encodeHelloAck(*negotiated) : ProtocolResult<Vec<u8>>(std::unexpected(ProtocolError{}));
+    const auto ackPayload = negotiated ? encodeHelloAck(*negotiated)
+                                       : ProtocolResult<Vec<u8>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     const auto ack = ackPayload ? decodeHelloAck(bytesOf(*ackPayload))
-                                : ProtocolResult<ProtocolHelloAck>(std::unexpected(ProtocolError{}));
+                                : ProtocolResult<ProtocolHelloAck>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite, ack && ack->serverVersion == "1.2.3" && ack->serverName == "YanLua Runtime",
                 "Handshake acknowledgement carries stable server metadata");
     ASSERT_TRUE(suite,
                 !ackPayload ||
-                    Str(reinterpret_cast<const char*>(ackPayload->data()), ackPayload->size()).find(hello.authToken) ==
+                    Str(reinterpret_cast<Lua::CharPtr>(ackPayload->data()), ackPayload->size()).find(hello.authToken) ==
                         Str::npos,
                 "Authentication token is never echoed by the server handshake");
 
@@ -297,33 +298,36 @@ void testRemoteAdvancedBreakpointMessages(TestSuite& suite) {
     request.breakpoints.push_back(SourceBreakpoint{17, "enabled", "3", "value={value}"});
     auto encoded = encodeAdvancedBreakpointRequest(request);
     auto decoded = encoded ? decodeAdvancedBreakpointRequest(bytesOf(*encoded))
-                           : ProtocolResult<RemoteBreakpointRequest>(std::unexpected(ProtocolError{}));
+                           : ProtocolResult<RemoteBreakpointRequest>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decoded && decoded->sourcePath == request.sourcePath && decoded->breakpoints.size() == 1 &&
                     decoded->breakpoints[0].condition == "enabled" && decoded->breakpoints[0].hitCondition == "3" &&
                     decoded->breakpoints[0].logMessage == "value={value}",
                 "Advanced source breakpoint fields round trip over the versioned YLDP codec");
 
-    const std::array functions{FunctionBreakpoint{"worker", "ready", "2"}};
+    const Lua::Arr<FunctionBreakpoint, 1> functions{FunctionBreakpoint{"worker", "ready", "2"}};
     auto functionPayload = encodeFunctionBreakpointRequest(functions);
-    auto decodedFunctions = functionPayload ? decodeFunctionBreakpointRequest(bytesOf(*functionPayload))
-                                            : ProtocolResult<Vec<FunctionBreakpoint>>(std::unexpected(ProtocolError{}));
+    auto decodedFunctions =
+        functionPayload ? decodeFunctionBreakpointRequest(bytesOf(*functionPayload))
+                        : ProtocolResult<Vec<FunctionBreakpoint>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedFunctions && decodedFunctions->size() == 1 && decodedFunctions->front().name == "worker" &&
                     decodedFunctions->front().condition == "ready" && decodedFunctions->front().hitCondition == "2",
                 "Function breakpoint name, condition, and hit count round trip over YLDP");
 
     auto outputPayload = encodeOutputEvent("safe log output", DebugOutputCategory::Console);
-    auto output = outputPayload ? decodeOutputEvent(bytesOf(*outputPayload))
-                                : ProtocolResult<std::pair<Str, DebugOutputCategory>>(std::unexpected(ProtocolError{}));
+    auto output =
+        outputPayload
+            ? decodeOutputEvent(bytesOf(*outputPayload))
+            : ProtocolResult<std::pair<Str, DebugOutputCategory>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite, output && output->first == "safe log output" && output->second == DebugOutputCategory::Console,
                 "Remote log point output retains its bounded text and category");
 
     RemoteSetVariableRequest setVariable{VariableReference{44}, "captured", "'updated'"};
     auto setVariablePayload = encodeSetVariableRequest(setVariable);
-    auto decodedSetVariable = setVariablePayload
-                                  ? decodeSetVariableRequest(bytesOf(*setVariablePayload))
-                                  : ProtocolResult<RemoteSetVariableRequest>(std::unexpected(ProtocolError{}));
+    auto decodedSetVariable =
+        setVariablePayload ? decodeSetVariableRequest(bytesOf(*setVariablePayload))
+                           : ProtocolResult<RemoteSetVariableRequest>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedSetVariable && decodedSetVariable->reference == VariableReference{44} &&
                     decodedSetVariable->name == "captured" && decodedSetVariable->valueExpression == "'updated'",
@@ -333,34 +337,38 @@ void testRemoteAdvancedBreakpointMessages(TestSuite& suite) {
 void testRemoteRuntimePayloadMessages(TestSuite& suite) {
     auto errorPayload = encodeErrorMessage("bounded remote error");
     auto error = errorPayload ? decodeErrorMessage(bytesOf(*errorPayload))
-                              : ProtocolResult<Str>(std::unexpected(ProtocolError{}));
+                              : ProtocolResult<Str>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite, error && *error == "bounded remote error", "Remote error text round trips over YLDP");
 
-    const std::array sourceBindings{BreakpointBinding{BreakpointId{3}, SourceId{5}, 17, 19, true, "bound", {}}};
+    const Lua::Arr<BreakpointBinding, 1> sourceBindings{
+        BreakpointBinding{BreakpointId{3}, SourceId{5}, 17, 19, true, "bound", {}}};
     auto sourcePayload = encodeBreakpointBindings(sourceBindings);
-    auto decodedSources = sourcePayload ? decodeBreakpointBindings(bytesOf(*sourcePayload))
-                                        : ProtocolResult<Vec<BreakpointBinding>>(std::unexpected(ProtocolError{}));
+    auto decodedSources = sourcePayload
+                              ? decodeBreakpointBindings(bytesOf(*sourcePayload))
+                              : ProtocolResult<Vec<BreakpointBinding>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedSources && decodedSources->size() == 1 && decodedSources->front().id == BreakpointId{3} &&
                     decodedSources->front().requestedLine == 17 && decodedSources->front().line == 19 &&
                     decodedSources->front().verified,
                 "Source breakpoint bindings retain resolved locations and verification state");
 
-    const std::array functionBindings{
+    const Lua::Arr<BreakpointBinding, 1> functionBindings{
         BreakpointBinding{BreakpointId{7}, SourceId{9}, 0, 23, true, "resolved", Opt<Str>{"worker"}}};
     auto functionPayload = encodeFunctionBreakpointBindings(functionBindings);
-    auto decodedFunctions = functionPayload ? decodeFunctionBreakpointBindings(bytesOf(*functionPayload))
-                                            : ProtocolResult<Vec<BreakpointBinding>>(std::unexpected(ProtocolError{}));
+    auto decodedFunctions = functionPayload
+                                ? decodeFunctionBreakpointBindings(bytesOf(*functionPayload))
+                                : ProtocolResult<Vec<BreakpointBinding>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedFunctions && decodedFunctions->size() == 1 &&
                     decodedFunctions->front().functionName == Opt<Str>{"worker"} &&
                     decodedFunctions->front().line == 23,
                 "Function breakpoint bindings retain their resolved symbol and line");
 
-    const std::array threads{DebugThread{ThreadId{11}, "main", DebugThreadState::Paused}};
+    const Lua::Arr<DebugThread, 1> threads{DebugThread{ThreadId{11}, "main", DebugThreadState::Paused}};
     auto threadPayload = encodeThreads(threads);
-    auto decodedThreads = threadPayload ? decodeThreads(bytesOf(*threadPayload))
-                                        : ProtocolResult<Vec<DebugThread>>(std::unexpected(ProtocolError{}));
+    auto decodedThreads = threadPayload
+                              ? decodeThreads(bytesOf(*threadPayload))
+                              : ProtocolResult<Vec<DebugThread>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedThreads && decodedThreads->size() == 1 && decodedThreads->front().id == ThreadId{11} &&
                     decodedThreads->front().state == DebugThreadState::Paused,
@@ -369,27 +377,28 @@ void testRemoteRuntimePayloadMessages(TestSuite& suite) {
     const DebugState state{StateId{13}, ThreadId{11}, "game", "Game VM", DebugThreadState::Running, true};
     auto statePayload = encodeDebugStateEvent(state);
     auto decodedState = statePayload ? decodeDebugStateEvent(bytesOf(*statePayload))
-                                     : ProtocolResult<DebugState>(std::unexpected(ProtocolError{}));
+                                     : ProtocolResult<DebugState>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedState && decodedState->id == StateId{13} && decodedState->threadId == ThreadId{11} &&
                     decodedState->label == "Game VM" && decodedState->selected,
                 "Debug state events retain their selected runtime identity");
 
-    const std::array frames{RemoteStackFrame{
+    const Lua::Arr<RemoteStackFrame, 1> frames{RemoteStackFrame{
         DebugStackFrame{FrameId{17}, ThreadId{11}, "tick", SourceLocation{SourceId{5}, 29, 4, 8}, false},
         "/srv/game/main.lua", true}};
     auto framePayload = encodeStackFrames(frames);
-    auto decodedFrames = framePayload ? decodeStackFrames(bytesOf(*framePayload))
-                                      : ProtocolResult<Vec<RemoteStackFrame>>(std::unexpected(ProtocolError{}));
+    auto decodedFrames = framePayload
+                             ? decodeStackFrames(bytesOf(*framePayload))
+                             : ProtocolResult<Vec<RemoteStackFrame>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedFrames && decodedFrames->size() == 1 && decodedFrames->front().frame.id == FrameId{17} &&
                     decodedFrames->front().frame.location.line == 29 && decodedFrames->front().sourceIsFile,
                 "Remote stack frames retain source coordinates and source kind");
 
-    const std::array scopes{DebugScope{"Locals", DebugScopeKind::Locals, VariableReference{21}, false}};
+    const Lua::Arr<DebugScope, 1> scopes{DebugScope{"Locals", DebugScopeKind::Locals, VariableReference{21}, false}};
     auto scopePayload = encodeScopes(scopes);
     auto decodedScopes = scopePayload ? decodeScopes(bytesOf(*scopePayload))
-                                      : ProtocolResult<Vec<DebugScope>>(std::unexpected(ProtocolError{}));
+                                      : ProtocolResult<Vec<DebugScope>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedScopes && decodedScopes->size() == 1 &&
                     decodedScopes->front().variablesReference == VariableReference{21} &&
@@ -398,26 +407,29 @@ void testRemoteRuntimePayloadMessages(TestSuite& suite) {
 
     const DebugVariable variable{"score", "42", "number", Opt<Str>{"score"}, VariableReference{31}, 2, 3};
     auto variablePayload = encodeVariable(variable);
-    auto decodedVariable = variablePayload ? decodeVariable(bytesOf(*variablePayload))
-                                           : ProtocolResult<DebugVariable>(std::unexpected(ProtocolError{}));
+    auto decodedVariable = variablePayload
+                               ? decodeVariable(bytesOf(*variablePayload))
+                               : ProtocolResult<DebugVariable>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedVariable && decodedVariable->name == "score" && decodedVariable->value == "42" &&
                     decodedVariable->evaluateName == Opt<Str>{"score"} && decodedVariable->namedVariables == 2 &&
                     decodedVariable->indexedVariables == 3,
                 "Remote variables retain evaluation metadata and child counts");
 
-    const std::array variables{variable};
+    const Lua::Arr<DebugVariable, 1> variables{variable};
     auto variablesPayload = encodeVariables(variables);
-    auto decodedVariables = variablesPayload ? decodeVariables(bytesOf(*variablesPayload))
-                                             : ProtocolResult<Vec<DebugVariable>>(std::unexpected(ProtocolError{}));
+    auto decodedVariables = variablesPayload
+                                ? decodeVariables(bytesOf(*variablesPayload))
+                                : ProtocolResult<Vec<DebugVariable>>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite, decodedVariables && decodedVariables->size() == 1 && decodedVariables->front().type == "number",
                 "Remote variable collections use the same bounded value codec");
 
     const DebugExceptionInfo exception{"runtime", "attempt to index nil", "always",
                                        DebugExceptionCategory::RuntimeError};
     auto exceptionPayload = encodeExceptionInfo(exception);
-    auto decodedException = exceptionPayload ? decodeExceptionInfo(bytesOf(*exceptionPayload))
-                                             : ProtocolResult<DebugExceptionInfo>(std::unexpected(ProtocolError{}));
+    auto decodedException = exceptionPayload
+                                ? decodeExceptionInfo(bytesOf(*exceptionPayload))
+                                : ProtocolResult<DebugExceptionInfo>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedException && decodedException->exceptionId == "runtime" &&
                     decodedException->description == "attempt to index nil" &&
@@ -426,8 +438,9 @@ void testRemoteRuntimePayloadMessages(TestSuite& suite) {
 
     const RemoteStoppedEvent stopped{DebugStopReason::Breakpoint, ThreadId{11}, PauseGeneration{37}};
     auto stoppedPayload = encodeStoppedEvent(stopped);
-    auto decodedStopped = stoppedPayload ? decodeStoppedEvent(bytesOf(*stoppedPayload))
-                                         : ProtocolResult<RemoteStoppedEvent>(std::unexpected(ProtocolError{}));
+    auto decodedStopped = stoppedPayload
+                              ? decodeStoppedEvent(bytesOf(*stoppedPayload))
+                              : ProtocolResult<RemoteStoppedEvent>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedStopped && decodedStopped->reason == DebugStopReason::Breakpoint &&
                     decodedStopped->thread == ThreadId{11} && decodedStopped->generation == PauseGeneration{37},
@@ -438,7 +451,7 @@ void testRemoteRuntimePayloadMessages(TestSuite& suite) {
     auto terminatedPayload = encodeTerminatedEvent(terminated);
     auto decodedTerminated = terminatedPayload
                                  ? decodeTerminatedEvent(bytesOf(*terminatedPayload))
-                                 : ProtocolResult<RemoteTerminatedEvent>(std::unexpected(ProtocolError{}));
+                                 : ProtocolResult<RemoteTerminatedEvent>(Lua::Unexpect<ProtocolError>(ProtocolError{}));
     ASSERT_TRUE(suite,
                 decodedTerminated && decodedTerminated->reason == DebugTerminationReason::RuntimeError &&
                     decodedTerminated->error && decodedTerminated->error->message == "runtime failed",
@@ -462,7 +475,7 @@ void testRemoteProtocolMutationCorpus(TestSuite& suite) {
         }
         for (usize length = 0; length < encoded->size(); ++length) {
             ProtocolFrameDecoder decoder;
-            (void)decoder.feed(std::span<const u8>(encoded->data(), length));
+            (void)decoder.feed(Lua::Span<const u8>(encoded->data(), length));
             (void)decoder.finish();
             ++handled;
         }
@@ -588,7 +601,7 @@ void testRuntimeDebugServerLoopback(TestSuite& suite) {
             ProtocolFrameReader malformedReader;
             auto sent = sendFrame(*malformedHello, std::move(frame));
             auto rejected = sent ? malformedReader.receive(*malformedHello)
-                                 : ProtocolResult<ProtocolFrame>(std::unexpected(sent.error()));
+                                 : ProtocolResult<ProtocolFrame>(Lua::Unexpect<ProtocolError>(sent.error()));
             ASSERT_TRUE(suite, rejected && rejected->status == ProtocolStatus::ProtocolError,
                         "Remote server rejects a malformed hello payload with a protocol response");
             malformedHello->close();
@@ -669,7 +682,8 @@ void testRuntimeDebugServerLoopback(TestSuite& suite) {
     ping.kind = ProtocolMessageKind::Ping;
     ping.requestId = 7;
     auto pingSent = sendFrame(*client, std::move(ping));
-    auto pong = pingSent ? reader.receive(*client) : ProtocolResult<ProtocolFrame>(std::unexpected(pingSent.error()));
+    auto pong = pingSent ? reader.receive(*client)
+                         : ProtocolResult<ProtocolFrame>(Lua::Unexpect<ProtocolError>(pingSent.error()));
     ASSERT_TRUE(suite, pong && pong->kind == ProtocolMessageKind::Pong && pong->requestId == 7,
                 "Authenticated session answers heartbeat pings");
 
@@ -734,7 +748,8 @@ void testRuntimeDebugServerLoopback(TestSuite& suite) {
                     stopped->command == static_cast<ProtocolCommand>(ProtocolEvent::Stopped),
                 "Remote server publishes the stopped lifecycle event");
 
-    const std::array stepCommands{ProtocolCommand::Next, ProtocolCommand::StepIn, ProtocolCommand::StepOut};
+    const Lua::Arr<ProtocolCommand, 3> stepCommands{ProtocolCommand::Next, ProtocolCommand::StepIn,
+                                                    ProtocolCommand::StepOut};
     for (ProtocolCommand command : stepCommands) {
         expectResponse(command, encodeThreadRequest(DebugController::mainThreadId()).value_or(Vec<u8>{}),
                        ProtocolStatus::Okay);

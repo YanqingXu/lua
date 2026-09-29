@@ -3,6 +3,7 @@
  * @brief Compile-time checks for VM implementation-slice boundaries.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"
@@ -21,7 +22,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "VM Internal Boundaries";
+constexpr Lua::CharPtr kSuiteName = "VM Internal Boundaries";
 
 void testOperationHelpersExposeStableSignatures(TestSuite& suite) {
     static_assert(std::is_same_v<decltype(&VM::detail::gettable), void (*)(LuaState*, Value, const Value&, Value&)>);
@@ -197,7 +198,7 @@ void testBytecodeVerifierCoversEveryOpcode(TestSuite& suite) {
         const OpCode opcode = static_cast<OpCode>(rawOpcode);
         appendOpcodeFixture(proto, opcode);
         const auto result = BytecodeVerifier::verify(proto);
-        ASSERT_TRUE(suite, result.has_value(), std::string("verifier accepts valid ") + getOpName(opcode));
+        ASSERT_TRUE(suite, result.has_value(), Lua::Str("verifier accepts valid ") + getOpName(opcode));
     }
 }
 

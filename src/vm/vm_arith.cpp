@@ -3,6 +3,7 @@
  * @brief 虚拟机算术操作码执行辅助函数
  */
 
+#include "common/types.hpp"
 #include "vm/vm_internal.hpp"
 
 #include "core/function.hpp"

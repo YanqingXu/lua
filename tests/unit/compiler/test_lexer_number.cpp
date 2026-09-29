@@ -3,6 +3,7 @@
  * @brief 验证词法分析器对非法数字的处理
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include <string>
@@ -23,8 +24,9 @@ static void testValidNumber(TestSuite& suite) {
 static void testMalformedNumberTrailingId(TestSuite& suite) {
     Lexer lexer("123abc");
     Token t = lexer.nextToken();
-    ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(t.type), "Malformed number returns error token");
-    ASSERT_EQ(suite, std::string("123abc"), t.lexeme, "Error token carries offending lexeme");
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(t.type),
+              "Malformed number returns error token");
+    ASSERT_EQ(suite, Lua::Str("123abc"), t.lexeme, "Error token carries offending lexeme");
 }
 
 // 非法十六进制 0x1G 应返回错误
@@ -32,8 +34,8 @@ static void testMalformedHexTrailingLetter(TestSuite& suite) {
     Lexer lexer("0x1G");
     Token t = lexer.nextToken();
     ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(t.type), "Malformed hex returns error token");
-    ASSERT_EQ(suite, std::string("0x1G"), t.lexeme, "Malformed hex carries full offending lexeme");
-    ASSERT_EQ(suite, std::string("Malformed hexadecimal number"), t.errorMessage, "Malformed hex carries diagnostic");
+    ASSERT_EQ(suite, Lua::Str("0x1G"), t.lexeme, "Malformed hex carries full offending lexeme");
+    ASSERT_EQ(suite, Lua::Str("Malformed hexadecimal number"), t.errorMessage, "Malformed hex carries diagnostic");
 }
 
 // 有效十六进制整数应按 Lua 5.1 规则解析
@@ -61,7 +63,7 @@ static void testLongStringSkipFirstNewline(TestSuite& suite) {
     auto strPtr = std::get_if<Str>(&t.value);
     ASSERT_TRUE(suite, strPtr != nullptr, "Long string has string value");
     if (strPtr) {
-        ASSERT_EQ(suite, std::string("abc"), *strPtr, "Leading newline is stripped");
+        ASSERT_EQ(suite, Lua::Str("abc"), *strPtr, "Leading newline is stripped");
     }
 }
 
@@ -69,7 +71,7 @@ static void testLongStringSkipFirstNewline(TestSuite& suite) {
 static void testLongCommentSkipFirstNewline(TestSuite& suite) {
     Lexer lexer("--[[\ncomment]]123");
     Token t = lexer.nextToken();
-    std::string msg = std::string("Number after long comment, got ") + tokenTypeToString(t.type);
+    Lua::Str msg = Lua::Str("Number after long comment, got ") + tokenTypeToString(t.type);
     ASSERT_EQ(suite, static_cast<int>(TokenType::Number), static_cast<int>(t.type), msg);
     ASSERT_EQ(suite, 2, t.line, "Line number accounts for stripped first newline");
 }
@@ -120,7 +122,7 @@ static void testLineCommentStopsAtCarriageReturn(TestSuite& suite) {
     Lexer lexer("--comment\rb");
     Token t = lexer.nextToken();
     ASSERT_EQ(suite, static_cast<int>(TokenType::Name), static_cast<int>(t.type), "Name after CR line comment");
-    ASSERT_EQ(suite, std::string("b"), t.lexeme, "Name after CR line comment lexeme");
+    ASSERT_EQ(suite, Lua::Str("b"), t.lexeme, "Name after CR line comment lexeme");
     ASSERT_EQ(suite, 2, t.line, "Name line after CR line comment");
     ASSERT_EQ(suite, 1, t.column, "Name column after CR line comment");
 }
@@ -133,12 +135,14 @@ static void testFailedLongStringProbeRestoresInput(TestSuite& suite) {
     ASSERT_EQ(suite, static_cast<int>(static_cast<TokenType>('[')), static_cast<int>(left.type), "First token is '['");
 
     Token eq = lexer.nextToken();
-    ASSERT_EQ(suite, static_cast<int>(TokenType::Eq), static_cast<int>(eq.type), "'==' is preserved after failed probe");
-    ASSERT_EQ(suite, std::string("=="), eq.lexeme, "'==' lexeme after failed probe");
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Eq), static_cast<int>(eq.type),
+              "'==' is preserved after failed probe");
+    ASSERT_EQ(suite, Lua::Str("=="), eq.lexeme, "'==' lexeme after failed probe");
 
     Token name = lexer.nextToken();
-    ASSERT_EQ(suite, static_cast<int>(TokenType::Name), static_cast<int>(name.type), "Name after failed probe is preserved");
-    ASSERT_EQ(suite, std::string("x"), name.lexeme, "Name lexeme after failed probe");
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Name), static_cast<int>(name.type),
+              "Name after failed probe is preserved");
+    ASSERT_EQ(suite, Lua::Str("x"), name.lexeme, "Name lexeme after failed probe");
 }
 
 // 长字符串中的不匹配结束符应作为内容保留
@@ -149,7 +153,7 @@ static void testLongStringMismatchedClosePreservesContent(TestSuite& suite) {
     auto strPtr = std::get_if<Str>(&t.value);
     ASSERT_TRUE(suite, strPtr != nullptr, "Long string has string value");
     if (strPtr) {
-        ASSERT_EQ(suite, std::string("a]==]b"), *strPtr, "Mismatched close delimiter is content");
+        ASSERT_EQ(suite, Lua::Str("a]==]b"), *strPtr, "Mismatched close delimiter is content");
     }
 }
 
@@ -161,7 +165,7 @@ static void testLongStringNormalizesNewlines(TestSuite& suite) {
     auto strPtr = std::get_if<Str>(&t.value);
     ASSERT_TRUE(suite, strPtr != nullptr, "Long string has string value");
     if (strPtr) {
-        ASSERT_EQ(suite, std::string("a\nb\nc"), *strPtr, "Long string newlines are normalized");
+        ASSERT_EQ(suite, Lua::Str("a\nb\nc"), *strPtr, "Long string newlines are normalized");
     }
 }
 
@@ -169,8 +173,9 @@ static void testLongStringNormalizesNewlines(TestSuite& suite) {
 static void testUnterminatedLongComment(TestSuite& suite) {
     Lexer lexer("--[[abc");
     Token t = lexer.nextToken();
-    ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(t.type), "Unterminated long comment returns error");
-    ASSERT_EQ(suite, std::string("Unterminated long comment"), t.errorMessage, "Long comment diagnostic");
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(t.type),
+              "Unterminated long comment returns error");
+    ASSERT_EQ(suite, Lua::Str("Unterminated long comment"), t.errorMessage, "Long comment diagnostic");
     ASSERT_EQ(suite, 1, t.line, "Long comment error start line");
     ASSERT_EQ(suite, 1, t.column, "Long comment error start column");
 }
@@ -211,13 +216,14 @@ static void testShortStringEscapedCrLfAndRawCr(TestSuite& suite) {
     auto strPtr = std::get_if<Str>(&ok.value);
     ASSERT_TRUE(suite, strPtr != nullptr, "Escaped CRLF string has value");
     if (strPtr) {
-        ASSERT_EQ(suite, std::string("a\nb"), *strPtr, "Escaped CRLF is normalized");
+        ASSERT_EQ(suite, Lua::Str("a\nb"), *strPtr, "Escaped CRLF is normalized");
     }
 
     Lexer raw("'a\rb'");
     Token error = raw.nextToken();
-    ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(error.type), "Raw CR in short string is error");
-    ASSERT_EQ(suite, std::string("Unterminated string"), error.errorMessage, "Raw CR diagnostic");
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(error.type),
+              "Raw CR in short string is error");
+    ASSERT_EQ(suite, Lua::Str("Unterminated string"), error.errorMessage, "Raw CR diagnostic");
 }
 
 // 输入中真实的 NUL 字节不应被游标包装误判为 EOF
@@ -227,16 +233,17 @@ static void testEmbeddedNullByteIsNotEof(TestSuite& suite) {
 
     Token a = lexer.nextToken();
     ASSERT_EQ(suite, static_cast<int>(TokenType::Name), static_cast<int>(a.type), "Name before NUL");
-    ASSERT_EQ(suite, std::string("a"), a.lexeme, "Name before NUL lexeme");
+    ASSERT_EQ(suite, Lua::Str("a"), a.lexeme, "Name before NUL lexeme");
 
     Token nul = lexer.nextToken();
-    ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(nul.type), "NUL byte is an unexpected character");
+    ASSERT_EQ(suite, static_cast<int>(TokenType::Error), static_cast<int>(nul.type),
+              "NUL byte is an unexpected character");
     ASSERT_EQ(suite, static_cast<usize>(1), nul.lexeme.size(), "NUL lexeme has one byte");
     ASSERT_TRUE(suite, nul.lexeme[0] == '\0', "NUL lexeme preserves byte");
 
     Token b = lexer.nextToken();
     ASSERT_EQ(suite, static_cast<int>(TokenType::Name), static_cast<int>(b.type), "Name after NUL");
-    ASSERT_EQ(suite, std::string("b"), b.lexeme, "Name after NUL lexeme");
+    ASSERT_EQ(suite, Lua::Str("b"), b.lexeme, "Name after NUL lexeme");
 }
 
 void registerLexerNumberTests() {
@@ -247,16 +254,21 @@ void registerLexerNumberTests() {
     registry.registerTest("Lexer Number", "Valid hex numbers", testValidHexNumbers);
     registry.registerTest("Lexer Number", "Long string skip first newline", testLongStringSkipFirstNewline);
     registry.registerTest("Lexer Number", "Long comment skip first newline", testLongCommentSkipFirstNewline);
-    registry.registerTest("Lexer Number", "Long comment mismatched close restores input", testLongCommentMismatchedCloseRestoresInput);
+    registry.registerTest("Lexer Number", "Long comment mismatched close restores input",
+                          testLongCommentMismatchedCloseRestoresInput);
     registry.registerTest("Lexer Number", "Initial shebang line is skipped", testInitialShebangLineIsSkipped);
-    registry.registerTest("Lexer Number", "Trailing dot numbers do not consume concat", testTrailingDotNumbersDoNotConsumeConcat);
+    registry.registerTest("Lexer Number", "Trailing dot numbers do not consume concat",
+                          testTrailingDotNumbersDoNotConsumeConcat);
     registry.registerTest("Lexer Number", "Line comment stops at CR", testLineCommentStopsAtCarriageReturn);
-    registry.registerTest("Lexer Number", "Failed long string probe restores input", testFailedLongStringProbeRestoresInput);
-    registry.registerTest("Lexer Number", "Long string mismatched close preserves content", testLongStringMismatchedClosePreservesContent);
+    registry.registerTest("Lexer Number", "Failed long string probe restores input",
+                          testFailedLongStringProbeRestoresInput);
+    registry.registerTest("Lexer Number", "Long string mismatched close preserves content",
+                          testLongStringMismatchedClosePreservesContent);
     registry.registerTest("Lexer Number", "Long string normalizes newlines", testLongStringNormalizesNewlines);
     registry.registerTest("Lexer Number", "Unterminated long comment", testUnterminatedLongComment);
     registry.registerTest("Lexer Number", "CRLF and LFCR line columns", testCrLfAndLfCrLineColumns);
-    registry.registerTest("Lexer Number", "Token column after newline and spaces", testTokenColumnAfterNewlineAndSpaces);
+    registry.registerTest("Lexer Number", "Token column after newline and spaces",
+                          testTokenColumnAfterNewlineAndSpaces);
     registry.registerTest("Lexer Number", "Short string CRLF handling", testShortStringEscapedCrLfAndRawCr);
     registry.registerTest("Lexer Number", "Embedded NUL byte is not EOF", testEmbeddedNullByteIsNotEof);
 }

@@ -3,15 +3,16 @@
  * @brief 默认 VM 调度策略选择
  */
 
+#include "common/types.hpp"
 #include "vm/vm_dispatch_strategy.hpp"
 
 namespace Lua::VM {
 
-const char* SwitchDispatch::name() const noexcept {
+CharPtr SwitchDispatch::name() const noexcept {
     return "switch";
 }
 
-const char* TableDispatch::name() const noexcept {
+CharPtr TableDispatch::name() const noexcept {
     return "table";
 }
 

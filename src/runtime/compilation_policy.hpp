@@ -29,13 +29,13 @@ struct CompilationPolicy {
     usize maxInstructions = 1'000'000;
     usize maxStringBytes = DefaultMaxBytes;
     usize maxNesting = 200;
-    std::optional<Clock::time_point> deadline;
+    Opt<Clock::time_point> deadline;
 };
 
 /** @brief 编译过程超过资源限制时抛出的异常。 */
 class CompilationLimitError final : public std::runtime_error {
 public:
-    explicit CompilationLimitError(const char* message) : std::runtime_error(message) {}
+    explicit CompilationLimitError(CharPtr message) : std::runtime_error(message) {}
 };
 
 /**
@@ -89,7 +89,7 @@ public:
     }
 
 private:
-    void consume(usize count, usize& total, usize limit, const char* message) {
+    void consume(usize count, usize& total, usize limit, CharPtr message) {
         pollDeadline();
         if (count > limit || total > limit - count) {
             throw CompilationLimitError(message);

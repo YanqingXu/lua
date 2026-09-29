@@ -3,6 +3,7 @@
  * @brief Lua coroutine library tests
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "lib/lib_manager.hpp"
 #include "lib/coroutinelib.hpp"
@@ -23,10 +24,10 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Coroutine Library";
+constexpr Lua::CharPtr kSuiteName = "Coroutine Library";
 
 /// Helper: compile and execute Lua code, return true on success
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         RuntimeServices services(L->getGlobalState());
         Parser parser(code, services);
@@ -51,19 +52,19 @@ bool runLua(LuaState* L, const char* code) {
 }
 
 /// Helper: get global number
-double getGlobalNumber(LuaState* L, const char* name) {
+Lua::f64 getGlobalNumber(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     return v.isNumber() ? v.asNumber() : -9999.0;
 }
 
 /// Helper: get global string
-std::string getGlobalString(LuaState* L, const char* name) {
+Lua::Str getGlobalString(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
-    return v.isString() ? std::string(v.asString()->c_str()) : "";
+    return v.isString() ? Lua::Str(v.asString()->c_str()) : "";
 }
 
 /// Helper: get global boolean
-bool getGlobalBool(LuaState* L, const char* name) {
+bool getGlobalBool(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     return v.isBoolean() && v.asBoolean();
 }
@@ -198,7 +199,7 @@ void testDeadCoroutineResume(TestSuite& suite) {
     )");
     ASSERT_TRUE(suite, ok, "dead coroutine test runs");
     ASSERT_FALSE(suite, getGlobalBool(L, "r_ok2"), "resume dead coroutine fails");
-    ASSERT_TRUE(suite, getGlobalString(L, "r_err").find("dead") != std::string::npos, "error message mentions dead");
+    ASSERT_TRUE(suite, getGlobalString(L, "r_err").find("dead") != Lua::Str::npos, "error message mentions dead");
     delete L;
 }
 

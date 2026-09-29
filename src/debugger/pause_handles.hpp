@@ -6,6 +6,7 @@
  */
 
 #include "debugger/debug_types.hpp"
+#include "common/types.hpp"
 
 #include <functional>
 #include <limits>
@@ -49,11 +50,12 @@ public:
 
     [[nodiscard]] DebugResult<Id> add(T value) {
         if (!paused_) {
-            return std::unexpected(DebugError{DebugErrorCode::InvalidState,
-                                              "debug handles can only be created while execution is paused"});
+            return Unexpect<DebugError>(DebugError{DebugErrorCode::InvalidState,
+                                                   "debug handles can only be created while execution is paused"});
         }
         if (nextId_ == std::numeric_limits<u64>::max()) {
-            return std::unexpected(DebugError{DebugErrorCode::ResourceLimit, "debug handle ID space is exhausted"});
+            return Unexpect<DebugError>(
+                DebugError{DebugErrorCode::ResourceLimit, "debug handle ID space is exhausted"});
         }
 
         const Id id{nextId_++};
@@ -63,12 +65,12 @@ public:
 
     [[nodiscard]] DebugResult<std::reference_wrapper<const T>> lookup(Id id) const {
         if (!id.valid() || id.value() >= nextId_) {
-            return std::unexpected(DebugError{DebugErrorCode::InvalidReference, "unknown debug handle"});
+            return Unexpect<DebugError>(DebugError{DebugErrorCode::InvalidReference, "unknown debug handle"});
         }
 
         const auto found = active_.find(id.value());
         if (!paused_ || found == active_.end() || found->second.generation != generation_) {
-            return std::unexpected(
+            return Unexpect<DebugError>(
                 DebugError{DebugErrorCode::StaleReference, "debug handle belongs to an expired pause"});
         }
         return std::cref(found->second.value);

@@ -3,6 +3,7 @@
  * @brief 表达式发射器实现
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/expression_emitter.hpp"
 #include "compiler/codegen/codegen.hpp"
 

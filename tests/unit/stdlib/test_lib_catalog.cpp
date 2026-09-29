@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "core/gc_string.hpp"
@@ -29,26 +30,26 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Standard Library Catalog";
+constexpr Lua::CharPtr kSuiteName = "Standard Library Catalog";
 
 static_assert(
     std::is_same_v<decltype(findStandardLibrary(StrView{})), Opt<std::reference_wrapper<const LibCatalogEntry>>>,
     "findStandardLibrary should expose absence as Opt<reference_wrapper<...>>, not a nullable pointer");
 
-Value getField(LuaState* L, Table* table, const char* key) {
+Value getField(LuaState* L, Table* table, Lua::CharPtr key) {
     GCString* field = L->getGlobalState().getStringPool().intern(key);
     return table->get(Value(field));
 }
 
-void assertGlobalFunction(TestSuite& suite, LuaState* L, const char* name) {
+void assertGlobalFunction(TestSuite& suite, LuaState* L, Lua::CharPtr name) {
     ASSERT_TRUE(suite, L->getGlobal(name).isFunction(), name);
 }
 
-void assertGlobalTable(TestSuite& suite, LuaState* L, const char* name) {
+void assertGlobalTable(TestSuite& suite, LuaState* L, Lua::CharPtr name) {
     ASSERT_TRUE(suite, L->getGlobal(name).isTable(), name);
 }
 
-void assertTableFunction(TestSuite& suite, LuaState* L, const char* tableName, const char* functionName) {
+void assertTableFunction(TestSuite& suite, LuaState* L, Lua::CharPtr tableName, Lua::CharPtr functionName) {
     Value tableValue = L->getGlobal(tableName);
     ASSERT_TRUE(suite, tableValue.isTable(), tableName);
     if (!tableValue.isTable()) {
@@ -69,7 +70,7 @@ static i32 catalogDummyFunction(LuaState*) {
 
 void testCatalogOrder(TestSuite& suite) {
     const auto catalog = getStandardLibraryCatalog();
-    constexpr std::array<StrView, 9> expectedIds = {
+    constexpr Lua::Arr<StrView, 9> expectedIds = {
         "base", "math", "io", "string", "table", "os", "coroutine", "debug", "package",
     };
 
@@ -239,8 +240,8 @@ void testTestLibListcodeProvidesOfficialShape(TestSuite& suite) {
     Value firstLine = result->getArray(1);
     ASSERT_TRUE(suite, firstLine.isString(), "T.listcode stores instruction lines in the array part");
     if (firstLine.isString()) {
-        std::string text(firstLine.asString()->c_str());
-        ASSERT_TRUE(suite, text.find("- RETURN") != std::string::npos,
+        Lua::Str text(firstLine.asString()->c_str());
+        ASSERT_TRUE(suite, text.find("- RETURN") != Lua::Str::npos,
                     "T.listcode lines include official-style opcode text");
     }
 }
@@ -328,10 +329,10 @@ void testLua51CAPIShimStackAndRawTableSmoke(TestSuite& suite) {
     lua_pushnumber(C, 10.0);
     lua_pushlstring(C, "a\0b", 3);
 
-    size_t length = 0;
-    const char* text = lua_tolstring(C, -1, &length);
+    Lua::usize length = 0;
+    Lua::CharPtr text = lua_tolstring(C, -1, &length);
     ASSERT_TRUE(suite, text != nullptr, "lua_tolstring returns string storage");
-    ASSERT_EQ(suite, static_cast<size_t>(3), length, "lua_tolstring preserves binary string length");
+    ASSERT_EQ(suite, static_cast<Lua::usize>(3), length, "lua_tolstring preserves binary string length");
     ASSERT_TRUE(suite, text != nullptr && std::memcmp(text, "a\0b", 3) == 0,
                 "lua_pushlstring preserves embedded NUL bytes");
 

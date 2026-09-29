@@ -3,6 +3,7 @@
  * @brief 测试二元和一元表达式的代码生成
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -19,7 +20,7 @@ using namespace LuaTest;
 
 namespace {
 
-Proto* generateProto(const char* code) {
+Proto* generateProto(Lua::CharPtr code) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
@@ -114,7 +115,7 @@ bool matchesExactComparisonBooleanSequence(const Proto* proto, OpCode compareOp)
 
 void testBinaryArithmetic(TestSuite& suite) {
     // 测试: local x = 1 + 2
-    const char* code = "local x = 1 + 2";
+    Lua::CharPtr code = "local x = 1 + 2";
     Proto* proto = generateProto(code);
 
     // 验证生成的字节码
@@ -124,7 +125,7 @@ void testBinaryArithmetic(TestSuite& suite) {
 
 void testBinaryComparison(TestSuite& suite) {
     // 测试: local x = 1 < 2
-    const char* code = "local x = 1 < 2";
+    Lua::CharPtr code = "local x = 1 < 2";
     Proto* proto = generateProto(code);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -136,14 +137,14 @@ void testBinaryComparison(TestSuite& suite) {
 
 void testComparisonOperatorsMaterializeToBoolean(TestSuite& suite) {
     struct Case {
-        const char* code;
+        Lua::CharPtr code;
         OpCode compareOp;
-        const char* opcodeMessage;
-        const char* patternMessage;
-        const char* jumpMessage;
+        Lua::CharPtr opcodeMessage;
+        Lua::CharPtr patternMessage;
+        Lua::CharPtr jumpMessage;
     };
 
-    const std::array<Case, 3> cases{{
+    const Lua::Arr<Case, 3> cases{{
         {"local x = 1 <= 2", OpCode::LE, "Has LE instruction for <=", "Comparison <= materializes to booleans",
          "<= has no self-loop JMP"},
         {"local x = 1 ~= 2", OpCode::EQ, "Has EQ instruction for ~=", "Comparison ~= materializes to booleans",
@@ -186,11 +187,11 @@ void testGreaterComparisonsMaterializeToBoolean(TestSuite& suite) {
 }
 
 void testBinaryLogical(TestSuite& suite) {
-    const char* code = "local a = ...\n"
-                       "local b = ...\n"
-                       "local x = a and b\n"
-                       "local y = a or b\n"
-                       "local z = not a\n";
+    Lua::CharPtr code = "local a = ...\n"
+                        "local b = ...\n"
+                        "local x = a and b\n"
+                        "local y = a or b\n"
+                        "local z = not a\n";
     Proto* proto = generateProto(code);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -235,7 +236,7 @@ void testLogicalValueExpressions(TestSuite& suite) {
 
 void testUnaryExpressions(TestSuite& suite) {
     // 测试: local x = -42
-    const char* code = "local x = -42";
+    Lua::CharPtr code = "local x = -42";
     Proto* proto = generateProto(code);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
@@ -244,7 +245,7 @@ void testUnaryExpressions(TestSuite& suite) {
 
 void testComplexExpression(TestSuite& suite) {
     // 测试: local x = (1 + 2) * 3 - 4
-    const char* code = "local x = (1 + 2) * 3 - 4";
+    Lua::CharPtr code = "local x = (1 + 2) * 3 - 4";
     Proto* proto = generateProto(code);
 
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");

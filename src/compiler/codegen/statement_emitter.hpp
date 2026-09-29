@@ -5,6 +5,7 @@
  * @brief 语句与代码块的降级边界
  */
 
+#include "common/types.hpp"
 #include "compiler/ast.hpp"
 #include "compiler/ast_visitor.hpp"
 #include "compiler/codegen/codegen_ops.hpp"

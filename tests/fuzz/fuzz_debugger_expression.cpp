@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
 #include "core/function.hpp"
@@ -91,7 +92,7 @@ public:
     ExpressionFixture(const ExpressionFixture&) = delete;
     ExpressionFixture& operator=(const ExpressionFixture&) = delete;
 
-    void evaluate(const std::uint8_t* data, std::size_t size) {
+    void evaluate(const Lua::u8* data, Lua::usize size) {
         DebugController* controller = nullptr;
         {
             std::lock_guard lock(mutex_);
@@ -100,7 +101,7 @@ public:
         if (controller == nullptr) {
             throw std::runtime_error("expression fuzzer lost its debugger controller");
         }
-        const StrView expression(reinterpret_cast<const char*>(data), size);
+        const StrView expression(reinterpret_cast<Lua::CharPtr>(data), size);
         (void)controller->evaluate(frame_, expression);
     }
 
@@ -121,7 +122,7 @@ private:
             const SourceId source = controller.registerFilePath("fuzz/debugger_expression.lua");
             SourceBreakpoint breakpoint;
             breakpoint.line = 3;
-            if (!controller.setBreakpoints(source, std::span<const SourceBreakpoint>(&breakpoint, 1))) {
+            if (!controller.setBreakpoints(source, Lua::Span<const SourceBreakpoint>(&breakpoint, 1))) {
                 throw std::runtime_error("could not configure expression fuzzer breakpoint");
             }
             auto attached = controller.attachSession();
@@ -181,7 +182,7 @@ private:
         controller_ = nullptr;
     }
 
-    std::mutex mutex_;
+    Lua::Mtx mutex_;
     std::condition_variable condition_;
     DebugController* controller_ = nullptr;
     std::exception_ptr failure_;
@@ -194,7 +195,7 @@ private:
 
 class FixtureManager {
 public:
-    void evaluate(const std::uint8_t* data, std::size_t size) {
+    void evaluate(const Lua::u8* data, Lua::usize size) {
         if (!fixture_ || inputs_ >= 1000) {
             fixture_.reset();
             fixture_ = std::make_unique<ExpressionFixture>();
@@ -205,8 +206,8 @@ public:
     }
 
 private:
-    std::unique_ptr<ExpressionFixture> fixture_;
-    std::size_t inputs_ = 0;
+    Lua::UPtr<ExpressionFixture> fixture_;
+    Lua::usize inputs_ = 0;
 };
 
 } // namespace

@@ -3,6 +3,7 @@
  * @brief 垃圾回收器实现
  */
 
+#include "common/types.hpp"
 #include "gc/garbage_collector.hpp"
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
@@ -522,7 +523,7 @@ const GCStrategy& GarbageCollector::getStrategy() const noexcept {
     return *strategy_;
 }
 
-const char* GarbageCollector::getStrategyName() const noexcept {
+CharPtr GarbageCollector::getStrategyName() const noexcept {
     return strategy_->name();
 }
 

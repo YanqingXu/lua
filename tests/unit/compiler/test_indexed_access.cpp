@@ -6,6 +6,7 @@
  * 验证第一阶段第一项的实现：表索引访问支持
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/lexer/lexer.hpp"
 #include "compiler/parser/parser.hpp"
@@ -23,7 +24,7 @@ using namespace LuaTest;
  */
 void printInstructions(Proto* proto) {
     std::cout << "  Generated " << proto->getInstructionCount() << " instructions:" << std::endl;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         Instruction inst = proto->getInstruction(i);
         OpCode op = GET_OPCODE(inst);
         std::cout << "    [" << i << "] " << getOpName(op);
@@ -56,7 +57,7 @@ void printInstructions(Proto* proto) {
 void testSimpleIndexAccessStringKey(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = t[\"key\"]";
+    Lua::CharPtr code = "local x = t[\"key\"]";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -72,7 +73,7 @@ void testSimpleIndexAccessStringKey(TestSuite& suite) {
 
     // 验证生成了 GETTABLE 指令
     bool hasGetTable = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::GETTABLE) {
             hasGetTable = true;
             break;
@@ -89,7 +90,7 @@ void testSimpleIndexAccessStringKey(TestSuite& suite) {
 void testMemberAccess(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = t.member";
+    Lua::CharPtr code = "local x = t.member";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -104,7 +105,7 @@ void testMemberAccess(TestSuite& suite) {
 
     // 成员访问应该生成 GETTABLE 指令
     bool hasGetTable = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::GETTABLE) {
             hasGetTable = true;
             break;
@@ -121,7 +122,7 @@ void testMemberAccess(TestSuite& suite) {
 void testIndexAccessNumberKey(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = t[1]";
+    Lua::CharPtr code = "local x = t[1]";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -135,7 +136,7 @@ void testIndexAccessNumberKey(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
 
     bool hasGetTable = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::GETTABLE) {
             hasGetTable = true;
             break;
@@ -152,7 +153,7 @@ void testIndexAccessNumberKey(TestSuite& suite) {
 void testNestedMemberAccess(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = t.a.b";
+    Lua::CharPtr code = "local x = t.a.b";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -167,7 +168,7 @@ void testNestedMemberAccess(TestSuite& suite) {
 
     // 嵌套访问应该生成多个 GETTABLE 指令
     int getTableCount = 0;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::GETTABLE) {
             getTableCount++;
         }
@@ -182,7 +183,7 @@ void testNestedMemberAccess(TestSuite& suite) {
 void testGlobalVariableAccess(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = print";
+    Lua::CharPtr code = "local x = print";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -197,7 +198,7 @@ void testGlobalVariableAccess(TestSuite& suite) {
 
     // 全局变量应该生成 GETGLOBAL 指令
     bool hasGetGlobal = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::GETGLOBAL) {
             hasGetGlobal = true;
             break;
@@ -214,7 +215,7 @@ void testGlobalVariableAccess(TestSuite& suite) {
 void testDynamicIndex(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = t[key]";
+    Lua::CharPtr code = "local x = t[key]";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -228,7 +229,7 @@ void testDynamicIndex(TestSuite& suite) {
     ASSERT_TRUE(suite, proto != nullptr, "Proto generated");
 
     bool hasGetTable = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::GETTABLE) {
             hasGetTable = true;
             break;
@@ -245,7 +246,7 @@ void testDynamicIndex(TestSuite& suite) {
 void testMixedAccess(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = t[\"a\"].b[1]";
+    Lua::CharPtr code = "local x = t[\"a\"].b[1]";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -260,7 +261,7 @@ void testMixedAccess(TestSuite& suite) {
 
     // 应该生成多个 GETTABLE 指令
     int getTableCount = 0;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         if (GET_OPCODE(proto->getInstruction(i)) == OpCode::GETTABLE) {
             getTableCount++;
         }
@@ -276,7 +277,7 @@ void testMixedAccess(TestSuite& suite) {
 void testLocalTableAccess(TestSuite& suite) {
     RuntimeServices services = RuntimeServices::fromSingletons();
 
-    const char* code = "local x = t.a";
+    Lua::CharPtr code = "local x = t.a";
     Parser parser(code);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -292,7 +293,7 @@ void testLocalTableAccess(TestSuite& suite) {
     // 应该有 GETGLOBAL 和 GETTABLE 指令
     bool hasGetGlobal = false;
     bool hasGetTable = false;
-    for (size_t i = 0; i < proto->getInstructionCount(); i++) {
+    for (Lua::usize i = 0; i < proto->getInstructionCount(); i++) {
         OpCode op = GET_OPCODE(proto->getInstruction(i));
         if (op == OpCode::GETGLOBAL)
             hasGetGlobal = true;

@@ -3,6 +3,7 @@
  * @brief Debug runtime attachment and lifecycle contract tests.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "debugger/debug_runtime.hpp"
@@ -24,7 +25,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Debugger Runtime Lifecycle";
+constexpr Lua::CharPtr kSuiteName = "Debugger Runtime Lifecycle";
 
 class RecordingDebugSink final : public IDebugEventSink {
 public:
@@ -53,7 +54,7 @@ public:
         return std::find(semanticEvents.begin(), semanticEvents.end(), event) != semanticEvents.end();
     }
 
-    mutable std::mutex mutex;
+    mutable Lua::Mtx mutex;
     Vec<DebugSessionSnapshot> events;
     Vec<DebugSemanticEvent> semanticEvents;
     Vec<std::pair<DebugState, bool>> executionUnits;
@@ -61,8 +62,8 @@ public:
 
 void noOpApiHook(::lua_State*, ::lua_Debug*) {}
 
-std::atomic<bool> gNativeCallEntered = false;
-std::atomic<bool> gReleaseNativeCall = false;
+Lua::Atom<bool> gNativeCallEntered = false;
+Lua::Atom<bool> gReleaseNativeCall = false;
 
 i32 blockingNativeCall(LuaState*) {
     gNativeCallEntered.store(true, std::memory_order_release);
@@ -102,7 +103,7 @@ bool waitForState(DebugController& controller, DebugSessionState expected,
     return controller.snapshot().state == expected;
 }
 
-bool waitForFlag(const std::atomic<bool>& flag, std::chrono::milliseconds timeout = std::chrono::seconds(3)) {
+bool waitForFlag(const Lua::Atom<bool>& flag, std::chrono::milliseconds timeout = std::chrono::seconds(3)) {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     while (std::chrono::steady_clock::now() < deadline) {
         if (flag.load(std::memory_order_acquire)) {
@@ -162,7 +163,7 @@ void testDebuggerSafepointExecutesCurrentInstructionOnce(TestSuite& suite) {
     ASSERT_TRUE(suite, controller.pause(DebugController::mainThreadId()).has_value(),
                 "Safepoint fixture queues pause before the instruction");
 
-    std::atomic<i32> executed = 0;
+    Lua::Atom<i32> executed = 0;
     DebugSafepointResult result = DebugSafepointResult::TerminateExecution;
     std::thread vmOwner([&]() {
         result = controller.instructionSafepoint();
@@ -192,8 +193,8 @@ void testDebuggerSafepointStress(TestSuite& suite) {
     auto attached = controller.attachSession();
     DebugSession session = std::move(*attached);
     const bool configured = controller.configurationDone().has_value();
-    std::atomic<bool> workerExited = false;
-    std::atomic<usize> safepoints = 0;
+    Lua::Atom<bool> workerExited = false;
+    Lua::Atom<usize> safepoints = 0;
 
     std::thread vmOwner([&]() {
         for (;;) {
@@ -476,15 +477,16 @@ void testDebuggerStateAndCoroutineRegistry(TestSuite& suite) {
     DebugSession session = std::move(*attached);
 
     auto initialStates = controller.states();
-    ASSERT_TRUE(suite, initialStates && initialStates->size() == 1 && initialStates->front().id == StateId{1} &&
-                           initialStates->front().threadId == ThreadId{1} && initialStates->front().selected,
+    ASSERT_TRUE(suite,
+                initialStates && initialStates->size() == 1 && initialStates->front().id == StateId{1} &&
+                    initialStates->front().threadId == ThreadId{1} && initialStates->front().selected,
                 "Enabling the debugger registers an existing root state with stable state and thread IDs");
 
     LuaState* coroutine = LuaState::newThread(mainState.get());
     auto withCoroutine = controller.states();
     auto threads = controller.threads();
-    ASSERT_TRUE(suite, coroutine != nullptr && withCoroutine && withCoroutine->size() == 2 && threads &&
-                           threads->size() == 2,
+    ASSERT_TRUE(suite,
+                coroutine != nullptr && withCoroutine && withCoroutine->size() == 2 && threads && threads->size() == 2,
                 "New coroutine states are registered without enumerating raw GC objects");
     const DebugState child = withCoroutine && withCoroutine->size() == 2 ? (*withCoroutine)[1] : DebugState{};
     ASSERT_TRUE(suite, child.id.valid() && child.threadId.valid() && child.name.find("coroutine") != Str::npos,
@@ -497,9 +499,10 @@ void testDebuggerStateAndCoroutineRegistry(TestSuite& suite) {
                 "Destroying a selected coroutine removes it and selects a live fallback state");
     {
         std::lock_guard lock(sink->mutex);
-        ASSERT_TRUE(suite, sink->executionUnits.size() == 2 && sink->executionUnits[0].second &&
-                               !sink->executionUnits[1].second &&
-                               sink->executionUnits[0].first.id == sink->executionUnits[1].first.id,
+        ASSERT_TRUE(suite,
+                    sink->executionUnits.size() == 2 && sink->executionUnits[0].second &&
+                        !sink->executionUnits[1].second &&
+                        sink->executionUnits[0].first.id == sink->executionUnits[1].first.id,
                     "Coroutine start and exit publish paired lifecycle events with one stable ID");
     }
 
@@ -524,8 +527,8 @@ void testDebuggerSourceSteppingModes(TestSuite& suite) {
         bool stepOutAfterEntering;
         i32 expectedLine;
     };
-    const std::array cases{Case{DebugStepMode::In, false, 2}, Case{DebugStepMode::Over, false, 8},
-                           Case{DebugStepMode::In, true, 8}};
+    const Lua::Arr<Case, 3> cases{Case{DebugStepMode::In, false, 2}, Case{DebugStepMode::Over, false, 8},
+                                  Case{DebugStepMode::In, true, 8}};
 
     for (const Case& testCase : cases) {
         EngineContext context;
@@ -535,7 +538,7 @@ void testDebuggerSourceSteppingModes(TestSuite& suite) {
         Proto* proto = compileDebugChunk(services, source, "@debugger/step_state.lua");
         Function* function = createDebugFunction(services, state.get(), proto);
         const SourceId sourceId = controller.registerFilePath("debugger/step_state.lua");
-        const std::array breakpoint{SourceBreakpoint{7}};
+        const Lua::Arr<SourceBreakpoint, 1> breakpoint{SourceBreakpoint{7}};
         (void)controller.setBreakpoints(sourceId, breakpoint);
         auto attached = controller.attachSession();
         DebugSession session = std::move(*attached);

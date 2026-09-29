@@ -5,6 +5,7 @@
  * 实现逻辑、关系、连接、算术、一元和幂运算等表达式优先级规则。
  */
 
+#include "common/types.hpp"
 #include "parser_impl.hpp"
 
 #include <utility>
@@ -49,9 +50,8 @@ ExprPtr Parser::Impl::parseRelationalExpr() {
 
     while (true) {
         TokenType op = current().type;
-        if (op != static_cast<TokenType>('<') && op != static_cast<TokenType>('>') &&
-            op != TokenType::Le && op != TokenType::Ge &&
-            op != TokenType::Eq && op != TokenType::Ne) {
+        if (op != static_cast<TokenType>('<') && op != static_cast<TokenType>('>') && op != TokenType::Le &&
+            op != TokenType::Ge && op != TokenType::Eq && op != TokenType::Ne) {
             break;
         }
 
@@ -115,8 +115,7 @@ ExprPtr Parser::Impl::parseAdditiveExpr() {
 ExprPtr Parser::Impl::parseMultiplicativeExpr() {
     ExprPtr left = parseUnaryExpr();
 
-    while (check(static_cast<TokenType>('*')) ||
-           check(static_cast<TokenType>('/')) ||
+    while (check(static_cast<TokenType>('*')) || check(static_cast<TokenType>('/')) ||
            check(static_cast<TokenType>('%'))) {
         Token opToken = current();
         TokenType op = opToken.type;
@@ -186,4 +185,4 @@ Vec<ExprPtr> Parser::Impl::parseExprList() {
     return exprs;
 }
 
-}
+} // namespace Lua

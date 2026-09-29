@@ -10,6 +10,7 @@
  * 5. 固定字符串的 GC 生存性
  */
 
+#include "common/types.hpp"
 #include "test_framework.hpp"
 #include "vm/state/global_state.hpp"
 #include "core/string_pool.hpp"
@@ -30,7 +31,7 @@ struct StringPoolAllocatorProbe {
     usize failOnAllocation = 0;
 };
 
-void* stringPoolTestAllocator(void* userData, void* pointer, std::size_t, std::size_t newSize) {
+void* stringPoolTestAllocator(void* userData, void* pointer, Lua::usize, Lua::usize newSize) {
     auto* probe = static_cast<StringPoolAllocatorProbe*>(userData);
     if (newSize == 0) {
         if (pointer != nullptr) {

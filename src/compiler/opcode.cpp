@@ -3,6 +3,7 @@
  * @brief Lua虚拟机指令集实现
  */
 
+#include "common/types.hpp"
 #include "compiler/opcode.hpp"
 
 namespace Lua {
@@ -31,9 +32,8 @@ bool testTMode(OpCode op) {
     return opcodeMetadata(op).isTest;
 }
 
-const char* getOpName(OpCode op) {
+CharPtr getOpName(OpCode op) {
     return opcodeMetadata(op).name.data();
 }
 
-}  // namespace Lua
-
+} // namespace Lua

@@ -4,6 +4,7 @@
  */
 
 #include "repl/repl_comp.hpp"
+#include "common/types.hpp"
 
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
@@ -71,7 +72,7 @@ CompletionResult buildCompletionResult(const Str& line, usize tokenStart, const 
     return result;
 }
 
-void collectStringKeys(Table* table, std::string_view prefix, std::string_view candidatePrefix, Vec<Str>& candidates) {
+void collectStringKeys(Table* table, StrView prefix, StrView candidatePrefix, Vec<Str>& candidates) {
     if (table == nullptr) {
         return;
     }
@@ -90,17 +91,17 @@ void collectStringKeys(Table* table, std::string_view prefix, std::string_view c
     }
 }
 
-Vec<Str> splitDottedPath(std::string_view path) {
+Vec<Str> splitDottedPath(StrView path) {
     Vec<Str> parts;
     usize start = 0;
     while (start <= path.size()) {
         const usize dot = path.find('.', start);
-        const usize end = dot == std::string_view::npos ? path.size() : dot;
+        const usize end = dot == StrView::npos ? path.size() : dot;
         if (end == start) {
             return {};
         }
         parts.emplace_back(path.substr(start, end - start));
-        if (dot == std::string_view::npos) {
+        if (dot == StrView::npos) {
             break;
         }
         start = dot + 1;
@@ -108,7 +109,7 @@ Vec<Str> splitDottedPath(std::string_view path) {
     return parts;
 }
 
-Table* resolveTablePath(LuaState* L, std::string_view path) {
+Table* resolveTablePath(LuaState* L, StrView path) {
     if (L == nullptr || path.empty()) {
         return nullptr;
     }
@@ -139,8 +140,8 @@ usize findCompletionTokenStart(const Str& line) {
     return start;
 }
 
-Vec<Str> completeMetaCommandToken(std::string_view token) {
-    static constexpr std::string_view kCommands[] = {
+Vec<Str> completeMetaCommandToken(StrView token) {
+    static constexpr StrView kCommands[] = {
         ".ast",
         ".bytecode",
         ".gc",
@@ -148,7 +149,7 @@ Vec<Str> completeMetaCommandToken(std::string_view token) {
     };
 
     Vec<Str> candidates;
-    for (std::string_view command : kCommands) {
+    for (StrView command : kCommands) {
         if (startsWith(command, token)) {
             candidates.emplace_back(command);
         }
@@ -156,13 +157,13 @@ Vec<Str> completeMetaCommandToken(std::string_view token) {
     return candidates;
 }
 
-Vec<Str> completeGcOption(std::string_view token) {
-    static constexpr std::string_view kOptions[] = {
+Vec<Str> completeGcOption(StrView token) {
+    static constexpr StrView kOptions[] = {
         "collect", "help", "stats", "status", "strategy",
     };
 
     Vec<Str> candidates;
-    for (std::string_view option : kOptions) {
+    for (StrView option : kOptions) {
         if (startsWith(option, token)) {
             candidates.emplace_back(option);
         }

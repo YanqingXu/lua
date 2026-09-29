@@ -3,6 +3,7 @@
  * @brief 输入流抽象实现
  */
 
+#include "common/types.hpp"
 #include "input_stream.hpp"
 #include <algorithm>
 #include <cstring>

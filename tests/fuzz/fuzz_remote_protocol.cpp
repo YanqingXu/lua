@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "debugger/remote_protocol.hpp"
 
 #include <algorithm>
@@ -9,7 +10,7 @@ using namespace Lua;
 using namespace Lua::Debugger::Remote;
 
 extern "C" int LLVMFuzzerTestOneInput(const std::uint8_t* data, std::size_t size) {
-    const std::span<const u8> input(data, size);
+    const Lua::Span<const u8> input(data, size);
     (void)decodeProtocolFrame(input);
     (void)decodeHello(input);
     (void)decodeHelloAck(input);

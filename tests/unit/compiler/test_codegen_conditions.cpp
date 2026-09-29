@@ -3,6 +3,7 @@
  * @brief Guardrail tests for condition and short-circuit semantics before removing expdesc.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
@@ -18,9 +19,9 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Codegen Conditions";
+constexpr Lua::CharPtr kSuiteName = "Codegen Conditions";
 
-Proto* generateProto(const char* code) {
+Proto* generateProto(Lua::CharPtr code) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
@@ -33,7 +34,7 @@ Proto* generateProto(const char* code) {
     return codegen.generate(chunk, "test_codegen_conditions");
 }
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -191,12 +192,12 @@ void testConditionContextsRuntime(TestSuite& suite) {
 }
 
 void testConditionBytecodeHasResolvedJumps(TestSuite& suite) {
-    const char* code = "local a = ...\n"
-                       "local b = ...\n"
-                       "if a and b then return 1 end\n"
-                       "while a or b do break end\n"
-                       "repeat a = false until not a\n"
-                       "return 0\n";
+    Lua::CharPtr code = "local a = ...\n"
+                        "local b = ...\n"
+                        "if a and b then return 1 end\n"
+                        "while a or b do break end\n"
+                        "repeat a = false until not a\n"
+                        "return 0\n";
 
     Proto* proto = generateProto(code);
 
@@ -208,12 +209,12 @@ void testConditionBytecodeHasResolvedJumps(TestSuite& suite) {
 }
 
 void testNestedNotConditionUsesCondPipeline(TestSuite& suite) {
-    const char* code = "local a = ...\n"
-                       "local b = ...\n"
-                       "local valueNot = not a\n"
-                       "if valueNot then return 1 end\n"
-                       "if not (a and b) then return 2 end\n"
-                       "return 0\n";
+    Lua::CharPtr code = "local a = ...\n"
+                        "local b = ...\n"
+                        "local valueNot = not a\n"
+                        "if valueNot then return 1 end\n"
+                        "if not (a and b) then return 2 end\n"
+                        "return 0\n";
 
     Proto* proto = generateProto(code);
 

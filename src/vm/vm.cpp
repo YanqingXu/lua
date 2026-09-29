@@ -11,6 +11,7 @@
  * - 无任何类或对象——所有执行状态显式传递
  */
 
+#include "common/types.hpp"
 #include "vm/vm.hpp"
 #include "common/features.hpp"
 #include "common/lua_error.hpp"
@@ -172,16 +173,15 @@ ExecResult executeProto(RuntimeServices& services, LuaState* L, Proto* proto, i3
 #endif
 }
 
-std::expected<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls) {
+Expect<ExecResult, RuntimeError> tryExecuteProto(LuaState* L, Proto* proto, i32 nexeccalls) {
     if (L == nullptr) {
-        return std::unexpected(RuntimeError("VM::executeProto: null state"));
+        return Unexpect<RuntimeError>(RuntimeError("VM::executeProto: null state"));
     }
     RuntimeServices services(L->getGlobalState());
     return tryExecuteProto(services, L, proto, nexeccalls);
 }
 
-std::expected<ExecResult, RuntimeError> tryExecuteProto(RuntimeServices& services, LuaState* L, Proto* proto,
-                                                        i32 nexeccalls) {
+Expect<ExecResult, RuntimeError> tryExecuteProto(RuntimeServices& services, LuaState* L, Proto* proto, i32 nexeccalls) {
     return VM::detail::captureRuntimeErrors<ExecResult>([&]() { return executeProto(services, L, proto, nexeccalls); });
 }
 

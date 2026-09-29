@@ -3,6 +3,7 @@
  * @brief GCString类的实现
  */
 
+#include "common/types.hpp"
 #include "core/gc_string.hpp"
 
 #include <cstring>

@@ -15,6 +15,7 @@
  * @date 2026-04-10
  */
 
+#include "common/types.hpp"
 #include "lib/packagelib.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
@@ -49,7 +50,7 @@ namespace Lua {
 // 内部键——用于从注册表或全局 package 表中获取包子表
 // =====================================================================
 
-static constexpr const char* PACKAGE_TABLE_NAME = "package";
+static constexpr CharPtr PACKAGE_TABLE_NAME = "package";
 static constexpr StrView PACKAGE_REGISTRY_KEY = "_PACKAGE_TABLE";
 
 // 默认路径
@@ -112,7 +113,7 @@ static Table* getPackageTable(LuaState* L) {
 // 辅助函数：从 package 表获取子表
 // =====================================================================
 
-static Table* getPackageSubTable(LuaState* L, const char* fieldName) {
+static Table* getPackageSubTable(LuaState* L, CharPtr fieldName) {
     Table* pkg = getPackageTable(L);
     if (!pkg)
         return nullptr;
@@ -143,7 +144,7 @@ static void appendPackageBuffer(LuaState* L, LuaString& output, StrView text) {
 // 辅助函数：从 package 表获取字符串字段
 // =====================================================================
 
-static Str getPackageStringField(LuaState* L, const char* fieldName) {
+static Str getPackageStringField(LuaState* L, CharPtr fieldName) {
     Table* pkg = getPackageTable(L);
     if (!pkg)
         return "";
@@ -186,14 +187,14 @@ static Str moduleNameToPath(const Str& modname) {
 
 static Str executablePath() {
 #ifdef _WIN32
-    std::array<char, MAX_PATH> buffer{};
+    Arr<char, MAX_PATH> buffer{};
     DWORD len = GetModuleFileNameA(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
     if (len == 0 || len >= buffer.size()) {
         return "";
     }
     return Str(buffer.data(), len);
 #elif defined(__APPLE__)
-    uint32_t capacity = PATH_MAX;
+    u32 capacity = PATH_MAX;
     Vec<char> buffer(static_cast<usize>(capacity) + 1, '\0');
     if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
         buffer.assign(static_cast<usize>(capacity) + 1, '\0');
@@ -203,7 +204,7 @@ static Str executablePath() {
     }
     return Str(buffer.data());
 #else
-    std::array<char, PATH_MAX> buffer{};
+    Arr<char, PATH_MAX> buffer{};
     ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
     if (len <= 0) {
         return "";
@@ -1071,8 +1072,8 @@ void PackageLibModule::initialize(LuaState* L) {
     auto& pool = L->getGlobalState().getStringPool();
 
     // 将库名称映射到对应的全局表条目
-    static constexpr std::array<StrView, 9> stdlibs = {"_G",    "math",      "io",    "os",     "string",
-                                                       "table", "coroutine", "debug", "package"};
+    static constexpr Arr<StrView, 9> stdlibs = {"_G",    "math",      "io",    "os",     "string",
+                                                "table", "coroutine", "debug", "package"};
 
     for (StrView name : stdlibs) {
         Value libVal = L->getGlobal(Str(name));

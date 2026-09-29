@@ -96,8 +96,8 @@ public:
     }
 
     [[nodiscard]] Vec<DebugCodeLocation> locationsForLine(StrView source, i32 line) const;
-    [[nodiscard]] std::optional<i32> resolveExecutableLine(StrView source, i32 requestedLine) const;
-    [[nodiscard]] std::optional<DebugCodeLocation> locationForPc(const Proto& proto, usize pc) const;
+    [[nodiscard]] Opt<i32> resolveExecutableLine(StrView source, i32 requestedLine) const;
+    [[nodiscard]] Opt<DebugCodeLocation> locationForPc(const Proto& proto, usize pc) const;
 
 private:
     void indexProto(const Proto& proto, const NormalizedSource& inheritedSource);

@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "app/app_options.hpp"
 

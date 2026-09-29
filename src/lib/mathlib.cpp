@@ -9,6 +9,7 @@
  * @date 2025-12-19
  */
 
+#include "common/types.hpp"
 #include "lib/mathlib.hpp"
 #include "common/number_conversion.hpp"
 #include "lib/lib_registry.hpp"
@@ -42,7 +43,7 @@ constexpr f64 kPi = std::numbers::pi_v<f64>;
  * @param argName 参数名称（用于错误消息）
  * @return 数字值
  */
-static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
+static inline f64 getNumberArg(LuaState* L, i32 idx, CharPtr argName) {
     if (L->isNumber(idx)) {
         return L->toNumber(idx);
     }
@@ -62,14 +63,13 @@ static inline f64 getNumberArg(LuaState* L, i32 idx, const char* argName) {
     { L->error(std::format("bad argument #{} to '{}' (number expected)", idx, argName).c_str()); }
 }
 
-static i32 getIntegerArg(LuaState* L, i32 idx, const char* argName,
-                         IntegerConversion mode = IntegerConversion::Truncate) {
+static i32 getIntegerArg(LuaState* L, i32 idx, CharPtr argName, IntegerConversion mode = IntegerConversion::Truncate) {
     const LuaNumber value = getNumberArg(L, idx, argName);
     const auto converted = checkedLuaInteger(value, mode);
     if (!converted) {
-        const char* detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
-                             : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
-                                                                                        : "number out of range";
+        CharPtr detail = converted.error() == IntegerConversionError::NotFinite     ? "finite number expected"
+                         : converted.error() == IntegerConversionError::NotIntegral ? "integer expected"
+                                                                                    : "number out of range";
         L->error(std::format("bad argument #{} to '{}' ({})", idx, argName, detail).c_str());
     }
     return *converted;
@@ -81,7 +81,7 @@ static i32 getIntegerArg(LuaState* L, i32 idx, const char* argName,
  * @param expected 期望的参数数量
  * @param funcName 函数名称
  */
-static inline void checkArgCount(LuaState* L, i32 expected, const char* funcName) {
+static inline void checkArgCount(LuaState* L, i32 expected, CharPtr funcName) {
     i32 actual = L->getTop();
     if (actual < expected) {
         L->error(std::format("math.{}: expected {} argument(s), got {}", funcName, expected, actual).c_str());

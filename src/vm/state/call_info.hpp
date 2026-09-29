@@ -183,7 +183,7 @@ public:
      * @brief 转换为字符串（用于调试）
      * @return CallInfo的字符串表示
      */
-    std::string toString() const {
+    Str toString() const {
         std::ostringstream oss;
         oss << "CallInfo{func=" << func << ", base=" << base << ", top=" << top << ", nresults=" << nresults
             << ", tailcalls=" << tailcalls << ", hookLine=" << hookLine << ", hookPc=" << hookPc

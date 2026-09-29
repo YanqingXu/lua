@@ -6,6 +6,7 @@
  * @date 2025-11-12
  */
 
+#include "common/types.hpp"
 #include "vm/state/stack.hpp"
 #include "common/lua_error.hpp"
 #include <algorithm>

@@ -13,7 +13,7 @@
 
 namespace Lua::VM::handlers::diagnostics {
 
-inline const char* luaTypeName(const Value& value) {
+inline CharPtr luaTypeName(const Value& value) {
     switch (value.getType()) {
     case ValueType::Nil:
         return "nil";
@@ -234,7 +234,7 @@ inline Opt<Str> describeRegister(Proto* proto, i32 reg, usize pc, i32 depth = 0)
 }
 
 inline Str formatTypeActionError(StrView action, const Value& value, const Str& sourceName) {
-    const char* typeName = luaTypeName(value);
+    CharPtr typeName = luaTypeName(value);
     if (!sourceName.empty()) {
         return Str("attempt to ") + Str(action) + " " + sourceName + " (a " + typeName + " value)";
     }

@@ -35,7 +35,7 @@ namespace Lua {
 /** @brief Lua 调试库模块。 */
 class DebugLibModule : public LibModule {
 public:
-    const char* getName() const override {
+    CharPtr getName() const override {
         return "debug";
     }
 

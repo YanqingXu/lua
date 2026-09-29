@@ -9,6 +9,7 @@
  * @date 2025-11-22
  */
 
+#include "common/types.hpp"
 #include "core/metatable.hpp"
 #include "core/table.hpp"
 #include "core/userdata.hpp"

@@ -81,7 +81,7 @@ public:
      * @param name 函数名
      * @param func C函数指针
      */
-    static void registerGlobal(LuaState* L, const char* name, LibCFunction func);
+    static void registerGlobal(LuaState* L, CharPtr name, LibCFunction func);
 
     /**
      * @brief 注册单个表函数（静态方法）
@@ -90,7 +90,7 @@ public:
      * @param name 函数名
      * @param func C函数指针
      */
-    static void registerToTable(LuaState* L, Table* table, const char* name, LibCFunction func);
+    static void registerToTable(LuaState* L, Table* table, CharPtr name, LibCFunction func);
 
     /**
      * @brief 创建库表并注册为全局变量（静态方法）
@@ -98,18 +98,17 @@ public:
      * @param libName 库名称
      * @return 创建的表指针
      */
-    static Table* createLibTable(LuaState* L, const char* libName);
+    static Table* createLibTable(LuaState* L, CharPtr libName);
 
     /**
      * @brief 以 expected 表达创建闭包时的参数错误
      */
-    [[nodiscard]] static std::expected<Function*, LibRegistrationError> tryCreateClosure(LuaState* L,
-                                                                                         LibCFunction func);
+    [[nodiscard]] static Expect<Function*, LibRegistrationError> tryCreateClosure(LuaState* L, LibCFunction func);
 
     /**
      * @brief 以 expected 表达库表创建/注册时的参数错误
      */
-    [[nodiscard]] static std::expected<Table*, LibRegistrationError> tryCreateLibTable(LuaState* L, StrView libName);
+    [[nodiscard]] static Expect<Table*, LibRegistrationError> tryCreateLibTable(LuaState* L, StrView libName);
 
     // =====================================================================
     // 实例方法：流式接口（批量注册）
@@ -127,7 +126,7 @@ public:
      * @param func C函数指针
      * @return *this 支持链式调用
      */
-    FunctionRegistrar& addGlobal(const char* name, LibCFunction func) {
+    FunctionRegistrar& addGlobal(CharPtr name, LibCFunction func) {
         entries_.push_back({name, func});
         return *this;
     }

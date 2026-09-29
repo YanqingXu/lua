@@ -5,6 +5,7 @@
  * 验证 RecursionGuard RAII 类防止深度嵌套导致栈溢出
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/parser/parser.hpp"
 #include <iostream>
@@ -16,14 +17,14 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Parser Recursion Depth";
+constexpr Lua::CharPtr kSuiteName = "Parser Recursion Depth";
 
 /**
  * @brief 生成深度嵌套的括号表达式
  * @param depth 嵌套深度
  * @return 生成的代码字符串
  */
-std::string generateNestedParentheses(int depth) {
+Lua::Str generateNestedParentheses(int depth) {
     std::ostringstream oss;
     oss << "local x = ";
 
@@ -47,7 +48,7 @@ std::string generateNestedParentheses(int depth) {
  * @param depth 嵌套深度
  * @return 生成的代码字符串
  */
-std::string generateNestedIfStatements(int depth) {
+Lua::Str generateNestedIfStatements(int depth) {
     std::ostringstream oss;
 
     // 生成嵌套的if语句
@@ -70,7 +71,7 @@ std::string generateNestedIfStatements(int depth) {
  * @param depth 嵌套深度
  * @return 生成的代码字符串
  */
-std::string generateNestedTables(int depth) {
+Lua::Str generateNestedTables(int depth) {
     std::ostringstream oss;
     oss << "local x = ";
 
@@ -94,7 +95,7 @@ std::string generateNestedTables(int depth) {
  */
 void testNormalDepthNesting(TestSuite& suite) {
     // 测试50层嵌套（低于递归限制）
-    std::string code = generateNestedParentheses(50);
+    Lua::Str code = generateNestedParentheses(50);
 
     Parser parser(code);
     auto parsed = parser.parse();
@@ -110,7 +111,7 @@ void testNormalDepthNesting(TestSuite& suite) {
  */
 void testNearLimitDepthNesting(TestSuite& suite) {
     // 测试90层嵌套（接近表达式递归限制）
-    std::string code = generateNestedParentheses(90);
+    Lua::Str code = generateNestedParentheses(90);
 
     Parser parser(code);
     auto parsed = parser.parse();
@@ -126,7 +127,7 @@ void testNearLimitDepthNesting(TestSuite& suite) {
  */
 void testExceedLimitDepthNesting(TestSuite& suite) {
     // 测试150层嵌套（超过100的限制）
-    std::string code = generateNestedParentheses(150);
+    Lua::Str code = generateNestedParentheses(150);
 
     try {
         Parser parser(code);
@@ -138,8 +139,8 @@ void testExceedLimitDepthNesting(TestSuite& suite) {
         ASSERT_TRUE(suite, false, "Exceed limit depth (150) should throw");
     } catch (const ParseError& e) {
         // 验证错误信息包含"too many syntax levels"
-        std::string errorMsg = e.what();
-        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != std::string::npos;
+        Lua::Str errorMsg = e.what();
+        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != Lua::Str::npos;
         ASSERT_TRUE(suite, hasCorrectMessage, "Exceed limit depth (150) throws correct error");
     }
 }
@@ -149,7 +150,7 @@ void testExceedLimitDepthNesting(TestSuite& suite) {
  */
 void testNestedIfStatements(TestSuite& suite) {
     // 测试150层嵌套if语句（超过100的限制）
-    std::string code = generateNestedIfStatements(150);
+    Lua::Str code = generateNestedIfStatements(150);
 
     try {
         Parser parser(code);
@@ -160,14 +161,14 @@ void testNestedIfStatements(TestSuite& suite) {
         Chunk chunk = std::move(*parsed);
         ASSERT_TRUE(suite, false, "Deeply nested if statements should throw");
     } catch (const ParseError& e) {
-        std::string errorMsg = e.what();
-        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != std::string::npos;
+        Lua::Str errorMsg = e.what();
+        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != Lua::Str::npos;
         ASSERT_TRUE(suite, hasCorrectMessage, "Nested if statements throw correct error");
     }
 }
 
 void testRightAssociativeExpressionLimit(TestSuite& suite) {
-    std::string code = "local a; a=a";
+    Lua::Str code = "local a; a=a";
     for (int i = 0; i < 400; ++i) {
         code += "..a";
     }
@@ -180,14 +181,14 @@ void testRightAssociativeExpressionLimit(TestSuite& suite) {
         }
         ASSERT_TRUE(suite, false, "Deep concat chain should throw syntax level error");
     } catch (const ParseError& e) {
-        std::string errorMsg = e.what();
-        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != std::string::npos;
+        Lua::Str errorMsg = e.what();
+        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != Lua::Str::npos;
         ASSERT_TRUE(suite, hasCorrectMessage, "Deep concat chain throws correct error");
     }
 }
 
 void testNestedCallArgumentLimit(TestSuite& suite) {
-    std::string code = "local a; ";
+    Lua::Str code = "local a; ";
     for (int i = 0; i < 400; ++i) {
         code += "a(";
     }
@@ -200,14 +201,14 @@ void testNestedCallArgumentLimit(TestSuite& suite) {
         }
         ASSERT_TRUE(suite, false, "Deep call-argument chain should throw syntax level error");
     } catch (const ParseError& e) {
-        std::string errorMsg = e.what();
-        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != std::string::npos;
+        Lua::Str errorMsg = e.what();
+        bool hasCorrectMessage = errorMsg.find("too many syntax levels") != Lua::Str::npos;
         ASSERT_TRUE(suite, hasCorrectMessage, "Deep call-argument chain throws correct error");
     }
 }
 
 void testLua51FunctionVariableLimits(TestSuite& suite) {
-    std::string upvalueSource = "function foo ()\n  local ";
+    Lua::Str upvalueSource = "function foo ()\n  local ";
     for (int j = 1; j <= 70; ++j) {
         upvalueSource += "a" + std::to_string(j) + ", ";
     }
@@ -224,12 +225,12 @@ void testLua51FunctionVariableLimits(TestSuite& suite) {
         }
         ASSERT_TRUE(suite, false, "Too many upvalues should throw");
     } catch (const ParseError& e) {
-        std::string errorMsg = e.what();
-        ASSERT_TRUE(suite, errorMsg.find("line 3") != std::string::npos,
+        Lua::Str errorMsg = e.what();
+        ASSERT_TRUE(suite, errorMsg.find("line 3") != Lua::Str::npos,
                     "Too many upvalues reports first nested function line");
     }
 
-    std::string localSource = "\nfunction foo ()\n  local ";
+    Lua::Str localSource = "\nfunction foo ()\n  local ";
     for (int j = 1; j <= 300; ++j) {
         localSource += "a" + std::to_string(j) + ", ";
     }
@@ -243,8 +244,8 @@ void testLua51FunctionVariableLimits(TestSuite& suite) {
         }
         ASSERT_TRUE(suite, false, "Too many locals should throw");
     } catch (const ParseError& e) {
-        std::string errorMsg = e.what();
-        ASSERT_TRUE(suite, errorMsg.find("line 2") != std::string::npos, "Too many locals reports function line");
+        Lua::Str errorMsg = e.what();
+        ASSERT_TRUE(suite, errorMsg.find("line 2") != Lua::Str::npos, "Too many locals reports function line");
     }
 }
 

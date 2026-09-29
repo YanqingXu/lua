@@ -5,6 +5,7 @@
  * @brief VM 操作码处理器分片使用的内部辅助函数
  */
 
+#include "common/types.hpp"
 #include "common/lua_error.hpp"
 #include "core/function.hpp"
 #include "core/value.hpp"

@@ -32,7 +32,7 @@ struct ResourcePolicy {
 /** @brief 运行时资源使用超过策略上限时抛出的异常。 */
 class ResourceLimitError final : public std::runtime_error {
 public:
-    explicit ResourceLimitError(const char* message) : std::runtime_error(message) {}
+    explicit ResourceLimitError(CharPtr message) : std::runtime_error(message) {}
 };
 
 } // namespace Lua

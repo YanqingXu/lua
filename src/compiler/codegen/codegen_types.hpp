@@ -112,8 +112,7 @@ struct ValueResult {
         i32 instructionPc = NO_JUMP;
     };
 
-    using Variant =
-        std::variant<None, Immediate, ConstantRef, RegisterRef, PendingLoad, Relocatable, MultiRet, PendingJump>;
+    using Variant = Var<None, Immediate, ConstantRef, RegisterRef, PendingLoad, Relocatable, MultiRet, PendingJump>;
 
     ValueResult() = default;
 

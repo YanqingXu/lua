@@ -46,12 +46,12 @@ using OpHandler = HandlerStatus (*)(OpExecutionContext& context, Instruction ins
 /** @brief 操作码与对应处理器函数的映射条目。 */
 struct HandlerEntry {
     OpCode opcode;
-    const char* name;
+    CharPtr name;
     OpcodeGroup group;
     OpHandler handler;
 };
 
-using HandlerTable = std::array<HandlerEntry, static_cast<usize>(NUM_OPCODES)>;
+using HandlerTable = Arr<HandlerEntry, static_cast<usize>(NUM_OPCODES)>;
 
 const HandlerTable& handlerTable() noexcept;
 Opt<OpHandler> handlerFor(OpCode op) noexcept;

@@ -377,7 +377,7 @@ public:
     /**
      * @brief 现代保护调用外观，并保持 pcall 的栈效果。
      */
-    [[nodiscard]] std::expected<i32, RuntimeError> tryPCall(i32 nargs, i32 nresults, i32 errfunc);
+    [[nodiscard]] Expect<i32, RuntimeError> tryPCall(i32 nargs, i32 nresults, i32 errfunc);
 
     /**
      * @brief 获取绝对栈顶索引
@@ -509,7 +509,7 @@ public:
      * @param tp 类型枚举值
      * @return 类型名称字符串
      */
-    const char* typeName(i32 tp) const;
+    CharPtr typeName(i32 tp) const;
 
     /**
      * @brief 将栈索引处的值转换为数字
@@ -520,7 +520,7 @@ public:
      * @brief 将栈索引处的值转换为字符串
      */
     Opt<StrView> tryToString(i32 idx);
-    const char* toString(i32 idx);
+    CharPtr toString(i32 idx);
 
     /**
      * @brief 将栈索引处的值转换为布尔值
@@ -554,7 +554,7 @@ public:
      * @param msg 错误消息
      * @return 不返回
      */
-    [[noreturn]] void error(const char* msg);
+    [[noreturn]] void error(CharPtr msg);
 
     /**
      * @brief 拒绝当前上下文禁用的 Lua 特权操作

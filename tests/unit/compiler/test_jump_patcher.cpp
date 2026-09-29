@@ -3,6 +3,7 @@
  * @brief Tests for the CodeGenerator jump patching boundary.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/jump_patcher.hpp"
 #include "compiler/codegen/codegen_state.hpp"
@@ -16,7 +17,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Jump Patcher";
+constexpr Lua::CharPtr kSuiteName = "Jump Patcher";
 
 struct JumpFixture {
     RuntimeServices services = RuntimeServices::fromSingletons();
@@ -112,12 +113,10 @@ void testFixJumpRejectsOutOfRangeTargets(TestSuite& suite) {
 void registerJumpPatcherTests() {
     auto& registry = TestRegistry::getInstance();
 
-    registry.registerTest(kSuiteName, "Pending Jump List Flushes To Current Pc",
-                          testPendingJumpListFlushesToCurrentPc);
+    registry.registerTest(kSuiteName, "Pending Jump List Flushes To Current Pc", testPendingJumpListFlushesToCurrentPc);
     registry.registerTest(kSuiteName, "Jump Keeps New Jump As List Head", testJumpKeepsNewJumpAsListHead);
     registry.registerTest(kSuiteName, "PatchList Writes Explicit Targets", testPatchListWritesExplicitTargets);
     registry.registerTest(kSuiteName, "Conditional Jump Lowers NoReg TestSet To Test",
                           testConditionalJumpLowersNoRegTestSetToTest);
-    registry.registerTest(kSuiteName, "FixJump Rejects Out Of Range Targets",
-                          testFixJumpRejectsOutOfRangeTargets);
+    registry.registerTest(kSuiteName, "FixJump Rejects Out Of Range Targets", testFixJumpRejectsOutOfRangeTargets);
 }

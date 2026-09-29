@@ -3,6 +3,7 @@
  * @brief 函数原型编译边界的实现
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/function_compiler.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/codegen/codegen_types.hpp"

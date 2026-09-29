@@ -3,6 +3,7 @@
  * @brief Lua词法分析器实现
  */
 
+#include "common/types.hpp"
 #include "lexer.hpp"
 #include <array>
 #include <cctype>
@@ -32,16 +33,16 @@ struct SimpleEscape {
     char value;
 };
 
-constexpr std::array<SimpleEscape, 10> kSimpleEscapes{{{'a', '\a'},
-                                                       {'b', '\b'},
-                                                       {'f', '\f'},
-                                                       {'n', '\n'},
-                                                       {'r', '\r'},
-                                                       {'t', '\t'},
-                                                       {'v', '\v'},
-                                                       {'\\', '\\'},
-                                                       {'"', '"'},
-                                                       {'\'', '\''}}};
+constexpr Arr<SimpleEscape, 10> kSimpleEscapes{{{'a', '\a'},
+                                                {'b', '\b'},
+                                                {'f', '\f'},
+                                                {'n', '\n'},
+                                                {'r', '\r'},
+                                                {'t', '\t'},
+                                                {'v', '\v'},
+                                                {'\\', '\\'},
+                                                {'"', '"'},
+                                                {'\'', '\''}}};
 
 Opt<char> decodeSimpleEscape(char c) noexcept {
     for (const SimpleEscape& escape : kSimpleEscapes) {
@@ -68,7 +69,7 @@ bool isSingleCharToken(char c) noexcept {
 // TokenType转字符串（用于调试）
 // =====================================================================
 
-const char* tokenTypeToString(TokenType type) {
+CharPtr tokenTypeToString(TokenType type) {
     switch (type) {
     // 关键字
     case TokenType::And:
@@ -452,7 +453,7 @@ Token Lexer::decimalNumber() {
     Token token = makeToken(TokenType::Number);
 
     char* end = nullptr;
-    const char* cstr = lexemeBuffer_.c_str();
+    CharPtr cstr = lexemeBuffer_.c_str();
     f64 value = std::strtod(cstr, &end);
 
     bool ok = end != nullptr && static_cast<usize>(end - cstr) == lexemeBuffer_.size();

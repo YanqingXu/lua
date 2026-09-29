@@ -4,11 +4,11 @@
  *
  * 详细说明：
  * 本文件定义了Lua解释器中使用的所有基础类型、类型别名和前向声明。
- * 采用现代 C++17 标准，使用标准库类型和智能指针，确保类型安全和内存安全。
+ * 项目采用 C++23 标准，统一复用标准库类型并保留底层类型和所有权语义。
  *
  * 设计理念：
- * - 类型安全：使用强类型和类型别名，避免隐式转换
- * - 现代 C++：充分利用 C++17/20 的变体、可选值和字符串视图等特性
+ * - 类型语义：使用枚举与统一别名表达用途；类型别名不创建新的独立类型
+ * - 现代 C++：使用变体、可选值、非拥有视图和显式成功或错误结果
  * - 可读性：清晰的命名和完整的注释
  * - 可维护性：统一的类型定义，便于修改和扩展
  * @author Lua C++ 实现团队
@@ -32,6 +32,7 @@
 #include <string>        // std::string
 #include <string_view>   // std::string_view (C++17)
 #include <vector>        // std::vector
+#include <array>         // std::array
 #include <unordered_map> // std::unordered_map
 #include <unordered_set> // std::unordered_set
 
@@ -42,6 +43,8 @@
 #include <variant>    // std::variant (C++17)
 #include <optional>   // std::optional (C++17)
 #include <functional> // std::function
+#include <span>       // std::span (C++20)
+#include <expected>   // std::expected, std::unexpected (C++23)
 
 // 并发支持（可选）
 #include <atomic> // std::atomic
@@ -76,13 +79,13 @@ namespace Lua {
  * @{
  */
 /** @brief 8位有符号整数 (-128 到 127) */
-using i8 = int8_t;
+using i8 = std::int8_t;
 /** @brief 16位有符号整数 (-32,768 到 32,767) */
-using i16 = int16_t;
+using i16 = std::int16_t;
 /** @brief 32位有符号整数 (-2^31 到 2^31-1) */
-using i32 = int32_t;
+using i32 = std::int32_t;
 /** @brief 64位有符号整数 (-2^63 到 2^63-1) */
-using i64 = int64_t;
+using i64 = std::int64_t;
 /** @} */
 
 /**
@@ -91,13 +94,13 @@ using i64 = int64_t;
  * @{
  */
 /** @brief 8位无符号整数 (0 到 255) */
-using u8 = uint8_t;
+using u8 = std::uint8_t;
 /** @brief 16位无符号整数 (0 到 65,535) */
-using u16 = uint16_t;
+using u16 = std::uint16_t;
 /** @brief 32位无符号整数 (0 到 2^32-1) */
-using u32 = uint32_t;
+using u32 = std::uint32_t;
 /** @brief 64位无符号整数 (0 到 2^64-1) */
-using u64 = uint64_t;
+using u64 = std::uint64_t;
 /** @} */
 
 // =====================================================================
@@ -125,9 +128,9 @@ using f64 = double;
  * @{
  */
 /** @brief 无符号大小类型，用于数组索引和大小 */
-using usize = size_t;
+using usize = std::size_t;
 /** @brief 有符号差值类型，用于指针运算 */
-using isize = ptrdiff_t;
+using isize = std::ptrdiff_t;
 /** @} */
 
 // =====================================================================
@@ -161,6 +164,9 @@ using StrView = std::string_view;
  */
 template <typename T> using Vec = std::vector<T>;
 
+/** @brief 固定长度数组，直接拥有其元素。 */
+template <typename T, usize N> using Arr = std::array<T, N>;
+
 /**
  * @brief 哈希映射容器
  */
@@ -179,7 +185,7 @@ template <typename T> using HashSet = std::unordered_set<T>;
 
 /**
  * @name 现代C++类型工具
- * @brief C++17/20特性的类型别名
+ * @brief 变体、可选值、视图和结果类型别名
  * @{
  */
 
@@ -192,6 +198,15 @@ template <typename... Types> using Var = std::variant<Types...>;
  * @brief 可选类型（可能不存在的值）
  */
 template <typename T> using Opt = std::optional<T>;
+
+/** @brief 连续内存的非拥有视图；使用期间底层存储必须有效，默认动态长度。 */
+template <typename T, usize N = std::dynamic_extent> using Span = std::span<T, N>;
+
+/** @brief 成功值或错误结果，支持无成功返回值的 Expect<void, E>。 */
+template <typename T, typename E> using Expect = std::expected<T, E>;
+
+/** @brief 构造显式错误结果，保留错误类型及其所有权语义。 */
+template <typename E> using Unexpect = std::unexpected<E>;
 
 /**
  * @brief 函数对象类型

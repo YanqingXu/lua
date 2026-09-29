@@ -6,6 +6,7 @@
  */
 
 #include "debugger/remote_messages.hpp"
+#include "common/types.hpp"
 #include "debugger/remote_transport.hpp"
 
 #include <atomic>
@@ -65,19 +66,19 @@ private:
     void serve(const Ptr<Connection>& connection);
 
     DebugController& runtime_;
-    mutable std::mutex lifecycleMutex_;
-    mutable std::mutex mutex_;
+    mutable Mtx lifecycleMutex_;
+    mutable Mtx mutex_;
     DebugServerConfig config_;
     DebugServerEndpoint endpoint_;
     TcpListener listener_;
     Ptr<Connection> activeConnection_;
     std::thread thread_;
-    std::atomic<bool> running_ = false;
-    std::atomic<u64> acceptedConnections_ = 0;
-    std::atomic<u64> authenticatedSessions_ = 0;
-    std::atomic<u64> authenticationFailures_ = 0;
-    std::atomic<u64> protocolFailures_ = 0;
-    std::atomic<u64> idleDisconnects_ = 0;
+    Atom<bool> running_ = false;
+    Atom<u64> acceptedConnections_ = 0;
+    Atom<u64> authenticatedSessions_ = 0;
+    Atom<u64> authenticationFailures_ = 0;
+    Atom<u64> protocolFailures_ = 0;
+    Atom<u64> idleDisconnects_ = 0;
 };
 
 } // namespace Lua::Debugger::Remote

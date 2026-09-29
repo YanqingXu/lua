@@ -3,6 +3,7 @@
  * @brief Output contract tests for the lua_bytecode printer.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "bytecode/bytecode_printer.hpp"
 #include "compiler/opcode.hpp"
@@ -17,10 +18,10 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Bytecode Printer";
+constexpr Lua::CharPtr kSuiteName = "Bytecode Printer";
 
-bool contains(const std::string& text, const char* needle) {
-    return text.find(needle) != std::string::npos;
+bool contains(const Lua::Str& text, Lua::CharPtr needle) {
+    return text.find(needle) != Lua::Str::npos;
 }
 
 void addInstruction(Proto& proto, i32 line, Instruction instruction) {
@@ -51,7 +52,7 @@ void testPrinterShowsProtoMetadataAndConstants(TestSuite& suite) {
 
     std::ostringstream output;
     printProtoBytecode(&proto, output, false);
-    std::string text = output.str();
+    Lua::Str text = output.str();
 
     ASSERT_TRUE(suite, contains(text, "source: sample.lua"), "source metadata is printed");
     ASSERT_TRUE(suite, contains(text, "numparams: 2"), "numparams metadata is printed");
@@ -64,14 +65,11 @@ void testPrinterShowsProtoMetadataAndConstants(TestSuite& suite) {
     ASSERT_TRUE(suite, contains(text, "K[1] = number 42"), "number constant is printed");
     ASSERT_TRUE(suite, contains(text, "K[2] = boolean true"), "boolean constant is printed");
     ASSERT_TRUE(suite, contains(text, "K[3] = nil"), "nil constant is printed");
-    ASSERT_TRUE(suite,
-                contains(text, "0000 | line 10 | LOADK | A=0 Bx=1 ; K[1] = number 42"),
+    ASSERT_TRUE(suite, contains(text, "0000 | line 10 | LOADK | A=0 Bx=1 ; K[1] = number 42"),
                 "LOADK instruction shows decoded constant");
-    ASSERT_TRUE(suite,
-                contains(text, "0001 | line 11 | GETGLOBAL | A=1 Bx=0 ; K[0] = string \"answer\""),
+    ASSERT_TRUE(suite, contains(text, "0001 | line 11 | GETGLOBAL | A=1 Bx=0 ; K[0] = string \"answer\""),
                 "GETGLOBAL instruction shows decoded constant");
-    ASSERT_TRUE(suite,
-                contains(text, "0003 | line 13 | SETGLOBAL | A=2 Bx=0 ; K[0] = string \"answer\""),
+    ASSERT_TRUE(suite, contains(text, "0003 | line 13 | SETGLOBAL | A=2 Bx=0 ; K[0] = string \"answer\""),
                 "SETGLOBAL instruction shows decoded constant");
     ASSERT_TRUE(suite,
                 contains(text, "0002 | line 12 | ADD | A=2 B=257 C=257 ; B=K[1] = number 42; C=K[1] = number 42"),
@@ -91,7 +89,7 @@ void testPrinterShowsAsBxTargetsForLoopOpcodes(TestSuite& suite) {
 
     std::ostringstream output;
     printProtoBytecode(&proto, output, false);
-    std::string text = output.str();
+    Lua::Str text = output.str();
 
     ASSERT_TRUE(suite, contains(text, "0000 | line 30 | FORPREP | A=0 sBx=4 ; target=5"),
                 "FORPREP instruction shows absolute target");
@@ -110,7 +108,7 @@ void testPrinterKeepsEscapedStringsAndOutOfRangeConstants(TestSuite& suite) {
 
     std::ostringstream output;
     printProtoBytecode(&proto, output, false);
-    std::string text = output.str();
+    Lua::Str text = output.str();
 
     ASSERT_TRUE(suite, contains(text, "K[0] = string \"quote\\\" slash\\\\ line\\n tab\\t\""),
                 "string constants keep escaped printable form");
@@ -141,7 +139,7 @@ void testPrinterRecursesIntoChildProtosInFullMode(TestSuite& suite) {
 
     std::ostringstream compactOutput;
     printProtoBytecode(&root, compactOutput, false);
-    std::string compact = compactOutput.str();
+    Lua::Str compact = compactOutput.str();
 
     ASSERT_TRUE(suite, contains(compact, "0000 | line 1 | CLOSURE | A=0 Bx=0 ; proto[0] = child.lua:20"),
                 "CLOSURE instruction shows child proto summary");
@@ -150,7 +148,7 @@ void testPrinterRecursesIntoChildProtosInFullMode(TestSuite& suite) {
 
     std::ostringstream fullOutput;
     printProtoBytecode(&root, fullOutput, true);
-    std::string full = fullOutput.str();
+    Lua::Str full = fullOutput.str();
 
     ASSERT_TRUE(suite, contains(full, "child protos (1)"), "full mode prints child proto count");
     ASSERT_TRUE(suite, contains(full, "  proto[0] child.lua:20"), "full mode labels child proto index");
@@ -180,7 +178,7 @@ void testPrinterShowsSideBySideDiff(TestSuite& suite) {
 
     std::ostringstream output;
     printProtoBytecodeDiff(&left, &right, output, false, "left.lua", "right.lua");
-    std::string text = output.str();
+    Lua::Str text = output.str();
 
     ASSERT_TRUE(suite, contains(text, "Bytecode diff"), "diff header is printed");
     ASSERT_TRUE(suite, contains(text, "left: left.lua"), "left label is printed");
@@ -190,9 +188,8 @@ void testPrinterShowsSideBySideDiff(TestSuite& suite) {
     ASSERT_TRUE(suite, contains(text, "changed lines: 2"), "changed line count is printed");
     ASSERT_TRUE(suite, contains(text, "line | left | right"), "side-by-side diff header is printed");
     ASSERT_TRUE(suite,
-                contains(text,
-                         "LOADK | A=0 Bx=0 ; K[0] = number 1 | "
-                         "0000 | line 1 | LOADK | A=0 Bx=0 ; K[0] = number 2"),
+                contains(text, "LOADK | A=0 Bx=0 ; K[0] = number 1 | "
+                               "0000 | line 1 | LOADK | A=0 Bx=0 ; K[0] = number 2"),
                 "instruction difference is printed side-by-side");
     ASSERT_TRUE(suite, contains(text, "K[0] = number 1 |   K[0] = number 2"),
                 "constant table difference is printed side-by-side");
@@ -210,13 +207,12 @@ void testPrinterShowsIdenticalDiffSummary(TestSuite& suite) {
 
     std::ostringstream output;
     printProtoBytecodeDiff(&left, &right, output, true, "same-left.lua", "same-right.lua");
-    std::string text = output.str();
+    Lua::Str text = output.str();
 
     ASSERT_TRUE(suite, contains(text, "mode: full"), "full diff mode is printed");
     ASSERT_TRUE(suite, contains(text, "status: identical"), "identical status is printed");
     ASSERT_TRUE(suite, contains(text, "changed lines: 0"), "zero changed line count is printed");
-    ASSERT_TRUE(suite, !contains(text, "line | left | right"),
-                "identical diff should not print an empty table");
+    ASSERT_TRUE(suite, !contains(text, "line | left | right"), "identical diff should not print an empty table");
 }
 
 void testPrinterShowsMermaidCfgForBranches(TestSuite& suite) {
@@ -238,7 +234,7 @@ void testPrinterShowsMermaidCfgForBranches(TestSuite& suite) {
 
     std::ostringstream output;
     printProtoBytecodeCfg(&proto, output, false);
-    std::string text = output.str();
+    Lua::Str text = output.str();
 
     ASSERT_TRUE(suite, contains(text, "flowchart TD"), "CFG output should be Mermaid flowchart");
     ASSERT_TRUE(suite, contains(text, "%% lua_bytecode Mermaid CFG"), "CFG output should name tool mode");
@@ -268,15 +264,12 @@ void testPrinterShowsMermaidCfgForLoops(TestSuite& suite) {
 
     std::ostringstream output;
     printProtoBytecodeCfg(&proto, output, false);
-    std::string text = output.str();
+    Lua::Str text = output.str();
 
     ASSERT_TRUE(suite, contains(text, "subgraph P0[\"Proto loop.lua\"]"), "loop CFG should label proto");
-    ASSERT_TRUE(suite, contains(text, "P0_B0[\"B0\\npc 0\\nFORPREP\"]"),
-                "FORPREP should start its own block");
-    ASSERT_TRUE(suite, contains(text, "P0_B0 -->|prepare| P0_B2"),
-                "FORPREP edge should jump to loop check block");
-    ASSERT_TRUE(suite, contains(text, "P0_B2[\"B2\\npc 3\\nFORLOOP\"]"),
-                "FORLOOP should be visible as a loop block");
+    ASSERT_TRUE(suite, contains(text, "P0_B0[\"B0\\npc 0\\nFORPREP\"]"), "FORPREP should start its own block");
+    ASSERT_TRUE(suite, contains(text, "P0_B0 -->|prepare| P0_B2"), "FORPREP edge should jump to loop check block");
+    ASSERT_TRUE(suite, contains(text, "P0_B2[\"B2\\npc 3\\nFORLOOP\"]"), "FORLOOP should be visible as a loop block");
     ASSERT_TRUE(suite, contains(text, "P0_B2 -->|loop| P0_B1"), "FORLOOP back edge should be explicit");
     ASSERT_TRUE(suite, contains(text, "P0_B2 -->|exit| P0_B3"), "FORLOOP exit edge should be explicit");
 }
@@ -297,17 +290,15 @@ void testPrinterShowsCfgForChildProtosInFullMode(TestSuite& suite) {
 
     std::ostringstream compactOutput;
     printProtoBytecodeCfg(&root, compactOutput, false);
-    std::string compact = compactOutput.str();
+    Lua::Str compact = compactOutput.str();
 
-    ASSERT_TRUE(suite, !contains(compact, "proto[0] child-cfg.lua:10"),
-                "compact CFG should only print the root proto");
+    ASSERT_TRUE(suite, !contains(compact, "proto[0] child-cfg.lua:10"), "compact CFG should only print the root proto");
 
     std::ostringstream fullOutput;
     printProtoBytecodeCfg(&root, fullOutput, true);
-    std::string full = fullOutput.str();
+    Lua::Str full = fullOutput.str();
 
-    ASSERT_TRUE(suite, contains(full, "subgraph P0[\"Proto root-cfg.lua\"]"),
-                "full CFG should include root proto");
+    ASSERT_TRUE(suite, contains(full, "subgraph P0[\"Proto root-cfg.lua\"]"), "full CFG should include root proto");
     ASSERT_TRUE(suite, contains(full, "subgraph P1[\"proto[0] child-cfg.lua:10\"]"),
                 "full CFG should recurse into child proto CFG");
     ASSERT_TRUE(suite, contains(full, "P1_B0[\"B0\\npc 0\\nRETURN\"]"),
@@ -318,22 +309,15 @@ void testPrinterShowsCfgForChildProtosInFullMode(TestSuite& suite) {
 
 void registerBytecodePrinterTests() {
     auto& registry = TestRegistry::getInstance();
-    registry.registerTest(kSuiteName, "Proto Metadata And Constants",
-                          testPrinterShowsProtoMetadataAndConstants);
-    registry.registerTest(kSuiteName, "Loop Opcode Targets",
-                          testPrinterShowsAsBxTargetsForLoopOpcodes);
+    registry.registerTest(kSuiteName, "Proto Metadata And Constants", testPrinterShowsProtoMetadataAndConstants);
+    registry.registerTest(kSuiteName, "Loop Opcode Targets", testPrinterShowsAsBxTargetsForLoopOpcodes);
     registry.registerTest(kSuiteName, "Escaped Strings And Out Of Range Constants",
                           testPrinterKeepsEscapedStringsAndOutOfRangeConstants);
     registry.registerTest(kSuiteName, "Recursive Child Protos In Full Mode",
                           testPrinterRecursesIntoChildProtosInFullMode);
-    registry.registerTest(kSuiteName, "Side By Side Diff",
-                          testPrinterShowsSideBySideDiff);
-    registry.registerTest(kSuiteName, "Identical Diff Summary",
-                          testPrinterShowsIdenticalDiffSummary);
-    registry.registerTest(kSuiteName, "Mermaid CFG Branches",
-                          testPrinterShowsMermaidCfgForBranches);
-    registry.registerTest(kSuiteName, "Mermaid CFG Loops",
-                          testPrinterShowsMermaidCfgForLoops);
-    registry.registerTest(kSuiteName, "Mermaid CFG Full Child Protos",
-                          testPrinterShowsCfgForChildProtosInFullMode);
+    registry.registerTest(kSuiteName, "Side By Side Diff", testPrinterShowsSideBySideDiff);
+    registry.registerTest(kSuiteName, "Identical Diff Summary", testPrinterShowsIdenticalDiffSummary);
+    registry.registerTest(kSuiteName, "Mermaid CFG Branches", testPrinterShowsMermaidCfgForBranches);
+    registry.registerTest(kSuiteName, "Mermaid CFG Loops", testPrinterShowsMermaidCfgForLoops);
+    registry.registerTest(kSuiteName, "Mermaid CFG Full Child Protos", testPrinterShowsCfgForChildProtosInFullMode);
 }

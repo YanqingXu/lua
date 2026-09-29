@@ -130,7 +130,7 @@ public:
         return false;
     }
 
-    [[nodiscard]] static constexpr const char* deniedMessage(SandboxCapability capability) noexcept {
+    [[nodiscard]] static constexpr CharPtr deniedMessage(SandboxCapability capability) noexcept {
         switch (capability) {
         case SandboxCapability::Filesystem:
             return "sandbox: filesystem access denied";
@@ -148,7 +148,7 @@ public:
         return "sandbox: access denied";
     }
 
-    [[nodiscard]] static constexpr const char* libraryDeniedMessage() noexcept {
+    [[nodiscard]] static constexpr CharPtr libraryDeniedMessage() noexcept {
         return "sandbox: standard library disabled";
     }
 

@@ -3,6 +3,7 @@
  * @brief 代码生成器的符号绑定外观封装
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/codegen.hpp"
 
 namespace Lua {

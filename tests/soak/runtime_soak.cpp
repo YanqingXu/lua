@@ -3,6 +3,7 @@
  * @brief 生产运行时生命周期、弱表、终结器、取消与多 State 长稳驱动
  */
 
+#include "common/types.hpp"
 #include "lua.h"
 #include "lauxlib.h"
 #include "lua_runtime.h"
@@ -29,16 +30,16 @@ namespace {
 using Clock = std::chrono::steady_clock;
 
 struct Options {
-    std::uint64_t iterations = 1000;
-    std::uint64_t durationSeconds = 0;
-    std::uint64_t maxCancellationLatencyMilliseconds = 250;
-    std::string jsonPath;
+    Lua::u64 iterations = 1000;
+    Lua::u64 durationSeconds = 0;
+    Lua::u64 maxCancellationLatencyMilliseconds = 250;
+    Lua::Str jsonPath;
 };
 
 struct AllocatorProbe {
-    size_t limit = size_t{64} * 1024U * 1024U;
-    size_t live = 0;
-    size_t peak = 0;
+    Lua::usize limit = Lua::usize{64} * 1024U * 1024U;
+    Lua::usize live = 0;
+    Lua::usize peak = 0;
     bool accountingError = false;
 };
 
@@ -48,18 +49,18 @@ struct StateFixture {
 };
 
 struct SoakMetrics {
-    std::uint64_t iterations = 0;
-    std::uint64_t statesCreated = 0;
-    std::uint64_t statesClosed = 0;
-    std::uint64_t coroutineCycles = 0;
-    std::uint64_t weakValuesCollected = 0;
-    std::uint64_t finalizersObserved = 0;
-    std::uint64_t cancellationChecks = 0;
-    std::uint64_t maxCancellationLatencyMicroseconds = 0;
-    size_t maxAllocatorPeakBytes = 0;
+    Lua::u64 iterations = 0;
+    Lua::u64 statesCreated = 0;
+    Lua::u64 statesClosed = 0;
+    Lua::u64 coroutineCycles = 0;
+    Lua::u64 weakValuesCollected = 0;
+    Lua::u64 finalizersObserved = 0;
+    Lua::u64 cancellationChecks = 0;
+    Lua::u64 maxCancellationLatencyMicroseconds = 0;
+    Lua::usize maxAllocatorPeakBytes = 0;
 };
 
-std::atomic<std::uint64_t> gFinalizerCalls{0};
+Lua::Atom<Lua::u64> gFinalizerCalls{0};
 
 void* quotaAllocate(void* userData, void* pointer, size_t oldSize, size_t newSize) noexcept {
     auto* probe = static_cast<AllocatorProbe*>(userData);
@@ -80,7 +81,7 @@ void* quotaAllocate(void* userData, void* pointer, size_t oldSize, size_t newSiz
         return nullptr;
     }
 
-    const size_t retained = probe->live - oldSize;
+    const Lua::usize retained = probe->live - oldSize;
     if (newSize > probe->limit || retained > probe->limit - newSize) {
         return nullptr;
     }
@@ -109,32 +110,32 @@ int makeFinalizedUserdata(lua_State* L) {
     return 1;
 }
 
-bool parseUnsigned(std::string_view text, std::uint64_t& value) {
+bool parseUnsigned(Lua::StrView text, Lua::u64& value) {
     if (text.empty()) {
         return false;
     }
-    const char* begin = text.data();
-    const char* end = begin + text.size();
+    Lua::CharPtr begin = text.data();
+    Lua::CharPtr end = begin + text.size();
     const auto result = std::from_chars(begin, end, value);
     return result.ec == std::errc{} && result.ptr == end;
 }
 
-bool readValue(int argc, char** argv, int& index, std::uint64_t& value, std::string& error) {
+bool readValue(int argc, char** argv, int& index, Lua::u64& value, Lua::Str& error) {
     if (index + 1 >= argc) {
-        error = std::string(argv[index]) + " requires a value";
+        error = Lua::Str(argv[index]) + " requires a value";
         return false;
     }
     ++index;
     if (!parseUnsigned(argv[index], value)) {
-        error = std::string(argv[index - 1]) + " requires an unsigned integer";
+        error = Lua::Str(argv[index - 1]) + " requires an unsigned integer";
         return false;
     }
     return true;
 }
 
-bool parseOptions(int argc, char** argv, Options& options, std::string& error) {
+bool parseOptions(int argc, char** argv, Options& options, Lua::Str& error) {
     for (int index = 1; index < argc; ++index) {
-        const std::string_view argument(argv[index]);
+        const Lua::StrView argument(argv[index]);
         if (argument == "--iterations") {
             if (!readValue(argc, argv, index, options.iterations, error)) {
                 return false;
@@ -154,7 +155,7 @@ bool parseOptions(int argc, char** argv, Options& options, std::string& error) {
             }
             options.jsonPath = argv[++index];
         } else {
-            error = "unknown option: " + std::string(argument);
+            error = "unknown option: " + Lua::Str(argument);
             return false;
         }
     }
@@ -169,15 +170,15 @@ bool parseOptions(int argc, char** argv, Options& options, std::string& error) {
     return true;
 }
 
-std::string luaError(lua_State* L, std::string_view operation) {
-    std::string message(operation);
+Lua::Str luaError(lua_State* L, Lua::StrView operation) {
+    Lua::Str message(operation);
     message += ": ";
-    const char* detail = lua_tostring(L, -1);
+    Lua::CharPtr detail = lua_tostring(L, -1);
     message += detail != nullptr ? detail : "unknown Lua error";
     return message;
 }
 
-std::unique_ptr<StateFixture> createState(SoakMetrics& metrics) {
+Lua::UPtr<StateFixture> createState(SoakMetrics& metrics) {
     auto fixture = std::make_unique<StateFixture>();
     lua_RuntimeConfig config{};
     lua_runtime_config_init_gameserver(&config);
@@ -193,7 +194,7 @@ std::unique_ptr<StateFixture> createState(SoakMetrics& metrics) {
     return fixture;
 }
 
-void closeState(std::unique_ptr<StateFixture>& fixture, SoakMetrics& metrics) {
+void closeState(Lua::UPtr<StateFixture>& fixture, SoakMetrics& metrics) {
     if (fixture == nullptr || fixture->state == nullptr) {
         return;
     }
@@ -206,11 +207,11 @@ void closeState(std::unique_ptr<StateFixture>& fixture, SoakMetrics& metrics) {
     }
 }
 
-void beginWindow(lua_State* L, std::uint64_t instructionBudget, std::uint64_t timeoutMilliseconds) {
+void beginWindow(lua_State* L, Lua::u64 instructionBudget, Lua::u64 timeoutMilliseconds) {
     lua_RuntimeExecutionLimits limits{};
     lua_runtime_execution_limits_init(&limits);
     limits.instruction_budget = instructionBudget;
-    limits.native_work_budget = std::uint64_t{16} * 1024U * 1024U;
+    limits.native_work_budget = Lua::u64{16} * 1024U * 1024U;
     limits.finalizer_budget_per_drain = 256;
     limits.timeout_ms = timeoutMilliseconds;
     const int status = lua_runtime_begin_execution(L, &limits);
@@ -249,7 +250,7 @@ void runLifecycleWorkload(lua_State* L, SoakMetrics& metrics) {
     lua_pushcclosure(L, makeFinalizedUserdata, 0);
     lua_setglobal(L, "new_finalized_userdata");
 
-    const std::uint64_t finalizersBefore = gFinalizerCalls.load(std::memory_order_relaxed);
+    const Lua::u64 finalizersBefore = gFinalizerCalls.load(std::memory_order_relaxed);
     if (luaL_loadbuffer(L, source, sizeof(source) - 1, "=(runtime soak)") != LUA_OK) {
         throw std::runtime_error(luaError(L, "soak workload compile"));
     }
@@ -268,7 +269,7 @@ void runLifecycleWorkload(lua_State* L, SoakMetrics& metrics) {
     }
     lua_pop(L, 2);
 
-    const std::uint64_t finalizersAfter = gFinalizerCalls.load(std::memory_order_relaxed);
+    const Lua::u64 finalizersAfter = gFinalizerCalls.load(std::memory_order_relaxed);
     if (finalizersAfter - finalizersBefore != 32) {
         throw std::runtime_error("GC did not run every expected userdata finalizer");
     }
@@ -279,8 +280,8 @@ void runLifecycleWorkload(lua_State* L, SoakMetrics& metrics) {
 
 void verifyContextIsolation(lua_State* primary, lua_State* secondary) {
     lua_getglobal(primary, "soak_marker");
-    const char* primaryMarker = lua_tostring(primary, -1);
-    if (primaryMarker == nullptr || std::string_view(primaryMarker) != "primary") {
+    Lua::CharPtr primaryMarker = lua_tostring(primary, -1);
+    if (primaryMarker == nullptr || Lua::StrView(primaryMarker) != "primary") {
         throw std::runtime_error("primary State lost its global marker");
     }
     lua_pop(primary, 1);
@@ -315,15 +316,15 @@ void verifyCancellation(lua_State* L, const Options& options, SoakMetrics& metri
     canceller.join();
     const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(Clock::now() - started);
 
-    const char* message = lua_tostring(L, -1);
-    if (status != LUA_ERRRUN || message == nullptr || std::string_view(message) != "execution cancelled") {
+    Lua::CharPtr message = lua_tostring(L, -1);
+    if (status != LUA_ERRRUN || message == nullptr || Lua::StrView(message) != "execution cancelled") {
         lua_runtime_release_cancellation_handle(handle);
         throw std::runtime_error("cancellation workload did not stop with the stable cancellation error");
     }
     lua_pop(L, 1);
     lua_runtime_release_cancellation_handle(handle);
 
-    const std::uint64_t latency = static_cast<std::uint64_t>(elapsed.count());
+    const Lua::u64 latency = static_cast<Lua::u64>(elapsed.count());
     metrics.maxCancellationLatencyMicroseconds = std::max(metrics.maxCancellationLatencyMicroseconds, latency);
     ++metrics.cancellationChecks;
     if (latency > options.maxCancellationLatencyMilliseconds * 1000ULL) {
@@ -332,8 +333,8 @@ void verifyCancellation(lua_State* L, const Options& options, SoakMetrics& metri
 }
 
 void runIteration(const Options& options, SoakMetrics& metrics) {
-    std::unique_ptr<StateFixture> primary = createState(metrics);
-    std::unique_ptr<StateFixture> secondary = createState(metrics);
+    Lua::UPtr<StateFixture> primary = createState(metrics);
+    Lua::UPtr<StateFixture> secondary = createState(metrics);
     try {
         runLifecycleWorkload(primary->state, metrics);
         verifyContextIsolation(primary->state, secondary->state);
@@ -347,8 +348,8 @@ void runIteration(const Options& options, SoakMetrics& metrics) {
     }
 }
 
-std::string jsonEscape(std::string_view value) {
-    std::string result;
+Lua::Str jsonEscape(Lua::StrView value) {
+    Lua::Str result;
     for (const char character : value) {
         if (character == '"' || character == '\\') {
             result.push_back('\\');
@@ -362,9 +363,9 @@ std::string jsonEscape(std::string_view value) {
     return result;
 }
 
-std::string makeReport(std::string_view status, const SoakMetrics& metrics, std::uint64_t durationMilliseconds,
-                       std::string_view error) {
-    return "{\"schema\":1,\"status\":\"" + std::string(status) +
+Lua::Str makeReport(Lua::StrView status, const SoakMetrics& metrics, Lua::u64 durationMilliseconds,
+                    Lua::StrView error) {
+    return "{\"schema\":1,\"status\":\"" + Lua::Str(status) +
            "\",\"iterations\":" + std::to_string(metrics.iterations) +
            ",\"states_created\":" + std::to_string(metrics.statesCreated) +
            ",\"states_closed\":" + std::to_string(metrics.statesClosed) +
@@ -377,7 +378,7 @@ std::string makeReport(std::string_view status, const SoakMetrics& metrics, std:
            ",\"duration_ms\":" + std::to_string(durationMilliseconds) + ",\"error\":\"" + jsonEscape(error) + "\"}\n";
 }
 
-void publishReport(const Options& options, const std::string& report) {
+void publishReport(const Options& options, const Lua::Str& report) {
     std::cout << report;
     if (!options.jsonPath.empty()) {
         std::ofstream output(options.jsonPath, std::ios::binary | std::ios::trunc);
@@ -395,7 +396,7 @@ void publishReport(const Options& options, const std::string& report) {
 
 int main(int argc, char** argv) {
     Options options;
-    std::string optionError;
+    Lua::Str optionError;
     if (!parseOptions(argc, argv, options, optionError)) {
         std::cerr << "lua_runtime_soak: " << optionError << '\n';
         return 64;
@@ -418,11 +419,10 @@ int main(int argc, char** argv) {
         if (metrics.statesCreated != metrics.statesClosed) {
             throw std::runtime_error("created and closed State counts differ");
         }
-        publishReport(options, makeReport("passed", metrics, static_cast<std::uint64_t>(duration.count()), ""));
+        publishReport(options, makeReport("passed", metrics, static_cast<Lua::u64>(duration.count()), ""));
     } catch (const std::exception& error) {
         const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - started);
-        const std::string report =
-            makeReport("failed", metrics, static_cast<std::uint64_t>(duration.count()), error.what());
+        const Lua::Str report = makeReport("failed", metrics, static_cast<Lua::u64>(duration.count()), error.what());
         try {
             publishReport(options, report);
         } catch (...) {

@@ -148,7 +148,7 @@ public:
      * @brief 获取原始数据指针
      * @return 指向缓冲区数据的指针
      */
-    const char* data() const noexcept;
+    CharPtr data() const noexcept;
 
 private:
     /** @brief 内部缓冲区 */

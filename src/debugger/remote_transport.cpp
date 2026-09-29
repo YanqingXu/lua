@@ -4,6 +4,7 @@
  */
 
 #include "debugger/remote_transport.hpp"
+#include "common/types.hpp"
 
 #include <algorithm>
 #include <cerrno>
@@ -110,7 +111,7 @@ ProtocolResult<sockaddr_in> ipv4Endpoint(StrView address, u16 port) {
     endpoint.sin_port = htons(port);
     const Str terminated(address);
     if (inet_pton(AF_INET, terminated.c_str(), &endpoint.sin_addr) != 1) {
-        return std::unexpected(
+        return Unexpect<ProtocolError>(
             ProtocolError{ProtocolStatus::InvalidArgument, "debug transport address must be an IPv4 literal", 0});
     }
     return endpoint;
@@ -139,23 +140,24 @@ TcpConnection& TcpConnection::operator=(TcpConnection&& other) noexcept {
 
 ProtocolResult<TcpConnection> TcpConnection::connect(StrView address, u16 port, u32 timeoutMs) {
     if (!socketsReady()) {
-        return std::unexpected(socketFailure("socket initialization"));
+        return Unexpect<ProtocolError>(socketFailure("socket initialization"));
     }
     auto endpoint = ipv4Endpoint(address, port);
     if (!endpoint || port == 0) {
-        return std::unexpected(endpoint ? ProtocolError{ProtocolStatus::InvalidArgument, "debug port must be non-zero", 0}
-                                        : endpoint.error());
+        return Unexpect<ProtocolError>(
+            endpoint ? ProtocolError{ProtocolStatus::InvalidArgument, "debug port must be non-zero", 0}
+                     : endpoint.error());
     }
     const NativeSocket socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (socket == kInvalidSocket) {
-        return std::unexpected(socketFailure("socket creation"));
+        return Unexpect<ProtocolError>(socketFailure("socket creation"));
     }
     TcpConnection result(stored(socket));
     if (auto configured = result.setTimeouts(timeoutMs, timeoutMs); !configured) {
-        return std::unexpected(configured.error());
+        return Unexpect<ProtocolError>(configured.error());
     }
     if (::connect(socket, reinterpret_cast<const sockaddr*>(&*endpoint), sizeof(*endpoint)) != 0) {
-        return std::unexpected(socketFailure("debug connection"));
+        return Unexpect<ProtocolError>(socketFailure("debug connection"));
     }
     return result;
 }
@@ -164,25 +166,26 @@ bool TcpConnection::valid() const noexcept {
     return socket_.load(std::memory_order_acquire) != -1;
 }
 
-ProtocolResult<void> TcpConnection::sendAll(std::span<const u8> bytes) {
+ProtocolResult<void> TcpConnection::sendAll(Span<const u8> bytes) {
     if (!valid()) {
-        return std::unexpected(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
     }
     usize offset = 0;
     while (offset < bytes.size()) {
         const isize socket = socket_.load(std::memory_order_acquire);
         if (socket == -1) {
-            return std::unexpected(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
+            return Unexpect<ProtocolError>(
+                ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
         }
         const usize remaining = bytes.size() - offset;
         const i32 chunk = static_cast<i32>(std::min(remaining, static_cast<usize>(std::numeric_limits<i32>::max())));
 #ifdef _WIN32
-        const i32 sent = ::send(native(socket), reinterpret_cast<const char*>(bytes.data() + offset), chunk, 0);
+        const i32 sent = ::send(native(socket), reinterpret_cast<CharPtr>(bytes.data() + offset), chunk, 0);
 #else
         const i32 sent = static_cast<i32>(::send(native(socket), bytes.data() + offset, static_cast<usize>(chunk), 0));
 #endif
         if (sent <= 0) {
-            return std::unexpected(socketFailure("debug send"));
+            return Unexpect<ProtocolError>(socketFailure("debug send"));
         }
         offset += static_cast<usize>(sent);
     }
@@ -191,13 +194,13 @@ ProtocolResult<void> TcpConnection::sendAll(std::span<const u8> bytes) {
 
 ProtocolResult<Vec<u8>> TcpConnection::receiveSome(usize maxBytes) {
     if (!valid()) {
-        return std::unexpected(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
     }
     const usize bounded = std::clamp(maxBytes, usize{1}, kProtocolMaxFrameBytes);
     Vec<u8> bytes(bounded);
     const isize socket = socket_.load(std::memory_order_acquire);
     if (socket == -1) {
-        return std::unexpected(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
     }
 #ifdef _WIN32
     const i32 received = ::recv(native(socket), reinterpret_cast<char*>(bytes.data()), static_cast<i32>(bounded), 0);
@@ -205,10 +208,10 @@ ProtocolResult<Vec<u8>> TcpConnection::receiveSome(usize maxBytes) {
     const i32 received = static_cast<i32>(::recv(native(socket), bytes.data(), bounded, 0));
 #endif
     if (received == 0) {
-        return std::unexpected(ProtocolError{ProtocolStatus::Terminated, "debug connection closed by peer", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::Terminated, "debug connection closed by peer", 0});
     }
     if (received < 0) {
-        return std::unexpected(receiveFailure());
+        return Unexpect<ProtocolError>(receiveFailure());
     }
     bytes.resize(static_cast<usize>(received));
     return bytes;
@@ -217,14 +220,14 @@ ProtocolResult<Vec<u8>> TcpConnection::receiveSome(usize maxBytes) {
 ProtocolResult<void> TcpConnection::setTimeouts(u32 receiveTimeoutMs, u32 sendTimeoutMs) {
     const isize socket = socket_.load(std::memory_order_acquire);
     if (socket == -1) {
-        return std::unexpected(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::InvalidState, "debug connection is closed", 0});
     }
 #ifdef _WIN32
     const DWORD receiveTimeout = receiveTimeoutMs;
     const DWORD sendTimeout = sendTimeoutMs;
-    if (setsockopt(native(socket), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&receiveTimeout),
+    if (setsockopt(native(socket), SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<CharPtr>(&receiveTimeout),
                    sizeof(receiveTimeout)) != 0 ||
-        setsockopt(native(socket), SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&sendTimeout),
+        setsockopt(native(socket), SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<CharPtr>(&sendTimeout),
                    sizeof(sendTimeout)) != 0) {
 #else
     const timeval receiveTimeout{static_cast<time_t>(receiveTimeoutMs / 1000U),
@@ -234,7 +237,7 @@ ProtocolResult<void> TcpConnection::setTimeouts(u32 receiveTimeoutMs, u32 sendTi
     if (setsockopt(native(socket), SOL_SOCKET, SO_RCVTIMEO, &receiveTimeout, sizeof(receiveTimeout)) != 0 ||
         setsockopt(native(socket), SOL_SOCKET, SO_SNDTIMEO, &sendTimeout, sizeof(sendTimeout)) != 0) {
 #endif
-        return std::unexpected(socketFailure("debug socket timeout configuration"));
+        return Unexpect<ProtocolError>(socketFailure("debug socket timeout configuration"));
     }
     return {};
 }
@@ -270,29 +273,29 @@ TcpListener& TcpListener::operator=(TcpListener&& other) noexcept {
 
 ProtocolResult<TcpListener> TcpListener::listen(StrView address, u16 port, i32 backlog) {
     if (!socketsReady()) {
-        return std::unexpected(socketFailure("socket initialization"));
+        return Unexpect<ProtocolError>(socketFailure("socket initialization"));
     }
     auto endpoint = ipv4Endpoint(address, port);
     if (!endpoint) {
-        return std::unexpected(endpoint.error());
+        return Unexpect<ProtocolError>(endpoint.error());
     }
     const NativeSocket socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (socket == kInvalidSocket) {
-        return std::unexpected(socketFailure("listener creation"));
+        return Unexpect<ProtocolError>(socketFailure("listener creation"));
     }
     TcpListener result;
     result.socket_.store(stored(socket), std::memory_order_release);
     const i32 enabled = 1;
 #ifdef _WIN32
-    (void)setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&enabled), sizeof(enabled));
+    (void)setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<CharPtr>(&enabled), sizeof(enabled));
 #else
     (void)setsockopt(socket, SOL_SOCKET, SO_REUSEADDR, &enabled, sizeof(enabled));
 #endif
     if (::bind(socket, reinterpret_cast<const sockaddr*>(&*endpoint), sizeof(*endpoint)) != 0) {
-        return std::unexpected(socketFailure("debug listener bind"));
+        return Unexpect<ProtocolError>(socketFailure("debug listener bind"));
     }
     if (::listen(socket, std::max(backlog, 1)) != 0) {
-        return std::unexpected(socketFailure("debug listener listen"));
+        return Unexpect<ProtocolError>(socketFailure("debug listener listen"));
     }
     sockaddr_in actual{};
 #ifdef _WIN32
@@ -301,7 +304,7 @@ ProtocolResult<TcpListener> TcpListener::listen(StrView address, u16 port, i32 b
     socklen_t length = sizeof(actual);
 #endif
     if (getsockname(socket, reinterpret_cast<sockaddr*>(&actual), &length) != 0) {
-        return std::unexpected(socketFailure("debug listener endpoint query"));
+        return Unexpect<ProtocolError>(socketFailure("debug listener endpoint query"));
     }
     result.localPort_ = ntohs(actual.sin_port);
     return result;
@@ -310,11 +313,11 @@ ProtocolResult<TcpListener> TcpListener::listen(StrView address, u16 port, i32 b
 ProtocolResult<TcpConnection> TcpListener::accept() {
     const isize socket = socket_.load(std::memory_order_acquire);
     if (socket == -1) {
-        return std::unexpected(ProtocolError{ProtocolStatus::InvalidState, "debug listener is closed", 0});
+        return Unexpect<ProtocolError>(ProtocolError{ProtocolStatus::InvalidState, "debug listener is closed", 0});
     }
     const NativeSocket accepted = ::accept(native(socket), nullptr, nullptr);
     if (accepted == kInvalidSocket) {
-        return std::unexpected(socketFailure("debug listener accept"));
+        return Unexpect<ProtocolError>(socketFailure("debug listener accept"));
     }
     return TcpConnection(stored(accepted));
 }

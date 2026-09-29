@@ -3,6 +3,7 @@
  * @brief Value类的实现文件
  */
 
+#include "common/types.hpp"
 #include "core/value.hpp"
 #include <sstream>
 #include <iomanip>

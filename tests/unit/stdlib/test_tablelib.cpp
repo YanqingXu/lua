@@ -9,6 +9,7 @@
  * @date 2026-01-23
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "lib/tablelib.hpp"
 #include "lib/lib_manager.hpp"
@@ -28,9 +29,9 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Table Library";
+constexpr Lua::CharPtr kSuiteName = "Table Library";
 
-bool runLua(LuaState* L, const char* code) {
+bool runLua(LuaState* L, Lua::CharPtr code) {
     try {
         Parser parser(code);
         auto parsed = parser.parse();
@@ -56,7 +57,7 @@ bool runLua(LuaState* L, const char* code) {
     }
 }
 
-double getGlobalNumber(LuaState* L, const char* name) {
+Lua::f64 getGlobalNumber(LuaState* L, Lua::CharPtr name) {
     Value v = L->getGlobal(name);
     return v.isNumber() ? v.asNumber() : -9999.0;
 }
@@ -68,7 +69,7 @@ LuaState* createFullState() {
 }
 
 // 辅助函数：调用 table 库函数
-i32 callTableFunc(LuaState* L, const char* funcName, const std::function<void(LuaState*)>& pushArgs) {
+i32 callTableFunc(LuaState* L, Lua::CharPtr funcName, const Lua::Func<void(LuaState*)>& pushArgs) {
     // 获取 table 表
     Value tableTable = L->getGlobal("table");
     if (!tableTable.isTable()) {
@@ -199,7 +200,7 @@ void testTableConcat(TestSuite& suite) {
     ASSERT_EQ(suite, ret, 1, "concat returns 1");
     Value result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "helloworld", "concat without separator");
     }
 
@@ -213,7 +214,7 @@ void testTableConcat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "hello, world", "concat with separator");
     }
 
@@ -229,7 +230,7 @@ void testTableConcat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string str = result.asString()->c_str();
+        Lua::Str str = result.asString()->c_str();
         ASSERT_TRUE(suite, str == "1-2-3", "concat numbers");
     }
 
@@ -250,7 +251,7 @@ void testTableConcat(TestSuite& suite) {
     });
     result = L->top();
     if (result.isString()) {
-        std::string expected;
+        Lua::Str expected;
         expected.append(s1, sizeof(s1));
         expected.append(sep, sizeof(sep));
         expected.append(s2, sizeof(s2));
@@ -292,9 +293,9 @@ void testTableSort(TestSuite& suite) {
     Value v2 = t2->get(Value(2.0));
     Value v3 = t2->get(Value(3.0));
     if (v1.isString() && v2.isString() && v3.isString()) {
-        ASSERT_TRUE(suite, std::string(v1.asString()->c_str()) == "a", "sorted[1] = 'a'");
-        ASSERT_TRUE(suite, std::string(v2.asString()->c_str()) == "b", "sorted[2] = 'b'");
-        ASSERT_TRUE(suite, std::string(v3.asString()->c_str()) == "c", "sorted[3] = 'c'");
+        ASSERT_TRUE(suite, Lua::Str(v1.asString()->c_str()) == "a", "sorted[1] = 'a'");
+        ASSERT_TRUE(suite, Lua::Str(v2.asString()->c_str()) == "b", "sorted[2] = 'b'");
+        ASSERT_TRUE(suite, Lua::Str(v3.asString()->c_str()) == "c", "sorted[3] = 'c'");
     }
 
     // 测试 3: 非函数比较器报错
@@ -305,7 +306,7 @@ void testTableSort(TestSuite& suite) {
             s->pushNumber(1.0);
         });
     } catch (const std::runtime_error& e) {
-        invalidComparator = std::string(e.what()) == "bad argument #2 to 'table.sort' (function expected)";
+        invalidComparator = Lua::Str(e.what()) == "bad argument #2 to 'table.sort' (function expected)";
     }
     ASSERT_TRUE(suite, invalidComparator, "sort rejects non-function comparator");
 }
@@ -358,13 +359,13 @@ void testTableSortWithComparatorUsingDerivedKey(TestSuite& suite) {
     Value second = L->getGlobal("second");
     Value third = L->getGlobal("third");
     Value fourth = L->getGlobal("fourth");
-    ASSERT_TRUE(suite, first.isString() && std::string(first.asString()->c_str()) == "fig",
+    ASSERT_TRUE(suite, first.isString() && Lua::Str(first.asString()->c_str()) == "fig",
                 "derived-key sort first element is fig");
-    ASSERT_TRUE(suite, second.isString() && std::string(second.asString()->c_str()) == "kiwi",
+    ASSERT_TRUE(suite, second.isString() && Lua::Str(second.asString()->c_str()) == "kiwi",
                 "derived-key sort second element is kiwi");
-    ASSERT_TRUE(suite, third.isString() && std::string(third.asString()->c_str()) == "pear",
+    ASSERT_TRUE(suite, third.isString() && Lua::Str(third.asString()->c_str()) == "pear",
                 "derived-key sort third element is pear");
-    ASSERT_TRUE(suite, fourth.isString() && std::string(fourth.asString()->c_str()) == "banana",
+    ASSERT_TRUE(suite, fourth.isString() && Lua::Str(fourth.asString()->c_str()) == "banana",
                 "derived-key sort fourth element is banana");
 
     delete L;
@@ -471,7 +472,7 @@ void testTableSortConsumesNativeWorkBudget(TestSuite& suite) {
     try {
         (void)callTableFunc(L, "sort", [&](LuaState* state) { state->pushTable(values); });
     } catch (const RuntimeError& error) {
-        elementLimitStopped = std::string(error.what()) == "table.sort: element limit exceeded";
+        elementLimitStopped = Lua::Str(error.what()) == "table.sort: element limit exceeded";
     }
     L->getGlobalState().getResourcePolicy().maxSortElements = 1'000'000;
     ASSERT_TRUE(suite, elementLimitStopped, "table.sort rejects oversized input before temporary allocation");
@@ -483,7 +484,7 @@ void testTableSortConsumesNativeWorkBudget(TestSuite& suite) {
     try {
         (void)callTableFunc(L, "sort", [&](LuaState* state) { state->pushTable(values); });
     } catch (const RuntimeError& error) {
-        stopped = std::string(error.what()) == "execution native work budget exceeded";
+        stopped = Lua::Str(error.what()) == "execution native work budget exceeded";
     }
     L->getGlobalState().getExecutionPolicy().reset();
 
@@ -505,7 +506,7 @@ void testTableResourcePolicyCoversLinearOperations(TestSuite& suite) {
     try {
         (void)callTableFunc(L, "unpack", [&](LuaState* state) { state->pushTable(values); });
     } catch (const RuntimeError& error) {
-        unpackStopped = std::string(error.what()) == "table.unpack: result count exceeds resource limit";
+        unpackStopped = Lua::Str(error.what()) == "table.unpack: result count exceeds resource limit";
     }
     L->getGlobalState().getResourcePolicy().maxReturnValues = oldReturnLimit;
     ASSERT_TRUE(suite, unpackStopped, "table.unpack checks the return-count limit before pushing values");
@@ -521,7 +522,7 @@ void testTableResourcePolicyCoversLinearOperations(TestSuite& suite) {
             state->pushNumber(99);
         });
     } catch (const RuntimeError& error) {
-        insertStopped = std::string(error.what()) == "execution native work budget exceeded";
+        insertStopped = Lua::Str(error.what()) == "execution native work budget exceeded";
     }
     L->getGlobalState().getExecutionPolicy().reset();
     ASSERT_TRUE(suite, insertStopped, "table.insert charges its complete shift before mutation");
@@ -542,7 +543,7 @@ void testTableResourcePolicyCoversLinearOperations(TestSuite& suite) {
             state->pushTable(destination);
         });
     } catch (const RuntimeError& error) {
-        moveStopped = std::string(error.what()) == "execution native work budget exceeded";
+        moveStopped = Lua::Str(error.what()) == "execution native work budget exceeded";
     }
     L->getGlobalState().getExecutionPolicy().reset();
     ASSERT_TRUE(suite, moveStopped, "table.move charges its complete copy before mutation");
@@ -804,7 +805,7 @@ void testTableForeachiCompatibility(TestSuite& suite) {
         "foreachi passes nil array slots through the callback");
     ASSERT_EQ(suite, 50.0, getGlobalNumber(L, "foreachi_seen_5"), "foreachi visits final array index");
     Value returned = L->getGlobal("foreachi_value");
-    ASSERT_TRUE(suite, returned.isString() && std::string(returned.asString()->c_str()) == "b",
+    ASSERT_TRUE(suite, returned.isString() && Lua::Str(returned.asString()->c_str()) == "b",
                 "foreachi returns first callback value");
     delete L;
 }

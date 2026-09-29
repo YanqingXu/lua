@@ -3,6 +3,7 @@
  * @brief Tests for VM opcode dispatch grouping.
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "compiler/parser/parser.hpp"
@@ -30,7 +31,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "VM Dispatch";
+constexpr Lua::CharPtr kSuiteName = "VM Dispatch";
 
 class RecordingDispatchStrategy final : public VM::DispatchStrategy {
 public:
@@ -43,7 +44,7 @@ public:
         return ExecResult::Returned;
     }
 
-    const char* name() const noexcept override {
+    Lua::CharPtr name() const noexcept override {
         return "recording";
     }
 
@@ -107,7 +108,7 @@ i32 createTwoTablesAndReturnLast(LuaState* L) {
     return 1;
 }
 
-Proto* compileDispatchChunk(RuntimeServices& services, const char* source, const char* sourceName) {
+Proto* compileDispatchChunk(RuntimeServices& services, Lua::CharPtr source, Lua::CharPtr sourceName) {
     Parser parser(source, services);
     auto parsed = parser.parse();
     if (!parsed) {
@@ -164,7 +165,7 @@ void testMetamethodCandidateGrouping(TestSuite& suite) {
 }
 
 void testDefaultDispatchStrategyIsSwitch(TestSuite& suite) {
-    ASSERT_TRUE(suite, std::string(VM::defaultDispatchStrategy().name()) == "switch",
+    ASSERT_TRUE(suite, Lua::Str(VM::defaultDispatchStrategy().name()) == "switch",
                 "Default dispatch strategy should be switch");
 }
 
@@ -196,7 +197,7 @@ void testRuntimeServicesCanInjectDispatchStrategy(TestSuite& suite) {
 void testTableDispatchStrategyIsAvailable(TestSuite& suite) {
     VM::DispatchStrategy& table = VM::tableDispatchStrategy();
 
-    ASSERT_TRUE(suite, std::string(table.name()) == "table", "Table dispatch strategy should identify itself");
+    ASSERT_TRUE(suite, Lua::Str(table.name()) == "table", "Table dispatch strategy should identify itself");
     ASSERT_TRUE(suite, &table != &VM::defaultDispatchStrategy(),
                 "Table dispatch strategy should be distinct from the default switch strategy");
 }
@@ -267,8 +268,7 @@ void testHandlerTableCoversOpcodeSpace(TestSuite& suite) {
         OpCode expected = static_cast<OpCode>(index);
 
         ASSERT_EQ(suite, index, static_cast<int>(entry.opcode), "Handler entry opcode should match table index");
-        ASSERT_TRUE(suite, std::string(entry.name) == getOpName(expected),
-                    "Handler entry name should match opcode name");
+        ASSERT_TRUE(suite, Lua::Str(entry.name) == getOpName(expected), "Handler entry name should match opcode name");
         ASSERT_EQ(suite, static_cast<int>(opcodeMetadata(expected).group), static_cast<int>(entry.group),
                   "Handler entry group should match opcode metadata");
     }
@@ -324,7 +324,7 @@ void testDataMoveHandlersExecuteDirectly(TestSuite& suite) {
     }
     usize highestConstantIndex = proto.addConstant(Value(987654.0));
 
-    std::array<Value, 4> registers{};
+    Lua::Arr<Value, 4> registers{};
     registers[1] = Value(7.0);
     registers[3] = Value(99.0);
 
@@ -710,7 +710,7 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     base[2] = Value(spaceWorld);
     VM::runHandler(context, CREATE_ABC(OpCode::CONCAT, 0, 1, 2));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "hello world",
+    ASSERT_TRUE(suite, base[0].isString() && Lua::Str(base[0].asString()->c_str()) == "hello world",
                 "CONCAT handler should concatenate string operands");
 
     base[1] = Value(10.0);
@@ -718,14 +718,14 @@ void testUnaryHandlersExecuteDirectly(TestSuite& suite) {
     base[3] = Value(-30.0);
     VM::runHandler(context, CREATE_ABC(OpCode::CONCAT, 0, 1, 3));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "1020-30",
+    ASSERT_TRUE(suite, base[0].isString() && Lua::Str(base[0].asString()->c_str()) == "1020-30",
                 "CONCAT handler should stringify numbers without fixed decimals");
 
     base[1] = Value(12.0);
     base[2] = Value(services.strings.intern(""));
     VM::runHandler(context, CREATE_ABC(OpCode::CONCAT, 0, 1, 2));
     base = context.base;
-    ASSERT_TRUE(suite, base[0].isString() && std::string(base[0].asString()->c_str()) == "12",
+    ASSERT_TRUE(suite, base[0].isString() && Lua::Str(base[0].asString()->c_str()) == "12",
                 "CONCAT handler should stringify numbers when appending an empty string");
 
     delete L;
@@ -802,10 +802,10 @@ void testBranchAndComparisonHandlersExecuteDirectly(TestSuite& suite) {
                 "TESTSET handler should not copy B when condition does not match");
     ASSERT_EQ(suite, 2, static_cast<int>(pc), "TESTSET handler should advance once when condition does not match");
 
-    const char* currentLocale = std::setlocale(LC_COLLATE, nullptr);
-    std::string previousLocale = currentLocale != nullptr ? currentLocale : "";
+    Lua::CharPtr currentLocale = std::setlocale(LC_COLLATE, nullptr);
+    Lua::Str previousLocale = currentLocale != nullptr ? currentLocale : "";
     bool localeSelected = false;
-    for (const char* localeName : {"ptb", "ISO-8859-1", "pt_BR"}) {
+    for (Lua::CharPtr localeName : {"ptb", "ISO-8859-1", "pt_BR"}) {
         if (std::setlocale(LC_COLLATE, localeName) != nullptr) {
             localeSelected = true;
             break;

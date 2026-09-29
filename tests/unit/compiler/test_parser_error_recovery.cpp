@@ -12,6 +12,7 @@
  * - 完整格式由调用者组装：progname: source:line: message
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "common/lua_error.hpp"
 #include "compiler/parser/parser.hpp"
@@ -25,7 +26,7 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Parser Error Reporting";
+constexpr Lua::CharPtr kSuiteName = "Parser Error Reporting";
 
 void testParseReturnsExpectedType(TestSuite& suite) {
     using ParseResult = decltype(std::declval<Parser&>().parse());
@@ -48,10 +49,9 @@ void testParseExpectedFailureValue(TestSuite& suite) {
 }
 
 void testStatementBoundaryRecoveryCollectsDiagnostics(TestSuite& suite) {
-    std::string code =
-        "local x = +\n"
-        "local y = +\n"
-        "local z = 1\n";
+    Lua::Str code = "local x = +\n"
+                    "local y = +\n"
+                    "local z = 1\n";
 
     Parser parser(code, ParserOptions{ParseRecoveryMode::StatementBoundary});
     auto parsed = parser.parse();
@@ -72,7 +72,7 @@ void testStatementBoundaryRecoveryCollectsDiagnostics(TestSuite& suite) {
  */
 void testSyntaxErrorReporting(TestSuite& suite) {
     // 使用无效的表达式
-    std::string code = "local x = +";  // 缺少操作数
+    Lua::Str code = "local x = +"; // 缺少操作数
 
     Parser parser(code);
     auto parsed = parser.parse();
@@ -92,11 +92,10 @@ void testSyntaxErrorReporting(TestSuite& suite) {
  */
 void testErrorMessageFormat(TestSuite& suite) {
     // 缺少 then 关键字
-    std::string code =
-        "local x = 1\n"
-        "if x > 0\n"
-        "  print(x)\n"
-        "end\n";
+    Lua::Str code = "local x = 1\n"
+                    "if x > 0\n"
+                    "  print(x)\n"
+                    "end\n";
 
     Parser parser(code);
     auto parsed = parser.parse();
@@ -106,7 +105,7 @@ void testErrorMessageFormat(TestSuite& suite) {
     }
 
     const ParseError& e = parsed.error();
-    std::string errorMsg = e.what();
+    Lua::Str errorMsg = e.what();
 
     // 验证错误消息不为空
     ASSERT_TRUE(suite, !errorMsg.empty(), "Error message is not empty");
@@ -118,10 +117,8 @@ void testErrorMessageFormat(TestSuite& suite) {
     ASSERT_TRUE(suite, column >= 1, "Column number is valid");
 
     // 验证错误消息包含有意义的描述
-    bool hasExpected = errorMsg.find("Expected") != std::string::npos ||
-                       errorMsg.find("expected") != std::string::npos ||
-                       errorMsg.find("syntax") != std::string::npos ||
-                       errorMsg.find("Unexpected") != std::string::npos;
+    bool hasExpected = errorMsg.find("Expected") != Lua::Str::npos || errorMsg.find("expected") != Lua::Str::npos ||
+                       errorMsg.find("syntax") != Lua::Str::npos || errorMsg.find("Unexpected") != Lua::Str::npos;
     ASSERT_TRUE(suite, hasExpected, "Error message has meaningful description");
 }
 
@@ -129,11 +126,10 @@ void testErrorMessageFormat(TestSuite& suite) {
  * @brief 测试正常代码能正确解析
  */
 void testNormalCodeParsing(TestSuite& suite) {
-    std::string code =
-        "local x = 1\n"
-        "if x > 0 then\n"
-        "  print(x)\n"
-        "end\n";
+    Lua::Str code = "local x = 1\n"
+                    "if x > 0 then\n"
+                    "  print(x)\n"
+                    "end\n";
 
     Parser parser(code);
     auto parsed = parser.parse();
@@ -144,7 +140,7 @@ void testNormalCodeParsing(TestSuite& suite) {
  * @brief 测试未闭合的括号错误
  */
 void testUnclosedParenthesis(TestSuite& suite) {
-    std::string code = "local x = (1 + 2";  // 缺少右括号
+    Lua::Str code = "local x = (1 + 2"; // 缺少右括号
 
     Parser parser(code);
     auto parsed = parser.parse();
@@ -162,7 +158,7 @@ void testUnclosedParenthesis(TestSuite& suite) {
  * @brief 测试缺少 end 关键字的错误
  */
 void testMissingEnd(TestSuite& suite) {
-    std::string code = "if true then\n  print(1)";  // 缺少 end
+    Lua::Str code = "if true then\n  print(1)"; // 缺少 end
 
     Parser parser(code);
     auto parsed = parser.parse();
@@ -172,13 +168,11 @@ void testMissingEnd(TestSuite& suite) {
     }
 
     const ParseError& e = parsed.error();
-    std::string errorMsg = e.what();
+    Lua::Str errorMsg = e.what();
     // 验证错误消息包含有意义的描述
     bool hasError = !errorMsg.empty() &&
-                    (errorMsg.find("Expected") != std::string::npos ||
-                     errorMsg.find("expected") != std::string::npos ||
-                     errorMsg.find("syntax") != std::string::npos ||
-                     errorMsg.find("<eof>") != std::string::npos);
+                    (errorMsg.find("Expected") != Lua::Str::npos || errorMsg.find("expected") != Lua::Str::npos ||
+                     errorMsg.find("syntax") != Lua::Str::npos || errorMsg.find("<eof>") != Lua::Str::npos);
     ASSERT_TRUE(suite, hasError, "Missing end returns error");
 }
 
@@ -186,12 +180,9 @@ void testMissingEnd(TestSuite& suite) {
  * @brief 测试解析、运行时、内存异常统一继承 LuaError。
  */
 void testUnifiedErrorHierarchy(TestSuite& suite) {
-    ASSERT_TRUE(suite, (std::is_base_of<LuaError, ParseError>::value),
-                "ParseError derives from LuaError");
-    ASSERT_TRUE(suite, (std::is_base_of<LuaError, RuntimeError>::value),
-                "RuntimeError derives from LuaError");
-    ASSERT_TRUE(suite, (std::is_base_of<RuntimeError, MemoryError>::value),
-                "MemoryError derives from RuntimeError");
+    ASSERT_TRUE(suite, (std::is_base_of<LuaError, ParseError>::value), "ParseError derives from LuaError");
+    ASSERT_TRUE(suite, (std::is_base_of<LuaError, RuntimeError>::value), "RuntimeError derives from LuaError");
+    ASSERT_TRUE(suite, (std::is_base_of<RuntimeError, MemoryError>::value), "MemoryError derives from RuntimeError");
     ASSERT_TRUE(suite, (std::is_base_of<std::runtime_error, LuaError>::value),
                 "LuaError remains compatible with std::runtime_error");
 }
@@ -205,7 +196,8 @@ void registerParserErrorRecoveryTests() {
     auto& registry = TestRegistry::getInstance();
     registry.registerTest(kSuiteName, "parse returns expected type", testParseReturnsExpectedType);
     registry.registerTest(kSuiteName, "parse expected failure value", testParseExpectedFailureValue);
-    registry.registerTest(kSuiteName, "statement recovery diagnostics", testStatementBoundaryRecoveryCollectsDiagnostics);
+    registry.registerTest(kSuiteName, "statement recovery diagnostics",
+                          testStatementBoundaryRecoveryCollectsDiagnostics);
     registry.registerTest(kSuiteName, "syntax error reporting", testSyntaxErrorReporting);
     registry.registerTest(kSuiteName, "error message format", testErrorMessageFormat);
     registry.registerTest(kSuiteName, "normal code parsing", testNormalCodeParsing);
@@ -213,4 +205,3 @@ void registerParserErrorRecoveryTests() {
     registry.registerTest(kSuiteName, "missing end", testMissingEnd);
     registry.registerTest(kSuiteName, "unified error hierarchy", testUnifiedErrorHierarchy);
 }
-

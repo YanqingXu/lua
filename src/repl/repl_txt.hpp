@@ -34,7 +34,7 @@ inline Str trimCopy(const Str& text) {
 }
 
 /** @brief 判断文本是否以指定前缀开头。 */
-inline bool startsWith(std::string_view text, std::string_view prefix) {
+inline bool startsWith(StrView text, StrView prefix) {
     return text.size() >= prefix.size() && text.substr(0, prefix.size()) == prefix;
 }
 

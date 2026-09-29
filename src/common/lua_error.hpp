@@ -21,7 +21,7 @@ class LuaError : public std::runtime_error {
 public:
     explicit LuaError(const Str& message) : std::runtime_error(message), errorObj_(), hasErrorObject_(false) {}
 
-    explicit LuaError(const char* message) : LuaError(Str(message ? message : "")) {}
+    explicit LuaError(CharPtr message) : LuaError(Str(message ? message : "")) {}
 
     explicit LuaError(Value errorObj)
         : std::runtime_error(messageFromValue(errorObj)), errorObj_(std::move(errorObj)), hasErrorObject_(true) {}

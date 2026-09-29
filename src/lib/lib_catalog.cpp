@@ -3,6 +3,7 @@
  * @brief Lua 标准库目录的静态定义与查询实现
  */
 
+#include "common/types.hpp"
 #include "lib/lib_catalog.hpp"
 
 #include "lib/baselib.hpp"
@@ -23,7 +24,7 @@ namespace Lua {
 
 namespace {
 
-constexpr std::array<LibCatalogEntry, 9> kStandardLibraryCatalog = {
+constexpr Arr<LibCatalogEntry, 9> kStandardLibraryCatalog = {
     {
         {"base", "Base Library", openBaseLib},
         {"math", "Math Library", openMathLib},
@@ -39,8 +40,8 @@ constexpr std::array<LibCatalogEntry, 9> kStandardLibraryCatalog = {
 
 } // namespace
 
-std::span<const LibCatalogEntry> getStandardLibraryCatalog() {
-    return std::span<const LibCatalogEntry>(kStandardLibraryCatalog.data(), kStandardLibraryCatalog.size());
+Span<const LibCatalogEntry> getStandardLibraryCatalog() {
+    return Span<const LibCatalogEntry>(kStandardLibraryCatalog.data(), kStandardLibraryCatalog.size());
 }
 
 Opt<std::reference_wrapper<const LibCatalogEntry>> findStandardLibrary(StrView id) {

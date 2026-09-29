@@ -6,6 +6,7 @@
  * @date 2025-11-14
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "vm/state/global_state.hpp"
 #include "vm/state/stack.hpp"
@@ -43,7 +44,7 @@ i32 currentTestProcessId() noexcept {
 #endif
 }
 
-FILE* openTrackedTestFile(const char* path) {
+FILE* openTrackedTestFile(Lua::CharPtr path) {
 #ifdef _WIN32
     FILE* file = nullptr;
     return fopen_s(&file, path, "w+") == 0 ? file : nullptr;
@@ -52,7 +53,7 @@ FILE* openTrackedTestFile(const char* path) {
 #endif
 }
 
-LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto) {
+LuaState* executeChunk(Lua::CharPtr code, Lua::CharPtr chunkName, Proto*& outProto) {
     RuntimeServices services = RuntimeServices::fromSingletons();
     Parser parser(code);
     auto parsed = parser.parse();
@@ -73,7 +74,7 @@ LuaState* executeChunk(const char* code, const char* chunkName, Proto*& outProto
     return L;
 }
 
-Function* getTableFunction(Table* table, StringPool& pool, const char* name) {
+Function* getTableFunction(Table* table, StringPool& pool, Lua::CharPtr name) {
     if (!table || !name) {
         return nullptr;
     }
@@ -270,7 +271,7 @@ void testLuaStateUserdataMetatable(TestSuite& suite) {
 }
 
 void testSelfDispatchOnUserdata(TestSuite& suite) {
-    const char* code = "return obj:ping()";
+    Lua::CharPtr code = "return obj:ping()";
 
     try {
         RuntimeServices services = RuntimeServices::fromSingletons();
@@ -324,7 +325,7 @@ void testSelfDispatchOnUserdata(TestSuite& suite) {
 }
 
 void testTailReturnFromCFunctionKeepsLogicalTop(TestSuite& suite) {
-    const char* code = "return ping()";
+    Lua::CharPtr code = "return ping()";
 
     try {
         RuntimeServices services = RuntimeServices::fromSingletons();
@@ -410,8 +411,8 @@ void testIOLibFileMetatableHooks(TestSuite& suite) {
         ASSERT_EQ(suite, LUA_ERRRUN, status, "__gc without file handle errors");
         ASSERT_TRUE(suite, L->getTop() >= 1 && L->top().isString(), "__gc error is a string");
         if (L->getTop() >= 1 && L->top().isString()) {
-            std::string message = L->top().asString()->c_str();
-            ASSERT_TRUE(suite, message.find("no value") != std::string::npos, "__gc without self reports no value");
+            Lua::Str message = L->top().asString()->c_str();
+            ASSERT_TRUE(suite, message.find("no value") != Lua::Str::npos, "__gc without self reports no value");
         }
     }
 
@@ -446,7 +447,7 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
     const std::filesystem::path path =
         std::filesystem::temp_directory_path() /
         ("lua_cpp_vm_core_iolib_default_" + std::to_string(currentTestProcessId()) + ".txt");
-    const std::string pathText = path.string();
+    const Lua::Str pathText = path.string();
 
     L->getStack().clear();
     L->setAbsoluteTop(0);
@@ -484,7 +485,7 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
     ASSERT_EQ(suite, ret, 1, "io.read(count) returns one value");
     ASSERT_TRUE(suite, L->top().isString(), "io.read(count) returns string");
     if (L->top().isString()) {
-        ASSERT_TRUE(suite, std::string(L->top().asString()->c_str()) == "abc", "io.read(3) reads written prefix");
+        ASSERT_TRUE(suite, Lua::Str(L->top().asString()->c_str()) == "abc", "io.read(3) reads written prefix");
     }
 
     L->getStack().clear();
@@ -509,8 +510,8 @@ void testIOLibDefaultInputOutput(TestSuite& suite) {
 }
 
 void testIOLibFileRegistryIsStateIsolated(TestSuite& suite) {
-    const char* firstPath = "test_vm_core_iolib_state_one.txt";
-    const char* secondPath = "test_vm_core_iolib_state_two.txt";
+    Lua::CharPtr firstPath = "test_vm_core_iolib_state_one.txt";
+    Lua::CharPtr secondPath = "test_vm_core_iolib_state_two.txt";
     std::remove(firstPath);
     std::remove(secondPath);
 
@@ -559,9 +560,9 @@ void testIOLibFileRegistryIsStateIsolated(TestSuite& suite) {
 
 void testIOLibFileRegistryConcurrentOwners(TestSuite& suite) {
     constexpr usize ownerCount = 4;
-    std::array<LuaState*, ownerCount> states{};
-    std::array<Str, ownerCount> paths{};
-    std::array<bool, ownerCount> released{};
+    Lua::Arr<LuaState*, ownerCount> states{};
+    Lua::Arr<Str, ownerCount> paths{};
+    Lua::Arr<bool, ownerCount> released{};
 
     for (usize i = 0; i < ownerCount; ++i) {
         paths[i] = "test_vm_core_iolib_concurrent_" + std::to_string(i) + ".txt";
@@ -577,7 +578,7 @@ void testIOLibFileRegistryConcurrentOwners(TestSuite& suite) {
         }
     }
 
-    std::array<std::thread, ownerCount> workers;
+    Lua::Arr<std::thread, ownerCount> workers;
     for (usize i = 0; i < ownerCount; ++i) {
         workers[i] = std::thread([&, i]() { released[i] = releaseFileHandlesForPath(states[i], paths[i].c_str()); });
     }
@@ -595,7 +596,7 @@ void testIOLibFileRegistryConcurrentOwners(TestSuite& suite) {
 }
 
 void testComparisonExpressionProducesBoolean(TestSuite& suite) {
-    const char* code = "local ok = 1 == 1\nreturn ok";
+    Lua::CharPtr code = "local ok = 1 == 1\nreturn ok";
 
     try {
         Proto* proto = nullptr;
@@ -617,7 +618,7 @@ void testComparisonExpressionProducesBoolean(TestSuite& suite) {
 }
 
 void testLogicalExpressionsProduceRuntimeValues(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local counter = {0}
         local function mark()
             counter[1] = counter[1] + 1
@@ -647,7 +648,7 @@ void testLogicalExpressionsProduceRuntimeValues(TestSuite& suite) {
 
             ASSERT_TRUE(suite, L->at(-6).isString(), "false or 'fallback' returns string");
             if (L->at(-6).isString()) {
-                ASSERT_TRUE(suite, std::string(L->at(-6).asString()->c_str()) == "fallback",
+                ASSERT_TRUE(suite, Lua::Str(L->at(-6).asString()->c_str()) == "fallback",
                             "false or 'fallback' == 'fallback'");
             }
 
@@ -675,7 +676,7 @@ void testLogicalExpressionsProduceRuntimeValues(TestSuite& suite) {
 }
 
 void testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local counter = {0}
         local function mark()
             counter[1] = counter[1] + 1
@@ -720,7 +721,7 @@ void testLogicalShortCircuitEvaluatesRightHandSideOnlyWhenNeeded(TestSuite& suit
 void testRepeatUntilBasic(TestSuite& suite) {
     // 基本 repeat-until 循环
     try {
-        const char* code = R"(
+        Lua::CharPtr code = R"(
             local x = 0
             repeat
                 x = x + 1
@@ -740,7 +741,7 @@ void testRepeatUntilBasic(TestSuite& suite) {
 void testRepeatUntilSingleIteration(TestSuite& suite) {
     // 条件立即为真，只执行一次
     try {
-        const char* code = R"(
+        Lua::CharPtr code = R"(
             local x = 0
             repeat
                 x = x + 10
@@ -760,7 +761,7 @@ void testRepeatUntilSingleIteration(TestSuite& suite) {
 void testRepeatUntilWithBreak(TestSuite& suite) {
     // 含 break 的 repeat-until
     try {
-        const char* code = R"(
+        Lua::CharPtr code = R"(
             local x = 0
             repeat
                 x = x + 1
@@ -781,7 +782,7 @@ void testRepeatUntilWithBreak(TestSuite& suite) {
 void testRepeatUntilComparisonCondition(TestSuite& suite) {
     // 使用各种比较运算符
     try {
-        const char* code = R"(
+        Lua::CharPtr code = R"(
             local a = 1
             repeat
                 a = a * 2
@@ -801,7 +802,7 @@ void testRepeatUntilComparisonCondition(TestSuite& suite) {
 void testRepeatUntilLogicalCondition(TestSuite& suite) {
     // 使用 and/or 逻辑条件
     try {
-        const char* code = R"(
+        Lua::CharPtr code = R"(
             local x = 0
             local y = 10
             repeat
@@ -824,7 +825,7 @@ void testRepeatUntilLogicalCondition(TestSuite& suite) {
 void testRepeatUntilNested(TestSuite& suite) {
     // 嵌套 repeat-until
     try {
-        const char* code = R"(
+        Lua::CharPtr code = R"(
             local sum = 0
             local i = 0
             repeat
@@ -851,7 +852,7 @@ void testRepeatUntilNested(TestSuite& suite) {
 void testRepeatUntilLocalVisibleInCondition(TestSuite& suite) {
     // body 中声明的局部变量在 until 条件中可见
     try {
-        const char* code = R"(
+        Lua::CharPtr code = R"(
             local count = 0
             repeat
                 count = count + 1

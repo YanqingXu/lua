@@ -3,6 +3,7 @@
  * @brief Lua 函数原型字节码打印与差异比较的实现
  */
 
+#include "common/types.hpp"
 #include "bytecode_printer.hpp"
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"
@@ -22,9 +23,9 @@ namespace Lua {
 
 namespace {
 
-std::string escapeString(const char* value) {
-    std::string out;
-    for (const char* p = value ? value : ""; *p; ++p) {
+Str escapeString(CharPtr value) {
+    Str out;
+    for (CharPtr p = value ? value : ""; *p; ++p) {
         switch (*p) {
         case '\\':
             out += "\\\\";
@@ -49,7 +50,7 @@ std::string escapeString(const char* value) {
     return out;
 }
 
-std::string formatValue(const Value& value) {
+Str formatValue(const Value& value) {
     if (value.isNil()) {
         return "nil";
     } else if (value.isBoolean()) {
@@ -73,8 +74,8 @@ std::string formatValue(const Value& value) {
     }
 }
 
-std::string formatConstant(const Proto* proto, i32 index) {
-    std::string prefix = std::format("K[{}]", index);
+Str formatConstant(const Proto* proto, i32 index) {
+    Str prefix = std::format("K[{}]", index);
     if (!proto || index < 0 || static_cast<usize>(index) >= proto->getConstantCount()) {
         return std::format("{} = <out of range>", prefix);
     }
@@ -82,20 +83,20 @@ std::string formatConstant(const Proto* proto, i32 index) {
     return std::format("{} = {}", prefix, formatValue(proto->getConstant(static_cast<usize>(index))));
 }
 
-std::string formatProtoSummary(const Proto* proto) {
+Str formatProtoSummary(const Proto* proto) {
     if (!proto) {
         return "<null>";
     }
 
-    const char* source = proto->getSource() ? proto->getSource()->c_str() : "?";
+    CharPtr source = proto->getSource() ? proto->getSource()->c_str() : "?";
     if (proto->getLineDefined() > 0) {
         return std::format("{}:{}", source, proto->getLineDefined());
     }
     return source;
 }
 
-std::string formatSubProto(const Proto* proto, i32 index) {
-    std::string prefix = std::format("proto[{}]", index);
+Str formatSubProto(const Proto* proto, i32 index) {
+    Str prefix = std::format("proto[{}]", index);
     if (!proto || index < 0 || static_cast<usize>(index) >= proto->getSubProtoCount()) {
         return std::format("{} = <out of range>", prefix);
     }
@@ -103,12 +104,11 @@ std::string formatSubProto(const Proto* proto, i32 index) {
     return std::format("{} = {}", prefix, formatProtoSummary(proto->getSubProto(static_cast<usize>(index))));
 }
 
-std::string indentFor(usize depth) {
-    return std::string(depth * 2, ' ');
+Str indentFor(usize depth) {
+    return Str(depth * 2, ' ');
 }
 
-void addRKComment(std::vector<std::string>& comments, const Proto* proto, const char* name, i32 operand,
-                  OpArgMask mode) {
+void addRKComment(Vec<Str>& comments, const Proto* proto, CharPtr name, i32 operand, OpArgMask mode) {
     if (mode != OpArgMask::OpArgK || !ISK(operand)) {
         return;
     }
@@ -116,7 +116,7 @@ void addRKComment(std::vector<std::string>& comments, const Proto* proto, const 
     comments.push_back(std::format("{}={}", name, formatConstant(proto, INDEXK(operand))));
 }
 
-void printComments(std::ostream& out, const std::vector<std::string>& comments) {
+void printComments(std::ostream& out, const Vec<Str>& comments) {
     if (comments.empty()) {
         return;
     }
@@ -130,7 +130,7 @@ void printComments(std::ostream& out, const std::vector<std::string>& comments) 
     }
 }
 
-void printProtoHeader(const Proto* f, std::ostream& out, std::string_view indent) {
+void printProtoHeader(const Proto* f, std::ostream& out, StrView indent) {
     out << indent << "Proto" << '\n';
     out << indent << "  source: " << (f->getSource() ? f->getSource()->c_str() : "?") << '\n';
     out << indent << "  linedefined: " << f->getLineDefined() << '\n';
@@ -157,10 +157,10 @@ void printProtoHeader(const Proto* f, std::ostream& out, std::string_view indent
     out << '\n';
 }
 
-void printInstruction(const Proto* f, usize pc, Instruction inst, std::ostream& out, std::string_view indent) {
+void printInstruction(const Proto* f, usize pc, Instruction inst, std::ostream& out, StrView indent) {
     const OpCode op = GET_OPCODE(inst);
     const OpcodeMetadata& metadata = opcodeMetadata(op);
-    std::vector<std::string> comments;
+    Vec<Str> comments;
 
     out << indent << std::format("{:04} | line {} | {} | ", pc, f->getLine(pc), metadata.name);
 
@@ -198,7 +198,7 @@ void printInstruction(const Proto* f, usize pc, Instruction inst, std::ostream& 
     out << '\n';
 }
 
-void printInstructions(const Proto* f, std::ostream& out, std::string_view indent) {
+void printInstructions(const Proto* f, std::ostream& out, StrView indent) {
     const auto code = f->getInstructionSpan();
     out << indent << "instructions (" << code.size() << ")" << '\n';
     for (usize pc = 0; pc < code.size(); ++pc) {
@@ -206,22 +206,22 @@ void printInstructions(const Proto* f, std::ostream& out, std::string_view inden
     }
 }
 
-void printConstants(const Proto* f, std::ostream& out, std::string_view indent) {
+void printConstants(const Proto* f, std::ostream& out, StrView indent) {
     out << indent << "constants (" << f->getConstantCount() << ")" << '\n';
     for (usize i = 0; i < f->getConstantCount(); ++i) {
         out << indent << "  " << formatConstant(f, static_cast<i32>(i)) << '\n';
     }
 }
 
-bool containsProto(const std::vector<const Proto*>& protos, const Proto* proto) {
+bool containsProto(const Vec<const Proto*>& protos, const Proto* proto) {
     return std::find(protos.begin(), protos.end(), proto) != protos.end();
 }
 
 void printProtoBytecodeRecursive(const Proto* f, std::ostream& out, bool full, usize depth,
-                                 const std::vector<const Proto*>& ancestry);
+                                 const Vec<const Proto*>& ancestry);
 
-void printChildProtos(const Proto* f, std::ostream& out, usize depth, const std::vector<const Proto*>& ancestry) {
-    const std::string indent = indentFor(depth);
+void printChildProtos(const Proto* f, std::ostream& out, usize depth, const Vec<const Proto*>& ancestry) {
+    const Str indent = indentFor(depth);
     out << indent << "child protos (" << f->getSubProtoCount() << ")" << '\n';
 
     for (usize i = 0; i < f->getSubProtoCount(); ++i) {
@@ -243,8 +243,8 @@ void printChildProtos(const Proto* f, std::ostream& out, usize depth, const std:
 }
 
 void printProtoBytecodeRecursive(const Proto* f, std::ostream& out, bool full, usize depth,
-                                 const std::vector<const Proto*>& ancestry) {
-    const std::string indent = indentFor(depth);
+                                 const Vec<const Proto*>& ancestry) {
+    const Str indent = indentFor(depth);
 
     if (!f) {
         out << indent << "Proto <null>" << '\n';
@@ -256,29 +256,29 @@ void printProtoBytecodeRecursive(const Proto* f, std::ostream& out, bool full, u
     printConstants(f, out, indent);
 
     if (full) {
-        std::vector<const Proto*> nextAncestry = ancestry;
+        Vec<const Proto*> nextAncestry = ancestry;
         nextAncestry.push_back(f);
         printChildProtos(f, out, depth, nextAncestry);
     }
 }
 
-std::string renderProtoBytecode(const Proto* proto, bool full) {
+Str renderProtoBytecode(const Proto* proto, bool full) {
     std::ostringstream rendered;
     printProtoBytecodeRecursive(proto, rendered, full, 0, {});
     return rendered.str();
 }
 
-std::vector<std::string> splitLines(const std::string& text) {
-    std::vector<std::string> lines;
+Vec<Str> splitLines(const Str& text) {
+    Vec<Str> lines;
     usize start = 0;
 
     while (start < text.size()) {
         usize end = text.find('\n', start);
-        if (end == std::string::npos) {
+        if (end == Str::npos) {
             end = text.size();
         }
 
-        std::string line = text.substr(start, end - start);
+        Str line = text.substr(start, end - start);
         if (!line.empty() && line.back() == '\r') {
             line.pop_back();
         }
@@ -293,30 +293,30 @@ std::vector<std::string> splitLines(const std::string& text) {
     return lines;
 }
 
-bool isSourceMetadataLine(std::string_view line) {
+bool isSourceMetadataLine(StrView line) {
     const usize first = line.find_first_not_of(' ');
-    if (first == std::string_view::npos) {
+    if (first == StrView::npos) {
         return false;
     }
 
-    constexpr std::string_view kSourcePrefix = "source: ";
+    constexpr StrView kSourcePrefix = "source: ";
     return line.substr(first).starts_with(kSourcePrefix);
 }
 
-std::vector<std::string> removeDiffNoise(std::vector<std::string> lines) {
-    std::erase_if(lines, [](const std::string& line) { return isSourceMetadataLine(line); });
+Vec<Str> removeDiffNoise(Vec<Str> lines) {
+    std::erase_if(lines, [](const Str& line) { return isSourceMetadataLine(line); });
     return lines;
 }
 
-usize countChangedLines(const std::vector<std::string>& leftLines, const std::vector<std::string>& rightLines) {
+usize countChangedLines(const Vec<Str>& leftLines, const Vec<Str>& rightLines) {
     const usize lineCount = std::max(leftLines.size(), rightLines.size());
     usize changed = 0;
 
     for (usize i = 0; i < lineCount; ++i) {
         const bool hasLeft = i < leftLines.size();
         const bool hasRight = i < rightLines.size();
-        const std::string_view left = hasLeft ? std::string_view(leftLines[i]) : std::string_view();
-        const std::string_view right = hasRight ? std::string_view(rightLines[i]) : std::string_view();
+        const StrView left = hasLeft ? StrView(leftLines[i]) : StrView();
+        const StrView right = hasRight ? StrView(rightLines[i]) : StrView();
         if (!hasLeft || !hasRight || left != right) {
             changed += 1;
         }
@@ -334,13 +334,13 @@ struct CfgBlock {
 struct CfgEdge {
     usize fromBlock = 0;
     i32 targetPc = 0;
-    std::string label;
+    Str label;
 };
 
 struct CfgGraph {
-    std::vector<CfgBlock> blocks;
-    std::vector<CfgEdge> edges;
-    std::vector<i32> pcToBlock;
+    Vec<CfgBlock> blocks;
+    Vec<CfgEdge> edges;
+    Vec<i32> pcToBlock;
 };
 
 struct CfgRenderState {
@@ -363,18 +363,18 @@ i32 jumpTarget(usize pc, Instruction inst) {
     return static_cast<i32>(pc) + 1 + GETARG_sBx(inst);
 }
 
-bool hasCompanionJump(const std::vector<Instruction>& code, usize pc) {
+bool hasCompanionJump(const Vec<Instruction>& code, usize pc) {
     return pc + 1 < code.size() && GET_OPCODE(code[pc + 1]) == OpCode::JMP;
 }
 
-void addLeader(std::vector<bool>& leaders, i32 pc) {
+void addLeader(Vec<bool>& leaders, i32 pc) {
     if (pc >= 0 && static_cast<usize>(pc) < leaders.size()) {
         leaders[static_cast<usize>(pc)] = true;
     }
 }
 
-std::vector<bool> collectCfgLeaders(const std::vector<Instruction>& code) {
-    std::vector<bool> leaders(code.size(), false);
+Vec<bool> collectCfgLeaders(const Vec<Instruction>& code) {
+    Vec<bool> leaders(code.size(), false);
     if (code.empty()) {
         return leaders;
     }
@@ -429,15 +429,15 @@ std::vector<bool> collectCfgLeaders(const std::vector<Instruction>& code) {
     return leaders;
 }
 
-std::vector<CfgBlock> buildCfgBlocks(const std::vector<Instruction>& code, const std::vector<bool>& leaders) {
-    std::vector<usize> leaderPcs;
+Vec<CfgBlock> buildCfgBlocks(const Vec<Instruction>& code, const Vec<bool>& leaders) {
+    Vec<usize> leaderPcs;
     for (usize pc = 0; pc < leaders.size(); ++pc) {
         if (leaders[pc]) {
             leaderPcs.push_back(pc);
         }
     }
 
-    std::vector<CfgBlock> blocks;
+    Vec<CfgBlock> blocks;
     blocks.reserve(leaderPcs.size());
     for (usize i = 0; i < leaderPcs.size(); ++i) {
         const usize start = leaderPcs[i];
@@ -456,8 +456,8 @@ std::vector<CfgBlock> buildCfgBlocks(const std::vector<Instruction>& code, const
     return blocks;
 }
 
-std::vector<i32> buildPcToBlock(const std::vector<Instruction>& code, const std::vector<CfgBlock>& blocks) {
-    std::vector<i32> pcToBlock(code.size(), -1);
+Vec<i32> buildPcToBlock(const Vec<Instruction>& code, const Vec<CfgBlock>& blocks) {
+    Vec<i32> pcToBlock(code.size(), -1);
     for (const CfgBlock& block : blocks) {
         for (usize pc = block.startPc; pc <= block.endPc && pc < pcToBlock.size(); ++pc) {
             pcToBlock[pc] = static_cast<i32>(block.id);
@@ -466,11 +466,11 @@ std::vector<i32> buildPcToBlock(const std::vector<Instruction>& code, const std:
     return pcToBlock;
 }
 
-void addCfgEdge(std::vector<CfgEdge>& edges, usize fromBlock, i32 targetPc, std::string label) {
+void addCfgEdge(Vec<CfgEdge>& edges, usize fromBlock, i32 targetPc, Str label) {
     edges.push_back(CfgEdge{fromBlock, targetPc, std::move(label)});
 }
 
-bool blockEndsWithCompanionJump(const std::vector<Instruction>& code, const CfgBlock& block) {
+bool blockEndsWithCompanionJump(const Vec<Instruction>& code, const CfgBlock& block) {
     if (block.endPc == 0 || block.endPc <= block.startPc || block.endPc >= code.size()) {
         return false;
     }
@@ -478,8 +478,8 @@ bool blockEndsWithCompanionJump(const std::vector<Instruction>& code, const CfgB
     return isCompanionJumpConsumer(GET_OPCODE(code[block.endPc - 1])) && GET_OPCODE(code[block.endPc]) == OpCode::JMP;
 }
 
-std::vector<CfgEdge> buildCfgEdges(const std::vector<Instruction>& code, const std::vector<CfgBlock>& blocks) {
-    std::vector<CfgEdge> edges;
+Vec<CfgEdge> buildCfgEdges(const Vec<Instruction>& code, const Vec<CfgBlock>& blocks) {
+    Vec<CfgEdge> edges;
 
     for (const CfgBlock& block : blocks) {
         if (block.endPc >= code.size()) {
@@ -542,21 +542,21 @@ std::vector<CfgEdge> buildCfgEdges(const std::vector<Instruction>& code, const s
 }
 
 CfgGraph buildCfgGraph(const Proto* proto) {
-    std::vector<Instruction> code;
+    Vec<Instruction> code;
     if (proto) {
         const auto span = proto->getInstructionSpan();
         code.assign(span.begin(), span.end());
     }
 
-    const std::vector<bool> leaders = collectCfgLeaders(code);
-    std::vector<CfgBlock> blocks = buildCfgBlocks(code, leaders);
-    std::vector<i32> pcToBlock = buildPcToBlock(code, blocks);
-    std::vector<CfgEdge> edges = buildCfgEdges(code, blocks);
+    const Vec<bool> leaders = collectCfgLeaders(code);
+    Vec<CfgBlock> blocks = buildCfgBlocks(code, leaders);
+    Vec<i32> pcToBlock = buildPcToBlock(code, blocks);
+    Vec<CfgEdge> edges = buildCfgEdges(code, blocks);
     return CfgGraph{std::move(blocks), std::move(edges), std::move(pcToBlock)};
 }
 
-std::string escapeMermaidLabel(std::string_view value) {
-    std::string escaped;
+Str escapeMermaidLabel(StrView value) {
+    Str escaped;
     escaped.reserve(value.size());
 
     for (char ch : value) {
@@ -581,15 +581,15 @@ std::string escapeMermaidLabel(std::string_view value) {
     return escaped;
 }
 
-std::string cfgNodeId(usize protoId, usize blockId) {
+Str cfgNodeId(usize protoId, usize blockId) {
     return std::format("P{}_B{}", protoId, blockId);
 }
 
-std::string cfgExitNodeId(usize protoId) {
+Str cfgExitNodeId(usize protoId) {
     return std::format("P{}_EXIT", protoId);
 }
 
-std::string cfgBlockPcRange(const CfgBlock& block) {
+Str cfgBlockPcRange(const CfgBlock& block) {
     if (block.startPc == block.endPc) {
         return std::format("pc {}", block.startPc);
     }
@@ -597,25 +597,25 @@ std::string cfgBlockPcRange(const CfgBlock& block) {
     return std::format("pc {}..{}", block.startPc, block.endPc);
 }
 
-std::string cfgBlockOpcodeSummary(const Proto* proto, const CfgBlock& block) {
+Str cfgBlockOpcodeSummary(const Proto* proto, const CfgBlock& block) {
     const auto code = proto->getInstructionSpan();
     StrView first = opcodeMetadata(GET_OPCODE(code[block.startPc])).name;
     StrView last = opcodeMetadata(GET_OPCODE(code[block.endPc])).name;
 
     if (block.startPc == block.endPc) {
-        return std::string(first);
+        return Str(first);
     }
 
     return std::format("{} -> {}", first, last);
 }
 
-std::string cfgBlockLabel(const Proto* proto, const CfgBlock& block) {
+Str cfgBlockLabel(const Proto* proto, const CfgBlock& block) {
     return std::format("B{}\n{}\n{}", block.id, cfgBlockPcRange(block), cfgBlockOpcodeSummary(proto, block));
 }
 
 void printCfgEdge(const CfgGraph& graph, usize protoId, const CfgEdge& edge, std::ostream& out) {
-    const std::string from = cfgNodeId(protoId, edge.fromBlock);
-    std::string to = cfgExitNodeId(protoId);
+    const Str from = cfgNodeId(protoId, edge.fromBlock);
+    Str to = cfgExitNodeId(protoId);
 
     if (edge.targetPc >= 0 && static_cast<usize>(edge.targetPc) < graph.pcToBlock.size()) {
         const i32 blockId = graph.pcToBlock[static_cast<usize>(edge.targetPc)];
@@ -627,7 +627,7 @@ void printCfgEdge(const CfgGraph& graph, usize protoId, const CfgEdge& edge, std
     out << "  " << from << " -->|" << edge.label << "| " << to << '\n';
 }
 
-void printSingleProtoCfg(const Proto* proto, std::ostream& out, usize protoId, std::string_view title) {
+void printSingleProtoCfg(const Proto* proto, std::ostream& out, usize protoId, StrView title) {
     out << std::format("  subgraph P{}[\"{}\"]\n", protoId, escapeMermaidLabel(title));
 
     if (!proto) {
@@ -649,8 +649,8 @@ void printSingleProtoCfg(const Proto* proto, std::ostream& out, usize protoId, s
     }
 }
 
-void printProtoCfgRecursive(const Proto* proto, std::ostream& out, bool full, CfgRenderState& state,
-                            std::string_view title, const std::vector<const Proto*>& ancestry) {
+void printProtoCfgRecursive(const Proto* proto, std::ostream& out, bool full, CfgRenderState& state, StrView title,
+                            const Vec<const Proto*>& ancestry) {
     const usize protoId = state.nextProtoId++;
     printSingleProtoCfg(proto, out, protoId, title);
 
@@ -658,7 +658,7 @@ void printProtoCfgRecursive(const Proto* proto, std::ostream& out, bool full, Cf
         return;
     }
 
-    std::vector<const Proto*> nextAncestry = ancestry;
+    Vec<const Proto*> nextAncestry = ancestry;
     nextAncestry.push_back(proto);
 
     for (usize i = 0; i < proto->getSubProtoCount(); ++i) {
@@ -679,10 +679,10 @@ void printProtoBytecode(const Proto* f, std::ostream& out, bool full) {
     printProtoBytecodeRecursive(f, out, full, 0, {});
 }
 
-void printProtoBytecodeDiff(const Proto* left, const Proto* right, std::ostream& out, bool full,
-                            std::string_view leftLabel, std::string_view rightLabel) {
-    std::vector<std::string> leftLines = removeDiffNoise(splitLines(renderProtoBytecode(left, full)));
-    std::vector<std::string> rightLines = removeDiffNoise(splitLines(renderProtoBytecode(right, full)));
+void printProtoBytecodeDiff(const Proto* left, const Proto* right, std::ostream& out, bool full, StrView leftLabel,
+                            StrView rightLabel) {
+    Vec<Str> leftLines = removeDiffNoise(splitLines(renderProtoBytecode(left, full)));
+    Vec<Str> rightLines = removeDiffNoise(splitLines(renderProtoBytecode(right, full)));
     const usize changed = countChangedLines(leftLines, rightLines);
 
     out << "Bytecode diff" << '\n';
@@ -702,8 +702,8 @@ void printProtoBytecodeDiff(const Proto* left, const Proto* right, std::ostream&
     for (usize i = 0; i < lineCount; ++i) {
         const bool hasLeft = i < leftLines.size();
         const bool hasRight = i < rightLines.size();
-        const std::string_view leftLine = hasLeft ? std::string_view(leftLines[i]) : std::string_view("<missing>");
-        const std::string_view rightLine = hasRight ? std::string_view(rightLines[i]) : std::string_view("<missing>");
+        const StrView leftLine = hasLeft ? StrView(leftLines[i]) : StrView("<missing>");
+        const StrView rightLine = hasRight ? StrView(rightLines[i]) : StrView("<missing>");
 
         if (hasLeft && hasRight && leftLine == rightLine) {
             continue;

@@ -5,6 +5,7 @@
  * 验证解析器通过 AST 工厂创建节点后仍保持正确的所有权和结构。
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "compiler/parser/parser.hpp"
 #include <iostream>
@@ -15,13 +16,13 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Parser AST Allocation";
+constexpr Lua::CharPtr kSuiteName = "Parser AST Allocation";
 
 /**
  * @brief 测试用例 1：基本节点分配功能
  */
 void testBasicMemoryPoolFunctionality(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local x = 42
         local y = "hello"
     )";
@@ -39,7 +40,7 @@ void testBasicMemoryPoolFunctionality(TestSuite& suite) {
         ASSERT_TRUE(suite, block.statements[0] != nullptr, "First statement should exist");
         ASSERT_TRUE(suite, block.statements[1] != nullptr, "Second statement should exist");
     } catch (const std::exception& e) {
-        ASSERT_TRUE(suite, false, std::string("Exception: ") + e.what());
+        ASSERT_TRUE(suite, false, Lua::Str("Exception: ") + e.what());
     }
 }
 
@@ -47,7 +48,7 @@ void testBasicMemoryPoolFunctionality(TestSuite& suite) {
  * @brief 测试用例 2：解析后的 AST 状态
  */
 void testMemoryPoolStateAfterParsing(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local a = 1 + 2 * 3
         local b = {x = 10, y = 20}
         local c = function(n) return n * 2 end
@@ -65,7 +66,7 @@ void testMemoryPoolStateAfterParsing(TestSuite& suite) {
         ASSERT_TRUE(suite, block.statements.size() == 3, "Should have 3 statements");
 
         // 验证所有语句都被正确分配
-        for (size_t i = 0; i < block.statements.size(); ++i) {
+        for (Lua::usize i = 0; i < block.statements.size(); ++i) {
             ASSERT_TRUE(suite, block.statements[i] != nullptr, "Statement should exist");
         }
 
@@ -93,7 +94,7 @@ void testMemoryPoolStateAfterParsing(TestSuite& suite) {
         ASSERT_TRUE(suite, funcExpr != nullptr, "Value should be FunctionExpr");
         ASSERT_TRUE(suite, funcExpr->params.size() == 1, "Function should have 1 param");
     } catch (const std::exception& e) {
-        ASSERT_TRUE(suite, false, std::string("Exception: ") + e.what());
+        ASSERT_TRUE(suite, false, Lua::Str("Exception: ") + e.what());
     }
 }
 
@@ -101,7 +102,7 @@ void testMemoryPoolStateAfterParsing(TestSuite& suite) {
  * @brief 测试用例 3：复杂嵌套结构
  */
 void testComplexNestedStructures(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local result = ((1 + 2) * (3 + 4)) / ((5 - 6) + (7 * 8))
         local nested = {
             a = {b = {c = {d = 1}}},
@@ -142,7 +143,7 @@ void testComplexNestedStructures(TestSuite& suite) {
         ASSERT_TRUE(suite, tableExpr != nullptr, "Value should be TableExpr");
         ASSERT_TRUE(suite, tableExpr->fields.size() == 2, "Table should have 2 fields");
     } catch (const std::exception& e) {
-        ASSERT_TRUE(suite, false, std::string("Exception: ") + e.what());
+        ASSERT_TRUE(suite, false, Lua::Str("Exception: ") + e.what());
     }
 }
 
@@ -150,7 +151,7 @@ void testComplexNestedStructures(TestSuite& suite) {
  * @brief 测试用例 4：节点所有权稳定性
  */
 void testMemoryPoolStatistics(TestSuite& suite) {
-    const char* code = R"(
+    Lua::CharPtr code = R"(
         local x = 1
         local y = 2
         local z = x + y
@@ -172,11 +173,11 @@ void testMemoryPoolStatistics(TestSuite& suite) {
             ASSERT_TRUE(suite, stmt != nullptr, "Statement should exist");
         }
     } catch (const std::exception& e) {
-        ASSERT_TRUE(suite, false, std::string("Exception: ") + e.what());
+        ASSERT_TRUE(suite, false, Lua::Str("Exception: ") + e.what());
     }
 }
 
-}  // namespace
+} // namespace
 
 // =====================================================================
 // 测试注册

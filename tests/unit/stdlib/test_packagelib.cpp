@@ -17,6 +17,7 @@
  * @date 2026-04-10
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 
 #include "compiler/codegen/codegen.hpp"
@@ -49,7 +50,7 @@ using namespace LuaTest;
 
 namespace {
 
-Table* createNativeModuleTable(ScopedGCRoots& roots, LuaState* L, const char* kind, f64 value) {
+Table* createNativeModuleTable(ScopedGCRoots& roots, LuaState* L, Lua::CharPtr kind, f64 value) {
     auto& pool = L->getGlobalState().getStringPool();
 
     Table* table = roots.create<Table>();
@@ -93,7 +94,7 @@ LUA_PACKAGE_TEST_EXPORT int luaopen_pkgroot_child(lua_State* apiState) {
 
 namespace {
 
-constexpr const char* kSuiteName = "Package Library";
+constexpr Lua::CharPtr kSuiteName = "Package Library";
 
 // Helper: open both base library and package library
 void openBaseAndPackage(LuaState* L) {
@@ -107,13 +108,13 @@ void openAllLibs(LuaState* L) {
 }
 
 // Helper: get a table field
-Value getField(LuaState* L, Table* table, const char* key) {
+Value getField(LuaState* L, Table* table, Lua::CharPtr key) {
     GCString* k = L->getGlobalState().getStringPool().intern(key);
     return table->get(Value(k));
 }
 
 // Helper: run a Lua chunk and return success
-bool runLuaChunk(LuaState* L, const char* source, const char* chunkName = "test") {
+bool runLuaChunk(LuaState* L, Lua::CharPtr source, Lua::CharPtr chunkName = "test") {
     try {
         Parser parser(source);
         auto parsed = parser.parse();
@@ -138,7 +139,7 @@ bool runLuaChunk(LuaState* L, const char* source, const char* chunkName = "test"
 }
 
 // Helper: write a Lua file to disk for testing require()
-bool writeLuaFile(const std::string& path, const std::string& content) {
+bool writeLuaFile(const Lua::Str& path, const Lua::Str& content) {
     std::ofstream file(path, std::ios::binary);
     if (!file.is_open())
         return false;
@@ -148,28 +149,28 @@ bool writeLuaFile(const std::string& path, const std::string& content) {
 }
 
 // Helper: delete a file
-void deleteFile(const std::string& path) {
+void deleteFile(const Lua::Str& path) {
     std::remove(path.c_str());
 }
 
-std::string currentExecutablePath() {
+Lua::Str currentExecutablePath() {
 #ifdef _WIN32
     char buffer[MAX_PATH];
     DWORD len = GetModuleFileNameA(nullptr, buffer, static_cast<DWORD>(sizeof(buffer)));
     if (len == 0 || len >= sizeof(buffer)) {
         return "";
     }
-    return std::string(buffer, len);
+    return Lua::Str(buffer, len);
 #elif defined(__APPLE__)
-    uint32_t capacity = 4096;
-    std::vector<char> buffer(static_cast<std::size_t>(capacity) + 1, '\0');
+    Lua::u32 capacity = 4096;
+    Lua::Vec<char> buffer(static_cast<Lua::usize>(capacity) + 1, '\0');
     if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
-        buffer.assign(static_cast<std::size_t>(capacity) + 1, '\0');
+        buffer.assign(static_cast<Lua::usize>(capacity) + 1, '\0');
         if (_NSGetExecutablePath(buffer.data(), &capacity) != 0) {
             return "";
         }
     }
-    return std::string(buffer.data());
+    return Lua::Str(buffer.data());
 #else
     char buffer[4096];
     ssize_t len = readlink("/proc/self/exe", buffer, sizeof(buffer) - 1);
@@ -177,12 +178,12 @@ std::string currentExecutablePath() {
         return "";
     }
     buffer[len] = '\0';
-    return std::string(buffer);
+    return Lua::Str(buffer);
 #endif
 }
 
 bool setPackageTestExecutablePath(LuaState* L) {
-    std::string exePath = currentExecutablePath();
+    Lua::Str exePath = currentExecutablePath();
     if (exePath.empty()) {
         return false;
     }
@@ -252,7 +253,7 @@ void testPackageConfig(TestSuite& suite) {
     Value configVal = getField(L, pkg, "config");
     ASSERT_TRUE(suite, configVal.isString(), "package.config is string");
 
-    std::string config = configVal.asString()->c_str();
+    Lua::Str config = configVal.asString()->c_str();
     // Config should contain path separator info
     ASSERT_TRUE(suite, !config.empty(), "package.config is not empty");
 
@@ -453,8 +454,8 @@ void testRequireFromFile(TestSuite& suite) {
     auto& pool = L->getGlobalState().getStringPool();
 
     // Write a test module file
-    std::string filename = "test_require_mod_tmp.lua";
-    std::string content = "local M = {}\nM.greeting = \"hello from file\"\nreturn M\n";
+    Lua::Str filename = "test_require_mod_tmp.lua";
+    Lua::Str content = "local M = {}\nM.greeting = \"hello from file\"\nreturn M\n";
 
     bool written = writeLuaFile(filename, content);
     ASSERT_TRUE(suite, written, "test module file written");
@@ -478,7 +479,7 @@ void testRequireFromFile(TestSuite& suite) {
             Value greet = getField(L, resultVal.asTable(), "greeting");
             ASSERT_TRUE(suite, greet.isString(), "module has greeting field");
             if (greet.isString()) {
-                std::string s = greet.asString()->c_str();
+                Lua::Str s = greet.asString()->c_str();
                 ASSERT_TRUE(suite, s == "hello from file", "greeting value correct");
             }
         }
@@ -566,7 +567,7 @@ void testPackageLoadlib(TestSuite& suite) {
                 "loadlib returns error message for missing library");
 
     Value missingWhere = L->getGlobal("loadlib_missing_where");
-    ASSERT_TRUE(suite, missingWhere.isString() && std::string(missingWhere.asString()->c_str()) == "open",
+    ASSERT_TRUE(suite, missingWhere.isString() && Lua::Str(missingWhere.asString()->c_str()) == "open",
                 "loadlib reports open failures");
 
     Value symNil = L->getGlobal("loadlib_symbol_nil");
@@ -576,7 +577,7 @@ void testPackageLoadlib(TestSuite& suite) {
     ASSERT_TRUE(suite, symErr.isBoolean() && symErr.asBoolean(), "loadlib returns error message for missing symbol");
 
     Value symWhere = L->getGlobal("loadlib_symbol_where");
-    ASSERT_TRUE(suite, symWhere.isString() && std::string(symWhere.asString()->c_str()) == "init",
+    ASSERT_TRUE(suite, symWhere.isString() && Lua::Str(symWhere.asString()->c_str()) == "init",
                 "loadlib reports symbol lookup failures");
 
     Value starOk = L->getGlobal("loadlib_star_ok");
@@ -589,7 +590,7 @@ void testPackageLoadlib(TestSuite& suite) {
     ASSERT_TRUE(suite, noError.isBoolean() && noError.asBoolean(), "loadlib success does not return error values");
 
     Value kind = L->getGlobal("loadlib_result_kind");
-    ASSERT_TRUE(suite, kind.isString() && std::string(kind.asString()->c_str()) == "loadlib",
+    ASSERT_TRUE(suite, kind.isString() && Lua::Str(kind.asString()->c_str()) == "loadlib",
                 "loadlib returned function can be called");
 
     Value value = L->getGlobal("loadlib_result_value");
@@ -619,7 +620,7 @@ void testRequireFromCLoader(TestSuite& suite) {
     ASSERT_TRUE(suite, ok, "require loads module through C loader");
 
     Value kind = L->getGlobal("cloader_kind");
-    ASSERT_TRUE(suite, kind.isString() && std::string(kind.asString()->c_str()) == "direct",
+    ASSERT_TRUE(suite, kind.isString() && Lua::Str(kind.asString()->c_str()) == "direct",
                 "C loader resolves luaopen_<module>");
 
     Value value = L->getGlobal("cloader_value");
@@ -658,7 +659,7 @@ void testAllInOneCLoader(TestSuite& suite) {
                 "all-in-one loader returns a function for dotted modules");
 
     Value kind = L->getGlobal("allinone_kind");
-    ASSERT_TRUE(suite, kind.isString() && std::string(kind.asString()->c_str()) == "allinone",
+    ASSERT_TRUE(suite, kind.isString() && Lua::Str(kind.asString()->c_str()) == "allinone",
                 "all-in-one loader resolves luaopen_root_child");
 
     Value value = L->getGlobal("allinone_value");
@@ -692,7 +693,7 @@ void testModuleCreation(TestSuite& suite) {
         Value nameVal = getField(L, modTable, "_NAME");
         ASSERT_TRUE(suite, nameVal.isString(), "_NAME field exists");
         if (nameVal.isString()) {
-            ASSERT_TRUE(suite, std::string(nameVal.asString()->c_str()) == "testmod", "_NAME equals module name");
+            ASSERT_TRUE(suite, Lua::Str(nameVal.asString()->c_str()) == "testmod", "_NAME equals module name");
         }
 
         Value mVal = getField(L, modTable, "_M");
@@ -735,7 +736,7 @@ void testModuleSetsCallerEnvironment(TestSuite& suite) {
         Value packageVal = getField(L, modTable, "_PACKAGE");
         ASSERT_TRUE(suite, packageVal.isString(), "_PACKAGE field exists");
         if (packageVal.isString()) {
-            ASSERT_TRUE(suite, std::string(packageVal.asString()->c_str()).empty(),
+            ASSERT_TRUE(suite, Lua::Str(packageVal.asString()->c_str()).empty(),
                         "_PACKAGE is empty for top-level module");
         }
     }
@@ -789,17 +790,17 @@ void testModuleCompoundName(TestSuite& suite) {
         Value packageVal = getField(L, modVal.asTable(), "_PACKAGE");
         ASSERT_TRUE(suite, packageVal.isString(), "compound module _PACKAGE exists");
         if (packageVal.isString()) {
-            ASSERT_TRUE(suite, std::string(packageVal.asString()->c_str()) == "alpha.beta.",
+            ASSERT_TRUE(suite, Lua::Str(packageVal.asString()->c_str()) == "alpha.beta.",
                         "compound module _PACKAGE contains parent prefix");
         }
     }
 
     Value nameVal = L->getGlobal("compoundName");
-    ASSERT_TRUE(suite, nameVal.isString() && std::string(nameVal.asString()->c_str()) == "alpha.beta.gamma",
+    ASSERT_TRUE(suite, nameVal.isString() && Lua::Str(nameVal.asString()->c_str()) == "alpha.beta.gamma",
                 "package.seeall allows module body to publish _NAME through _G");
 
     Value packageVal = L->getGlobal("compoundPackage");
-    ASSERT_TRUE(suite, packageVal.isString() && std::string(packageVal.asString()->c_str()) == "alpha.beta.",
+    ASSERT_TRUE(suite, packageVal.isString() && Lua::Str(packageVal.asString()->c_str()) == "alpha.beta.",
                 "package.seeall allows module body to publish _PACKAGE through _G");
 
     Value canSeeGlobal = L->getGlobal("compoundCanSeeGlobal");
@@ -1003,19 +1004,19 @@ void testPackagePath(TestSuite& suite) {
     Value pathVal = getField(L, pkg, "path");
     ASSERT_TRUE(suite, pathVal.isString(), "package.path is string");
 
-    std::string path = pathVal.asString()->c_str();
+    Lua::Str path = pathVal.asString()->c_str();
     // Path should contain "?" as placeholder
-    ASSERT_TRUE(suite, path.find('?') != std::string::npos, "package.path contains ? placeholder");
+    ASSERT_TRUE(suite, path.find('?') != Lua::Str::npos, "package.path contains ? placeholder");
 
     // Path should contain ".lua"
-    ASSERT_TRUE(suite, path.find(".lua") != std::string::npos, "package.path contains .lua");
+    ASSERT_TRUE(suite, path.find(".lua") != Lua::Str::npos, "package.path contains .lua");
 }
 
 void testRequireMissingErrorMatchesVisiblePaths(TestSuite& suite) {
     LuaStdLibTestContext ctx(openAllLibs);
     LuaState* L = ctx.getState();
 
-    const char* script = R"lua(
+    Lua::CharPtr script = R"lua(
 local fname = "__missing_require_path_probe__"
 local ok, err = pcall(require, fname)
 require_path_error_matches = not ok

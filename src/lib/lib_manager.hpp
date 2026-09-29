@@ -5,6 +5,7 @@
  * @brief Lua 标准库的统一打开与兼容入口
  */
 
+#include "common/types.hpp"
 #include "lib/lib_module.hpp"
 
 namespace Lua {

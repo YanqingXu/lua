@@ -3,6 +3,7 @@
  * @brief VM 调用、返回、C 调用与尾调用辅助函数
  */
 
+#include "common/types.hpp"
 #include "vm/vm_internal.hpp"
 
 #include "common/lua_error.hpp"
@@ -22,7 +23,7 @@ namespace Lua::VM::detail {
 
 namespace {
 
-const char* luaTypeName(const Value& value) {
+CharPtr luaTypeName(const Value& value) {
     switch (value.getType()) {
     case ValueType::Nil:
         return "nil";
@@ -47,7 +48,7 @@ const char* luaTypeName(const Value& value) {
 }
 
 Str formatCallTypeError(const Value& value, const Str& callTargetName) {
-    const char* typeName = luaTypeName(value);
+    CharPtr typeName = luaTypeName(value);
     if (!callTargetName.empty()) {
         return Str("attempt to call ") + callTargetName + " (a " + typeName + " value)";
     }

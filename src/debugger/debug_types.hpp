@@ -171,6 +171,6 @@ struct DebugError {
     bool retryable = false;
 };
 
-template <typename T> using DebugResult = std::expected<T, DebugError>;
+template <typename T> using DebugResult = Expect<T, DebugError>;
 
 } // namespace Lua::Debugger

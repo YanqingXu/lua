@@ -3,6 +3,7 @@
  * @brief 循环与关闭操作码处理器
  */
 
+#include "common/types.hpp"
 #include "vm/vm_handlers/vm_handler_utils.hpp"
 #include "core/gc_string.hpp"
 #include "vm/state/call_info.hpp"
@@ -23,7 +24,7 @@ bool coerceNumber(Value& value) {
         return false;
     }
 
-    const char* text = value.asString()->c_str();
+    CharPtr text = value.asString()->c_str();
     char* end = nullptr;
     f64 number = std::strtod(text, &end);
     if (end == text) {

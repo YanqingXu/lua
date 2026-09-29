@@ -5,6 +5,7 @@
  * @brief 字节码发射所使用的精简函数原型写入边界
  */
 
+#include "common/types.hpp"
 #include "compiler/opcode.hpp"
 #include "core/function.hpp"
 #include "core/string_pool.hpp"

@@ -4,6 +4,7 @@
  */
 
 #include "repl/repl_ctx.hpp"
+#include "common/types.hpp"
 
 #include "repl/repl_sig.hpp"
 
@@ -15,8 +16,8 @@
 namespace Lua::REPL::detail {
 namespace {
 
-constexpr std::string_view kErrorColor = "\x1b[31m";
-constexpr std::string_view kResetColor = "\x1b[0m";
+constexpr StrView kErrorColor = "\x1b[31m";
+constexpr StrView kResetColor = "\x1b[0m";
 
 bool shouldColorizeErrors(ReplContext& context) {
     switch (context.errorColorMode()) {
@@ -34,10 +35,10 @@ bool shouldColorizeErrors(ReplContext& context) {
 
 } // namespace
 
-void ReplContext::setProgramName(const char* name) {
+void ReplContext::setProgramName(CharPtr name) {
     if (name != nullptr && name[0] != '\0') {
-        const char* p = name;
-        const char* lastSep = nullptr;
+        CharPtr p = name;
+        CharPtr lastSep = nullptr;
         while (*p) {
             if (*p == '/' || *p == '\\') {
                 lastSep = p;
@@ -51,7 +52,7 @@ void ReplContext::setProgramName(const char* name) {
     programName_ = DEFAULT_PROGNAME;
 }
 
-const char* ReplContext::programName() const {
+CharPtr ReplContext::programName() const {
     return programName_.c_str();
 }
 
@@ -85,7 +86,7 @@ ReplContext& globalContext() {
     return context;
 }
 
-void writeErrorLine(ReplContext& context, std::ostream& err, std::string_view message) {
+void writeErrorLine(ReplContext& context, std::ostream& err, StrView message) {
     if (shouldColorizeErrors(context)) {
         err << kErrorColor << message << kResetColor << '\n';
         return;
@@ -94,7 +95,7 @@ void writeErrorLine(ReplContext& context, std::ostream& err, std::string_view me
     err << message << '\n';
 }
 
-void reportError(ReplContext& context, std::ostream& err, std::string_view msg, bool showProgName) {
+void reportError(ReplContext& context, std::ostream& err, StrView msg, bool showProgName) {
     if (showProgName && context.programName()[0] != '\0') {
         writeErrorLine(context, err, std::format("{}: {}", context.programName(), msg));
         return;
@@ -103,8 +104,7 @@ void reportError(ReplContext& context, std::ostream& err, std::string_view msg, 
     writeErrorLine(context, err, msg);
 }
 
-void reportError(ReplContext& context, std::ostream& err, std::string_view source, int line, std::string_view msg,
-                 bool showProgName) {
+void reportError(ReplContext& context, std::ostream& err, StrView source, int line, StrView msg, bool showProgName) {
     const Str message = std::format("{}:{}: {}", source, line, msg);
     if (showProgName && context.programName()[0] != '\0') {
         writeErrorLine(context, err, std::format("{}: {}", context.programName(), message));

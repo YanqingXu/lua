@@ -3,6 +3,7 @@
  * @brief 虚拟机追踪输出端状态与调试钩子调度辅助函数
  */
 
+#include "common/types.hpp"
 #include "vm/vm_internal.hpp"
 
 #include "common/features.hpp"
@@ -25,7 +26,7 @@ namespace Lua {
 
 namespace {
 
-const char* sourceName(Proto* proto) {
+CharPtr sourceName(Proto* proto) {
     return proto != nullptr && proto->getSource() != nullptr ? proto->getSource()->c_str() : "?";
 }
 
@@ -34,7 +35,7 @@ Str protoFunctionName(Proto* proto) {
         return "?";
     }
 
-    const char* source = sourceName(proto);
+    CharPtr source = sourceName(proto);
     const i32 lineDefined = proto->getLineDefined();
     if (lineDefined > 0) {
         return std::format("{}:{}", source, lineDefined);
@@ -259,7 +260,7 @@ void emitInstructionTraceDiff(Proto* proto, LuaState* L, usize frameBase, usize 
 
         TraceRegisterChange change;
         change.slot = slot;
-        if (const char* name = proto->getLocalName(slot + 1, static_cast<i32>(instructionPc))) {
+        if (CharPtr name = proto->getLocalName(slot + 1, static_cast<i32>(instructionPc))) {
             change.hasName = true;
             change.name = name;
         }

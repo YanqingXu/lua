@@ -9,6 +9,7 @@
  * @date 2025-12-19
  */
 
+#include "common/types.hpp"
 #include "lib/iolib.hpp"
 #include "lib/lib_registry.hpp"
 #include "lib/lib_manager.hpp"
@@ -39,7 +40,7 @@
 
 namespace Lua {
 
-static i32 checkedIOInteger(LuaState* L, i32 index, const char* message) {
+static i32 checkedIOInteger(LuaState* L, i32 index, CharPtr message) {
     if (!L->isNumber(index)) {
         L->error(message);
     }
@@ -54,8 +55,8 @@ static i32 checkedIOInteger(LuaState* L, i32 index, const char* message) {
 // 常量定义
 // =====================================================================
 
-static constexpr const char* IO_INPUT = "io.input";
-static constexpr const char* IO_OUTPUT = "io.output";
+static constexpr CharPtr IO_INPUT = "io.input";
+static constexpr CharPtr IO_OUTPUT = "io.output";
 static constexpr StrView FILE_HANDLE_METATABLE = "FILE*";
 
 struct FileCloser {
@@ -129,7 +130,7 @@ struct OpenFileHandle {
 };
 
 struct OpenFileRegistry {
-    std::mutex mutex;
+    Mtx mutex;
     Vec<OpenFileHandle> handles;
 };
 
@@ -159,13 +160,13 @@ static void unregisterFileHandle(FileHandleData* handle) noexcept {
 // 辅助函数实现
 // =====================================================================
 
-static std::string errnoMessage(int err) {
+static Str errnoMessage(int err) {
 #ifdef _MSC_VER
     char buf[256] = {};
     strerror_s(buf, sizeof(buf), err);
-    return std::string(buf);
+    return Str(buf);
 #else
-    return std::string(std::strerror(err));
+    return Str(std::strerror(err));
 #endif
 }
 
@@ -176,7 +177,7 @@ struct FileOpenError {
     Str message;
 };
 
-static FILE* rawFopen(const char* filename, const char* mode) {
+static FILE* rawFopen(CharPtr filename, CharPtr mode) {
 #ifdef _MSC_VER
     return _fsopen(filename, mode, _SH_DENYNO);
 #else
@@ -184,7 +185,7 @@ static FILE* rawFopen(const char* filename, const char* mode) {
 #endif
 }
 
-static std::expected<FILE*, FileOpenError> tryFopen(StrView filename, StrView mode) {
+static Expect<FILE*, FileOpenError> tryFopen(StrView filename, StrView mode) {
     Str ownedFilename(filename);
     Str ownedMode(mode);
 
@@ -192,7 +193,7 @@ static std::expected<FILE*, FileOpenError> tryFopen(StrView filename, StrView mo
     FILE* fp = rawFopen(ownedFilename.c_str(), ownedMode.c_str());
     if (fp == nullptr) {
         const int errorCode = errno;
-        return std::unexpected(FileOpenError{
+        return Unexpect<FileOpenError>(FileOpenError{
             ownedFilename,
             ownedMode,
             errorCode,
@@ -220,8 +221,7 @@ static FILE* safeTmpfile() {
  *
  * 成功时推送 true，失败时推送 nil、错误消息、错误码
  */
-static i32 pushResult(LuaState* L, bool success, const Value& successValue = Value(true),
-                      const char* filename = nullptr) {
+static i32 pushResult(LuaState* L, bool success, const Value& successValue = Value(true), CharPtr filename = nullptr) {
     if (success) {
         L->pushValue(successValue);
         return 1;
@@ -230,9 +230,9 @@ static i32 pushResult(LuaState* L, bool success, const Value& successValue = Val
         L->pushNil();
 
         // 构造错误消息
-        std::string msg;
+        Str msg;
         if (filename) {
-            msg = std::string(filename) + ": " + errnoMessage(err);
+            msg = Str(filename) + ": " + errnoMessage(err);
         } else {
             msg = errnoMessage(err);
         }
@@ -247,11 +247,11 @@ static i32 pushResult(LuaState* L, bool success, const Value& successValue = Val
 /**
  * @brief 推送文件错误并抛出异常
  */
-[[noreturn]] static void fileError(LuaState* L, i32 arg, const char* filename) {
+[[noreturn]] static void fileError(LuaState* L, i32 arg, CharPtr filename) {
     (void)arg;
 
     i32 err = errno;
-    std::string msg = std::string(filename) + ": " + errnoMessage(err);
+    Str msg = Str(filename) + ": " + errnoMessage(err);
     L->error(msg.c_str());
 }
 
@@ -391,11 +391,11 @@ static i32 closeFileHandle(FileHandleData* handle) {
     return handle->close();
 }
 
-static bool handlePathMatches(FileHandleData* handle, const char* path) {
+static bool handlePathMatches(FileHandleData* handle, CharPtr path) {
     return handle != nullptr && path != nullptr && !handle->path.empty() && handle->path == path;
 }
 
-bool releaseFileHandlesForPath(LuaState* L, const char* path) {
+bool releaseFileHandlesForPath(LuaState* L, CharPtr path) {
     if (L == nullptr || path == nullptr) {
         return false;
     }
@@ -411,7 +411,7 @@ bool releaseFileHandlesForPath(LuaState* L, const char* path) {
         }
         FileHandleData* handle = entry.handle;
         if (handlePathMatches(handle, path) && handle->get() != nullptr) {
-            registry.handles.erase(registry.handles.begin() + static_cast<std::ptrdiff_t>(i));
+            registry.handles.erase(registry.handles.begin() + static_cast<isize>(i));
             (void)handle->close();
             released = true;
             continue;
@@ -421,7 +421,7 @@ bool releaseFileHandlesForPath(LuaState* L, const char* path) {
     return released;
 }
 
-Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe, const char* path, bool ownsFile) {
+Userdata* createFileHandle(LuaState* L, FILE* fp, bool isPipe, CharPtr path, bool ownsFile) {
     FileHandleData::FilePtr pendingFile(fp, FileCloser{isPipe, ownsFile});
 
     // 创建 userdata
@@ -596,7 +596,7 @@ static bool readNumber(LuaState* L, FILE* fp) {
 
     char* end = nullptr;
     errno = 0;
-    double v = std::strtod(token.c_str(), &end);
+    f64 v = std::strtod(token.c_str(), &end);
     if (end == token.c_str() || *end != '\0') {
         return false;
     }
@@ -620,8 +620,8 @@ i32 io_open(LuaState* L) {
         L->error("io.open: filename must be a string");
     }
 
-    const char* filename = L->toString(1);
-    const char* mode = L->getTop() >= 2 && L->isString(2) ? L->toString(2) : "r";
+    CharPtr filename = L->toString(1);
+    CharPtr mode = L->getTop() >= 2 && L->isString(2) ? L->toString(2) : "r";
 
     // 打开文件
     auto opened = tryFopen(filename, mode);
@@ -696,7 +696,7 @@ i32 io_input(LuaState* L) {
         return 1;
     } else {
         if (L->isString(1)) {
-            const char* filename = L->toString(1);
+            CharPtr filename = L->toString(1);
             auto opened = tryFopen(filename, "r");
             if (!opened) {
                 fileError(L, 1, filename);
@@ -723,7 +723,7 @@ i32 io_output(LuaState* L) {
         return 1;
     } else {
         if (L->isString(1)) {
-            const char* filename = L->toString(1);
+            CharPtr filename = L->toString(1);
             auto opened = tryFopen(filename, "w");
             if (!opened) {
                 fileError(L, 1, filename);
@@ -829,7 +829,7 @@ i32 io_lines(LuaState* L) {
     }
 
     if (L->isString(1)) {
-        const char* filename = L->toString(1);
+        CharPtr filename = L->toString(1);
         auto opened = tryFopen(filename, "r");
         if (!opened) {
             fileError(L, 1, filename);
@@ -865,8 +865,8 @@ i32 io_popen(LuaState* L) {
         L->error("io.popen: command must be a string");
     }
 
-    const char* command = L->toString(1);
-    const char* mode = L->getTop() >= 2 && L->isString(2) ? L->toString(2) : "r";
+    CharPtr command = L->toString(1);
+    CharPtr mode = L->getTop() >= 2 && L->isString(2) ? L->toString(2) : "r";
 
     // 验证模式
     if (std::strcmp(mode, "r") != 0 && std::strcmp(mode, "w") != 0) {
@@ -927,7 +927,7 @@ static i32 f_read_impl(LuaState* L, FILE* fp, i32 firstArg) {
                 success = readChars(L, fp, static_cast<usize>(num));
             } else if (L->isString(i)) {
                 // 读取格式
-                const char* fmt = L->toString(i);
+                CharPtr fmt = L->toString(i);
                 if (std::strcmp(fmt, "*n") == 0 || std::strcmp(fmt, "*number") == 0) {
                     success = readNumber(L, fp);
                 } else if (std::strcmp(fmt, "*a") == 0 || std::strcmp(fmt, "*all") == 0) {
@@ -1054,7 +1054,7 @@ i32 f_seek(LuaState* L) {
     // 获取 whence 参数
     i32 whence = SEEK_CUR; // 默认
     if (L->getTop() >= 2 && L->isString(2)) {
-        const char* w = L->toString(2);
+        CharPtr w = L->toString(2);
         if (std::strcmp(w, "set") == 0) {
             whence = SEEK_SET;
         } else if (std::strcmp(w, "cur") == 0) {
@@ -1094,7 +1094,7 @@ i32 f_setvbuf(LuaState* L) {
         L->error("string expected");
     }
 
-    const char* mode = L->toString(2);
+    CharPtr mode = L->toString(2);
     i32 m;
 
     if (std::strcmp(mode, "no") == 0) {
@@ -1155,7 +1155,7 @@ i32 io_tostring(LuaState* L) {
         return 1;
     }
 
-    std::string str;
+    Str str;
     if (handle->get()) {
         str = std::format("file ({})", static_cast<void*>(handle->get()));
     } else {

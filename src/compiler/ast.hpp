@@ -213,8 +213,8 @@ struct ParenExpr : SourceLocation {
 /**
  * @brief 表达式的variant类型
  */
-using ExprVariant = std::variant<NilExpr, BoolExpr, NumberExpr, StringExpr, VarargExpr, NameExpr, BinaryExpr, UnaryExpr,
-                                 TableExpr, CallExpr, IndexExpr, MemberExpr, FunctionExpr, ParenExpr>;
+using ExprVariant = Var<NilExpr, BoolExpr, NumberExpr, StringExpr, VarargExpr, NameExpr, BinaryExpr, UnaryExpr,
+                        TableExpr, CallExpr, IndexExpr, MemberExpr, FunctionExpr, ParenExpr>;
 
 inline constexpr usize kExprNodeCount = 14;
 static_assert(std::variant_size_v<ExprVariant> == kExprNodeCount,
@@ -360,8 +360,8 @@ struct DoStmt : SourceLocation {
 /**
  * @brief 语句的variant类型
  */
-using StmtVariant = std::variant<EmptyStmt, AssignStmt, LocalStmt, CallStmt, IfStmt, WhileStmt, RepeatStmt, ForNumStmt,
-                                 ForInStmt, FunctionStmt, ReturnStmt, BreakStmt, DoStmt>;
+using StmtVariant = Var<EmptyStmt, AssignStmt, LocalStmt, CallStmt, IfStmt, WhileStmt, RepeatStmt, ForNumStmt,
+                        ForInStmt, FunctionStmt, ReturnStmt, BreakStmt, DoStmt>;
 
 inline constexpr usize kStmtNodeCount = 13;
 static_assert(std::variant_size_v<StmtVariant> == kStmtNodeCount,

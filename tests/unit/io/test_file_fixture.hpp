@@ -11,7 +11,7 @@ namespace LuaTest {
 
 class TemporaryTestFile final {
 public:
-    TemporaryTestFile(const Lua::Str& path, std::string_view content) : path_(path) {
+    TemporaryTestFile(const Lua::Str& path, Lua::StrView content) : path_(path) {
         const std::filesystem::path parent = path_.parent_path();
         if (!parent.empty()) {
             std::error_code error;

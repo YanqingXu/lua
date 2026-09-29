@@ -5,6 +5,7 @@
  * @brief 代码生成器辅助逻辑的名称解析边界
  */
 
+#include "common/types.hpp"
 #include "compiler/codegen/codegen_state.hpp"
 #include "compiler/codegen/codegen_types.hpp"
 #include "compiler/codegen/scope_manager.hpp"

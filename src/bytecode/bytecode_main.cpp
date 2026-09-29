@@ -3,6 +3,7 @@
  * @brief 字节码查看与差异比较命令行工具入口
  */
 
+#include "common/types.hpp"
 #include "compiler/parser/parser.hpp"
 #include "compiler/codegen/codegen.hpp"
 #include "bytecode_printer.hpp"
@@ -21,13 +22,13 @@
 using namespace Lua;
 
 namespace {
-constexpr const char* kToolName = "bytecode_main";
+constexpr Lua::CharPtr kToolName = "bytecode_main";
 
 struct BytecodeToolOptions {
     bool diff = false;
     bool full = false;
     bool cfg = false;
-    std::vector<std::string> scripts;
+    Lua::Vec<Lua::Str> scripts;
 };
 
 void printUsage(std::ostream& err) {
@@ -37,28 +38,28 @@ void printUsage(std::ostream& err) {
     err << std::format("  {} <left.lua> <right.lua> --diff [full|--full]\n", kToolName);
 }
 
-Str usageText() {
+Lua::Str usageText() {
     std::ostringstream out;
     printUsage(out);
     return out.str();
 }
 
-std::unexpected<Str> optionError(Str message) {
+Lua::Unexpect<Lua::Str> optionError(Lua::Str message) {
     if (!message.empty() && message.back() != '\n') {
         message.push_back('\n');
     }
     message += usageText();
-    return std::unexpected(std::move(message));
+    return Lua::Unexpect<Lua::Str>(std::move(message));
 }
 
-std::expected<BytecodeToolOptions, Str> parseOptions(int argc, char** argv) {
+Lua::Expect<BytecodeToolOptions, Lua::Str> parseOptions(int argc, char** argv) {
     if (argc < 2) {
-        return std::unexpected(usageText());
+        return Lua::Unexpect<Lua::Str>(usageText());
     }
 
     BytecodeToolOptions options;
     for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
+        Lua::Str arg = argv[i];
         if (arg == "--diff") {
             options.diff = true;
         } else if (arg == "--cfg") {
@@ -76,7 +77,7 @@ std::expected<BytecodeToolOptions, Str> parseOptions(int argc, char** argv) {
         return optionError("[ERROR] --cfg cannot be combined with --diff");
     }
 
-    const usize expectedScripts = options.diff ? 2 : 1;
+    const Lua::usize expectedScripts = options.diff ? 2 : 1;
     if (options.scripts.size() != expectedScripts) {
         return optionError(std::format(
             "[ERROR] Expected {} script path{} for {} mode, got {}", expectedScripts, expectedScripts == 1 ? "" : "s",
@@ -86,8 +87,8 @@ std::expected<BytecodeToolOptions, Str> parseOptions(int argc, char** argv) {
     return options;
 }
 
-Proto* compileScript(RuntimeServices& services, const std::string& scriptPath) {
-    Str source = readWholeFile(scriptPath);
+Proto* compileScript(RuntimeServices& services, const Lua::Str& scriptPath) {
+    Lua::Str source = readWholeFile(scriptPath);
 
     Parser parser(source, services);
     auto parsed = parser.parse();

@@ -356,7 +356,7 @@ Assert-FileContains "tools/c_style_allowlist.json" @(
 
 Assert-FileContains "src/compiler/codegen/codegen_types.hpp" @(
     "using Variant =",
-    "std::variant<",
+    "Var<",
     "ValueResult\(\) = default",
     "explicit ValueResult\(Variant value\)"
 )
@@ -492,6 +492,10 @@ function Invoke-ClangTidyCompileDefinitionSmokeTest {
         }
 
         $capturedArguments = [System.IO.File]::ReadAllText($capturePath, [System.Text.Encoding]::UTF8)
+        $capturedStandards = @([regex]::Matches($capturedArguments, '(?m)^-std=([^\r\n]+)\r?$'))
+        if ($capturedStandards.Count -ne 1 -or $capturedStandards[0].Groups[1].Value -ne 'c++23') {
+            throw "clang-tidy smoke must receive the project's C++23 language mode: $capturedArguments"
+        }
         if ($capturedArguments -notmatch 'LUA_TEST_BUILD_GIT_SHA=__FILE__') {
             throw "clang-tidy smoke is missing the LUA_TEST_BUILD_GIT_SHA definition: $capturedArguments"
         }
@@ -844,6 +848,47 @@ void* findProbe(bool missing) {
 
         Invoke-PowerShellFile -ScriptPath $guard `
             -Arguments @("-Root", $tempRoot, "-TestScope", "All", "-UpdateBaseline")
+        Invoke-PowerShellFile -ScriptPath $guard `
+            -Arguments @("-Root", $tempRoot, "-TestScope", "Product")
+
+        $aliasProbePath = Join-Path $tempRoot "src\alias_probe.cpp"
+        [System.IO.File]::WriteAllText($aliasProbePath, @"
+const char* const options[] = {"first"};
+const char* const otherOptions[] = {"second"};
+const char* end = "";
+const char* endptr = "";
+const char* endpoint = "";
+const char* const label = "label";
+"@)
+        Invoke-PowerShellFile -ScriptPath $guard `
+            -Arguments @("-Root", $tempRoot, "-TestScope", "All", "-UpdateBaseline")
+
+        [System.IO.File]::WriteAllText($aliasProbePath, @"
+CharPtr const options[] = {"first"};
+const Lua::CharPtr otherOptions[] = {"second"};
+Lua::CharPtr end = "";
+CharPtr endptr = "";
+Lua::CharPtr endpoint = "";
+CharPtr const label = "label";
+"@)
+        $aliasChangeResult = Invoke-PowerShellFileCapture -ScriptPath $guard `
+            -Arguments @("-Root", $tempRoot, "-TestScope", "Product")
+        if ($aliasChangeResult.ExitCode -eq 0) {
+            throw "Type aliases must not bypass C-style position and text validation"
+        }
+
+        Invoke-PowerShellFile -ScriptPath $guard `
+            -Arguments @("-Root", $tempRoot, "-TestScope", "All", "-UpdateBaseline")
+        $aliasBaseline = Get-Content -LiteralPath (Join-Path $tempRoot "tools\c_style_allowlist.json") -Raw |
+            ConvertFrom-Json
+        foreach ($rule in @("const char pointer array", "char pointer parse cursor")) {
+            $aliasEntries = @($aliasBaseline.entries | Where-Object {
+                $_.path -eq "src\alias_probe.cpp" -and $_.rule -eq $rule
+            })
+            if ($aliasEntries.Count -ne 2) {
+                throw "Expected two alias-aware matches for '$rule'; got $($aliasEntries.Count)"
+            }
+        }
         Invoke-PowerShellFile -ScriptPath $guard `
             -Arguments @("-Root", $tempRoot, "-TestScope", "Product")
     } finally {

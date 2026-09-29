@@ -1,3 +1,4 @@
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "common/lua_error.hpp"
 #include "lib/mathlib.hpp"
@@ -17,9 +18,9 @@ using namespace LuaTest;
 
 namespace {
 
-constexpr const char* kSuiteName = "Math Library";
+constexpr Lua::CharPtr kSuiteName = "Math Library";
 
-i32 callMathFunc(LuaState* L, const char* funcName, const std::function<void(LuaState*)>& pushArgs) {
+i32 callMathFunc(LuaState* L, Lua::CharPtr funcName, const Lua::Func<void(LuaState*)>& pushArgs) {
     Value mathTable = L->getGlobal("math");
     if (!mathTable.isTable()) {
         return -1;
@@ -79,40 +80,28 @@ void testMathHyperbolicFunctions(TestSuite& suite) {
     LuaStdLibTestContext ctx(openMathLib);
     LuaState* L = ctx.getState();
 
-    i32 ret = callMathFunc(L, "sinh", [](LuaState* s) {
-        s->pushNumber(0.0);
-    });
+    i32 ret = callMathFunc(L, "sinh", [](LuaState* s) { s->pushNumber(0.0); });
     ASSERT_EQ(suite, ret, 1, "math.sinh returns 1 value");
     ASSERT_TRUE(suite, L->top().isNumber(), "math.sinh returns number");
     ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), 0.0), "math.sinh(0) == 0");
 
-    ret = callMathFunc(L, "cosh", [](LuaState* s) {
-        s->pushNumber(0.0);
-    });
+    ret = callMathFunc(L, "cosh", [](LuaState* s) { s->pushNumber(0.0); });
     ASSERT_EQ(suite, ret, 1, "math.cosh returns 1 value");
     ASSERT_TRUE(suite, L->top().isNumber(), "math.cosh returns number");
     ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), 1.0), "math.cosh(0) == 1");
 
-    ret = callMathFunc(L, "tanh", [](LuaState* s) {
-        s->pushNumber(0.0);
-    });
+    ret = callMathFunc(L, "tanh", [](LuaState* s) { s->pushNumber(0.0); });
     ASSERT_EQ(suite, ret, 1, "math.tanh returns 1 value");
     ASSERT_TRUE(suite, L->top().isNumber(), "math.tanh returns number");
     ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), 0.0), "math.tanh(0) == 0");
 
-    ret = callMathFunc(L, "sinh", [](LuaState* s) {
-        s->pushNumber(1.0);
-    });
+    ret = callMathFunc(L, "sinh", [](LuaState* s) { s->pushNumber(1.0); });
     ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), std::sinh(1.0)), "math.sinh(1) matches std::sinh");
 
-    ret = callMathFunc(L, "cosh", [](LuaState* s) {
-        s->pushNumber(1.0);
-    });
+    ret = callMathFunc(L, "cosh", [](LuaState* s) { s->pushNumber(1.0); });
     ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), std::cosh(1.0)), "math.cosh(1) matches std::cosh");
 
-    ret = callMathFunc(L, "tanh", [](LuaState* s) {
-        s->pushNumber(1.0);
-    });
+    ret = callMathFunc(L, "tanh", [](LuaState* s) { s->pushNumber(1.0); });
     ASSERT_TRUE(suite, nearlyEqual(L->top().asNumber(), std::tanh(1.0)), "math.tanh(1) matches std::tanh");
 }
 
@@ -154,16 +143,12 @@ void testMathArgumentErrorUsesFunctionName(TestSuite& suite) {
     auto& pool = L->getGlobalState().getStringPool();
 
     try {
-        (void)callMathFunc(L, "sin", [&](LuaState* s) {
-            s->pushString(pool.intern("a"));
-        });
+        (void)callMathFunc(L, "sin", [&](LuaState* s) { s->pushString(pool.intern("a")); });
         ASSERT_TRUE(suite, false, "math.sin rejects non-number argument");
     } catch (const LuaError& error) {
-        std::string message = error.what();
-        ASSERT_TRUE(suite, message.find("to 'sin'") != std::string::npos,
-                    "math argument error names bare function");
-        ASSERT_TRUE(suite, message.find("math.sin") == std::string::npos,
-                    "math argument error omits table prefix");
+        Lua::Str message = error.what();
+        ASSERT_TRUE(suite, message.find("to 'sin'") != Lua::Str::npos, "math argument error names bare function");
+        ASSERT_TRUE(suite, message.find("math.sin") == Lua::Str::npos, "math argument error omits table prefix");
     }
 }
 
@@ -172,9 +157,7 @@ void testMathFunctionsAcceptNumericStrings(TestSuite& suite) {
     LuaState* L = ctx.getState();
     auto& pool = L->getGlobalState().getStringPool();
 
-    i32 ret = callMathFunc(L, "sin", [&](LuaState* s) {
-        s->pushString(pool.intern(" 1.5707963267948966 "));
-    });
+    i32 ret = callMathFunc(L, "sin", [&](LuaState* s) { s->pushString(pool.intern(" 1.5707963267948966 ")); });
 
     ASSERT_EQ(suite, ret, 1, "math.sin accepts numeric strings");
     ASSERT_TRUE(suite, L->top().isNumber(), "math.sin numeric string result is number");
@@ -244,7 +227,8 @@ void registerMathLibTests() {
     registry.registerTest(kSuiteName, "mod alias", testMathModAlias);
     registry.registerTest(kSuiteName, "argument error names", testMathArgumentErrorUsesFunctionName);
     registry.registerTest(kSuiteName, "numeric string arguments", testMathFunctionsAcceptNumericStrings);
-    registry.registerTest(kSuiteName, "per-context deterministic random", testMathRandomIsIsolatedAndDeterministicPerContext);
+    registry.registerTest(kSuiteName, "per-context deterministic random",
+                          testMathRandomIsIsolatedAndDeterministicPerContext);
     registry.registerTest(kSuiteName, "integer arguments reject undefined conversions",
                           testMathIntegerArgumentsRejectUndefinedConversions);
 }

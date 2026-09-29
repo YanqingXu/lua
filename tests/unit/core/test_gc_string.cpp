@@ -1,11 +1,12 @@
-﻿/**
+/**
  * @file test_gc_string.cpp
  * @brief GCString和StringPool类单元测试
- * 
+ *
  * @author Lua C++ Project
  * @date 2025-11-14
  */
 
+#include "common/types.hpp"
 #include "../framework/test_framework.hpp"
 #include "core/gc_string.hpp"
 #include "core/string_pool.hpp"
@@ -15,22 +16,22 @@ using namespace LuaTest;
 
 void testGCStringCreation(TestSuite& suite) {
     GCString* str1 = new GCString("Hello, Lua!");
-    
+
     // Test 1: String creation
     ASSERT_TRUE(suite, str1 != nullptr, "String creation");
-    
+
     // Test 2: Get length
     ASSERT_EQ(suite, (usize)11, str1->getLength(), "String length");
-    
+
     // Test 3: Get data
-    ASSERT_TRUE(suite, std::string(str1->getData()) == "Hello, Lua!", "String data");
-    
+    ASSERT_TRUE(suite, Lua::Str(str1->getData()) == "Hello, Lua!", "String data");
+
     // Test 4: c_str method
-    ASSERT_TRUE(suite, std::string(str1->c_str()) == "Hello, Lua!", "c_str method");
-    
+    ASSERT_TRUE(suite, Lua::Str(str1->c_str()) == "Hello, Lua!", "c_str method");
+
     // Test 5: GC type
     ASSERT_EQ(suite, GCObjectType::String, str1->getType(), "GC type");
-    
+
     delete str1;
 }
 
@@ -38,20 +39,20 @@ void testGCStringHash(TestSuite& suite) {
     GCString* str1 = new GCString("Hello, Lua!");
     GCString* str2 = new GCString("Hello, Lua!");
     GCString* str3 = new GCString("Different");
-    
+
     // Test 1: Hash computation
     usize hash1 = str1->getHash();
     ASSERT_TRUE(suite, hash1 != 0, "Hash computation");
-    
+
     // Test 2: Same content should have same hash
     ASSERT_EQ(suite, str1->getHash(), str2->getHash(), "Same hash for same content");
-    
+
     // Test 3: Different content should have different hash
     ASSERT_TRUE(suite, str1->getHash() != str3->getHash(), "Different hash for different content");
-    
+
     // Test 4: Pointer comparison (not equal yet, need StringPool)
     ASSERT_TRUE(suite, str1 != str2, "Different objects before interning");
-    
+
     delete str3;
     delete str2;
     delete str1;
@@ -102,7 +103,7 @@ void testStringPoolStringView(TestSuite& suite) {
     usize initialSize = pool.size();
 
     // Test 1: Intern with string_view
-    std::string_view sv("Test view");
+    Lua::StrView sv("Test view");
     GCString* poolStr4 = pool.intern(sv);
     ASSERT_TRUE(suite, poolStr4 != nullptr, "Intern string_view");
 
@@ -139,11 +140,10 @@ void testStringPoolRemove(TestSuite& suite) {
 
 void registerGCStringTests() {
     auto& registry = TestRegistry::getInstance();
-    
+
     registry.registerTest("GCString", "Creation", testGCStringCreation);
     registry.registerTest("GCString", "Hash", testGCStringHash);
     registry.registerTest("StringPool", "Intern", testStringPoolIntern);
     registry.registerTest("StringPool", "StringView", testStringPoolStringView);
     registry.registerTest("StringPool", "Remove", testStringPoolRemove);
 }
-

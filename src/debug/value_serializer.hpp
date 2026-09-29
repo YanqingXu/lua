@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file value_serializer.hpp
  * @brief Value → JSON 字符串序列化工具
  *
@@ -55,7 +55,7 @@ Str serializeRegisters(const Value* base, i32 maxStack, Proto* proto, i32 pc);
  * @param type 值类型
  * @return 类型名字符串（如 "nil", "number", "string" 等）
  */
-const char* getValueTypeName(ValueType type);
+CharPtr getValueTypeName(ValueType type);
 
 /**
  * @brief 对字符串内容进行 JSON 转义

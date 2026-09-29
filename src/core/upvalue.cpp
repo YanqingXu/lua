@@ -3,6 +3,7 @@
  * @brief 上值类的实现（改进版——使用索引避免悬空指针）
  */
 
+#include "common/types.hpp"
 #include "core/upvalue.hpp"
 #include "vm/state/stack.hpp"
 #include "core/gc_string.hpp"
